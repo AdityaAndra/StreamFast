@@ -354,8 +354,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
               </div>
 
               {/* Middle: Content */}
-              <div ref={episodeListRef} className="flex-grow overflow-y-auto p-2 sm:p-4 bg-neutral-900/50 relative flex flex-col">
-                <div className="flex-grow">
+              <div ref={episodeListRef} className="flex-grow overflow-y-auto p-2 sm:p-4 bg-neutral-900/50 relative">
                   {activeTab === 'episodes' && (
                     <div className="space-y-2 sm:space-y-3 animate-fade-in-fast">
                       {isLoadingSeason && <div className="flex items-center justify-center h-full py-10"><SpinnerIcon className="w-8 h-8 text-netflix-red" /></div>}
@@ -411,65 +410,64 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
                   {!embedLink && activeTab !== 'episodes' && (
                     <div className="text-center p-8 text-neutral-500">Select an episode to view {activeTab} options.</div>
                   )}
-                </div>
-
-                {/* Quick Actions Footer for TV Shows */}
-                {embedLink && (
-                  <div className="mt-8 pt-4 border-t border-neutral-800/70 animate-fade-in-fast">
-                    <h3 className="text-sm font-bold text-neutral-400 mb-3 uppercase tracking-wider">Quick Actions</h3>
-                    <div className="flex items-center space-x-2 mb-3">
-                      <input
-                        type="text"
-                        readOnly
-                        value={embedLink}
-                        className="flex-grow bg-black/50 text-neutral-300 border border-neutral-700 rounded-md py-2 px-3 text-sm"
-                      />
-                      <button
-                        onClick={handleCopy}
-                        className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`}
-                        title={isCopied ? 'Copied!' : 'Copy to clipboard'}
-                      >
-                        <CopyIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <a
-                          href={embedLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={handleOpenAndSave}
-                          className="w-full flex items-center justify-center bg-netflix-red hover:bg-netflix-red-dark text-white font-bold py-2 px-4 rounded-md transition-colors text-center text-sm"
-                        >
-                          <BookmarkIcon className="w-4 h-4 mr-2 flex-shrink-0" />
-                          Open & Save
-                        </a>
-                        <button onClick={handleToggleMyList} className={`w-full flex items-center justify-center font-bold py-2 px-4 rounded-md transition-colors text-center text-sm ${isInMyList ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-neutral-700 hover:bg-neutral-600 text-white'}`}>
-                            {isInMyList ? <CheckStaticIcon className="w-4 h-4 mr-2 flex-shrink-0" /> : <PlusIcon className="w-4 h-4 mr-2 flex-shrink-0" />}
-                            {isInMyList ? 'In My List' : 'Add to List'}
-                        </button>
-                        <a
-                          href={embedLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-full flex items-center justify-center bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 px-4 rounded-md transition-colors text-center text-sm"
-                        >
-                          <ExternalLinkIcon className="w-4 h-4 mr-2 flex-shrink-0" />
-                          Open (No Save)
-                        </a>
-                        {isSaved && (
-                          <button
-                              onClick={handleRemove}
-                              className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
-                              title="Remove from Continue Watching"
-                          >
-                              <TrashIcon className="w-4 h-4 mr-2" />
-                              Remove
-                          </button>
-                        )}
-                    </div>
-                  </div>
-                )}
               </div>
+
+              {/* Quick Actions Footer for TV Shows */}
+              {embedLink && (
+                <div className="flex-shrink-0 p-4 border-t border-neutral-800/70 bg-neutral-900 animate-fade-in-fast">
+                  <h3 className="text-sm font-bold text-neutral-400 mb-3 uppercase tracking-wider">Quick Actions</h3>
+                  <div className="flex items-center space-x-2 mb-3">
+                    <input
+                      type="text"
+                      readOnly
+                      value={embedLink}
+                      className="flex-grow bg-black/50 text-neutral-300 border border-neutral-700 rounded-md py-2 px-3 text-sm"
+                    />
+                    <button
+                      onClick={handleCopy}
+                      className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`}
+                      title={isCopied ? 'Copied!' : 'Copy to clipboard'}
+                    >
+                      <CopyIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <a
+                        href={embedLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={handleOpenAndSave}
+                        className="w-full flex items-center justify-center bg-netflix-red hover:bg-netflix-red-dark text-white font-bold py-2 px-4 rounded-md transition-colors text-center text-sm"
+                      >
+                        <BookmarkIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                        Open & Save
+                      </a>
+                      <button onClick={handleToggleMyList} className={`w-full flex items-center justify-center font-bold py-2 px-4 rounded-md transition-colors text-center text-sm ${isInMyList ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-neutral-700 hover:bg-neutral-600 text-white'}`}>
+                          {isInMyList ? <CheckStaticIcon className="w-4 h-4 mr-2 flex-shrink-0" /> : <PlusIcon className="w-4 h-4 mr-2 flex-shrink-0" />}
+                          {isInMyList ? 'In My List' : 'Add to List'}
+                      </button>
+                      <a
+                        href={embedLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 px-4 rounded-md transition-colors text-center text-sm"
+                      >
+                        <ExternalLinkIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                        Open (No Save)
+                      </a>
+                      {isSaved && (
+                        <button
+                            onClick={handleRemove}
+                            className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
+                            title="Remove from Continue Watching"
+                        >
+                            <TrashIcon className="w-4 h-4 mr-2" />
+                            Remove
+                        </button>
+                      )}
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
