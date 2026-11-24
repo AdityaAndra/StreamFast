@@ -4,7 +4,8 @@ import { getTitleDetails, TitleDetails } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
 import { usePlayer } from '../contexts/PlayerContext';
-import { getTitle, getYear, getMatch, tmdbImage, titlePath } from '../utils/media';
+import { getTitle, getYear, tmdbImage, titlePath } from '../utils/media';
+import { ImdbRating } from '../components/Imdb';
 import { prefetchLogos } from '../utils/artwork';
 import { goBack, navigate } from '../utils/router';
 import EpisodeList from '../components/EpisodeList';
@@ -147,7 +148,6 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
 
   const title = getTitle(item);
   const year = getYear(item);
-  const match = getMatch(item);
   const rating = certification(data);
   const length = lengthText(data);
   const logo = pickLogo(data);
@@ -207,7 +207,7 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
           </div>
 
           <div className="mb-[1.4vw] flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[max(14px,1.1vw)] font-medium text-white text-shadow-netflix max-sm:mb-4 max-sm:justify-center">
-            {match !== null && <span className="font-bold text-netflix-green">{match}% Match</span>}
+            <ImdbRating item={item} size="lg" showVotes />
             {year && <span>{year}</span>}
             {rating && <span className="border border-white/50 px-[0.4em] text-[0.85em] leading-[1.5]">{rating}</span>}
             {length && <span>{length}</span>}
@@ -267,7 +267,7 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
               <div key={`${r.media_type}-${r.id}`}>
                 <ResultCard item={r} />
                 <p className="mt-1.5 flex items-center gap-2 text-[12px] text-netflix-muted">
-                  {getMatch(r) !== null && <span className="font-bold text-netflix-green">{getMatch(r)}% Match</span>}
+                  <ImdbRating item={r} size="sm" />
                   <span>{getYear(r)}</span>
                   <span className="border border-white/30 px-1 text-[10px] leading-4">{r.media_type === 'movie' ? 'Movie' : 'Series'}</span>
                 </p>

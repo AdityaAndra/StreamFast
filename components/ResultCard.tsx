@@ -93,7 +93,6 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
         <>
           <div className="nf-card-shade" />
           <CardLogo item={item} />
-          {isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
           {isTop10(item) && (
             <span className="nf-top10-badge" aria-label="Top 10">
               <small>TOP</small>
@@ -104,6 +103,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
       )}
       {!isLandscape && (failed || !src) && <p className="nf-card-title">{title}</p>}
 
+      {isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
       <span className="nf-card-hover" />
 
       {onRemove && (

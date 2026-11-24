@@ -9,6 +9,7 @@ import { getAmbient } from '../utils/ambient';
 import { getRegion } from '../utils/brands';
 import { navigate } from '../utils/router';
 import { PlayIcon } from './Icons';
+import { ImdbRating, useHasImdb } from './Imdb';
 
 const MAX_SLIDES = 6;
 const SLIDE_MS = 10000;
@@ -62,8 +63,11 @@ const Meta: React.FC<{ item: SearchResult }> = ({ item }) => {
     lengthOf(data),
     certificationOf(data),
   ].filter(Boolean) as string[];
+  const hasImdb = useHasImdb(item);
   return (
     <div className="nf-hero-meta">
+      <ImdbRating item={item} size="md" />
+      {hasImdb && <span className="nf-dot" aria-hidden="true" />}
       {parts.map((p, i) => (
         <React.Fragment key={`${p}-${i}`}>
           {i > 0 && <span className="nf-dot" aria-hidden="true" />}

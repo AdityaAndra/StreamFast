@@ -12,16 +12,16 @@ interface Top10RowProps {
 
 /** Netflix's outlined rank numbers (SVG so the stroke stays crisp at any size). */
 const RankNumber: React.FC<{ n: number }> = ({ n }) => (
-  <svg className="nf-top10-num" viewBox="0 0 120 150" preserveAspectRatio="xMaxYMax meet" aria-hidden="true">
-    <text
-      x="119"
-      y="147"
-      textAnchor="end"
-      fontSize={n === 10 ? 160 : 178}
-      {...(n === 10 ? { textLength: 118, lengthAdjust: 'spacingAndGlyphs' } : {})}
-    >
-      {n}
-    </text>
+  <svg className="nf-top10-num" viewBox="0 0 130 150" preserveAspectRatio="xMinYMax meet" aria-hidden="true">
+    {n === 10 ? (
+      <text x="0" y="147" fontSize="186" letterSpacing="-14">
+        10
+      </text>
+    ) : (
+      <text x="128" y="147" fontSize="186" textAnchor="end">
+        {n}
+      </text>
+    )}
   </svg>
 );
 
