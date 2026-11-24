@@ -475,3 +475,10 @@ html.lenis, html.lenis body { height: auto; }
   .nf-watch-right { position: static; }
   .nf-server-menu { top: calc(100% + 8px); bottom: auto; }
 }
+
+/* The player can't tell us when its controls are showing, so pointing at our part of the
+   bottom bar brings our title / server / episode buttons back. */
+.nf-watch-bottom .nf-watch-right, .nf-watch-bottom .nf-watch-title { pointer-events: auto; }
+.nf-watch-bottom:not(.is-on) button { pointer-events: none; }
+.nf-watch-bottom .nf-watch-right { padding: 10px 8px; margin: -10px -8px; }
+.nf-watch-back { height: calc(var(--vf-icon) + 10px); width: calc(var(--vf-icon) + 10px); padding: 4px; }

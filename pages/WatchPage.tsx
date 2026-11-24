@@ -240,12 +240,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
       {/* always-on back arrow, where VidFast's server button used to be */}
       <button type="button" onClick={back} onMouseMove={wake} className="nf-watch-back" aria-label="Back to browse" title="Back">
-        <ChevronLeftIcon className="h-[70%] w-[70%]" />
+        <ChevronLeftIcon className="h-full w-full" />
       </button>
 
       {/* bottom row, lined up with the player's own controls */}
       <div className={`nf-watch-bottom ${chrome || paused || panel || serverMenu ? 'is-on' : ''}`} onMouseMove={wake}>
-        <p className="nf-watch-title" title={title}>
+        <p className="nf-watch-title" title={title} onMouseEnter={wake}>
           <span className="font-bold">{title}</span>
           {mediaType === 'tv' && (
             <span className="ml-[0.6em] font-normal text-[#d2d2d2]">
@@ -255,7 +255,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           )}
         </p>
 
-        <div className="nf-watch-right">
+        <div className="nf-watch-right" onMouseEnter={wake}>
           {mediaType === 'tv' && next && (
             <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="nf-watch-icon" aria-label="Next episode" title="Next episode">
               <svg viewBox="0 0 24 24" fill="currentColor" className="h-[62%] w-[62%]" aria-hidden="true"><path d="M5 4.5v15l11-7.5L5 4.5z" /><rect x="17" y="4.5" width="2.6" height="15" rx="0.6" /></svg>
