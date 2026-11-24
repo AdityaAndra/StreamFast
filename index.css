@@ -214,10 +214,8 @@ img { -webkit-user-drag: none; }
 .nf-btn-grey { background: rgba(109, 109, 110, 0.7); color: #fff; }
 .nf-btn-grey:hover { background: rgba(109, 109, 110, 0.4); }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
-  .nf-billboard-timer { animation-duration: var(--dur, 10s) !important; }
-}
+/* Motion is intentionally kept on even when the OS asks to reduce it (user preference). */
+
 
 /* ============ Lenis smooth scrolling ============ */
 html.lenis, html.lenis body { height: auto; }
@@ -269,3 +267,9 @@ html.lenis, html.lenis body { height: auto; }
 .nf-input { width: 100%; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 3px; color: #fff; padding: 0.5em 0.85em 0.5em 2.3em; font-size: 14px; line-height: 1.2; transition: border-color 0.15s ease; }
 .nf-input::placeholder { color: #8c8c8c; }
 .nf-input:focus { border-color: #fff; outline: none; }
+
+/* ============ Netflix pill navigation ============ */
+.nf-nav-item { border-radius: 9999px; padding: 0.42em 0.95em; font-size: 15px; color: #e5e5e5; white-space: nowrap; transition: background-color 0.2s ease, color 0.2s ease; }
+.nf-nav-item:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.nf-nav-item.is-active { background: rgba(255, 255, 255, 0.16); color: #fff; font-weight: 700; }
+@media (max-width: 1279px) { .nf-nav-item { font-size: 14px; padding: 0.4em 0.7em; } }

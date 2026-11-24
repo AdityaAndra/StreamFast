@@ -3,16 +3,17 @@ import ProfileMenu from './ProfileMenu';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
 import { loadRecentSearches, clearRecentSearches } from '../utils/recentSearches';
 
-export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'explore' | 'my-list' | 'how-to-use' | 'title' | 'other';
-type NavView = 'home' | 'tv-shows' | 'movies' | 'latest' | 'explore' | 'my-list';
+export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'explore' | 'my-list' | 'languages' | 'how-to-use' | 'title' | 'other';
+type NavView = 'home' | 'movies' | 'tv-shows' | 'explore' | 'latest' | 'my-list' | 'languages';
 
 const NAV_ITEMS: { id: NavView; label: string }[] = [
     { id: 'home', label: 'Home' },
-    { id: 'tv-shows', label: 'TV Shows' },
     { id: 'movies', label: 'Movies' },
+    { id: 'tv-shows', label: 'TV Shows' },
+    { id: 'explore', label: 'Categories' },
     { id: 'latest', label: 'New & Popular' },
-    { id: 'explore', label: 'Explore' },
-    { id: 'my-list', label: 'My List' },
+    { id: 'my-list', label: 'My Content' },
+    { id: 'languages', label: 'Browse by Languages' },
 ];
 
 interface AppHeaderProps {
@@ -175,7 +176,7 @@ const MobileBrowse: React.FC<{ active: NavView | null; onNavigate: (v: NavView) 
         return () => document.removeEventListener('mousedown', onDown);
     }, []);
     return (
-        <div ref={ref} className="relative md:hidden">
+        <div ref={ref} className="relative lg:hidden">
             <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex items-center gap-1 text-sm font-bold text-white">
                 Browse
                 <ChevronDownIcon className={`h-4 w-4 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
@@ -232,13 +233,13 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     }, []);
 
     const active: NavView | null = !isSearching && NAV_ITEMS.some((n) => n.id === view) ? (view as NavView) : null;
-    const solid = scrolled || isSearching || ['my-list', 'how-to-use', 'other'].includes(view);
+    const solid = scrolled || isSearching || ['my-list', 'explore', 'languages', 'how-to-use', 'other'].includes(view);
 
     return (
         <header className="fixed inset-x-0 top-0 z-40">
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-transparent" />
             <div aria-hidden="true" className={`pointer-events-none absolute inset-0 bg-netflix-bg transition-opacity duration-500 ${solid ? 'opacity-100' : 'opacity-0'}`} />
-            <div className="relative flex h-[4.25rem] items-center gap-5 px-[4%] sm:h-[4.9rem] lg:gap-10">
+            <div className="relative flex h-[4.25rem] items-center gap-5 px-[4%] sm:h-[4.9rem] lg:gap-6 xl:gap-9">
                 <button
                     type="button"
                     onClick={() => onNavigate('home')}
@@ -250,16 +251,14 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 </button>
 
                 <nav aria-label="Primary" className="flex-1">
-                    <ul className="hidden items-center gap-5 md:flex lg:gap-[1.3rem]">
+                    <ul className="hidden items-center gap-0.5 lg:flex xl:gap-1">
                         {NAV_ITEMS.map((item) => (
                             <li key={item.id}>
                                 <button
                                     type="button"
                                     onClick={() => onNavigate(item.id)}
                                     aria-current={active === item.id ? 'page' : undefined}
-                                    className={`text-sm transition-colors duration-300 ${
-                                        active === item.id ? 'font-bold text-white' : 'text-netflix-text hover:text-netflix-muted'
-                                    }`}
+                                    className={`nf-nav-item ${active === item.id ? 'is-active' : ''}`}
                                 >
                                     {item.label}
                                 </button>

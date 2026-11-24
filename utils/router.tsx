@@ -16,6 +16,7 @@ export type Route =
   | { name: 'search'; q: string }
   | { name: 'title'; mediaType: 'movie' | 'tv'; id: number; play: boolean }
   | { name: 'explore' }
+  | { name: 'languages'; search: string }
   | { name: 'browse'; search: string }
   | { name: 'brands'; kind: BrandKind }
   | { name: 'company'; key: string; search: string }
@@ -82,10 +83,11 @@ export const parseRoute = (loc: string): Route => {
   if (path === '/movies') return { name: 'movies' };
   if (path === '/tv' || path === '/tv-shows') return { name: 'tv' };
   if (path === '/latest') return { name: 'latest' };
-  if (path === '/my-list') return { name: 'my-list' };
+  if (path === '/my-list' || path === '/my-content') return { name: 'my-list' };
   if (path === '/guide') return { name: 'guide' };
   if (path === '/search') return { name: 'search', q: url.searchParams.get('q') || '' };
-  if (path === '/explore') return { name: 'explore' };
+  if (path === '/explore' || path === '/categories') return { name: 'explore' };
+  if (path === '/languages' || path === '/browse-by-languages') return { name: 'languages', search: url.search };
   if (path === '/browse') return { name: 'browse', search: url.search };
   if (BRAND_LISTS[path]) return { name: 'brands', kind: BRAND_LISTS[path] };
   let b = path.match(/^\/(?:studio|production|company)\/([a-z0-9-]+)/);
