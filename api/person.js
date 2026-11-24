@@ -3,7 +3,7 @@
 
 const WD_RE = /^Q\d+$/;
 const ENDPOINT = 'https://query.wikidata.org/sparql?format=json&query=';
-const UA = 'VidFastLinkGenerator/1.0 (https://vidfast-link-generator.vercel.app)';
+const UA = 'VidFast/1.0 (https://streamfast.vercel.app)';
 
 const sparql = async (q) => {
   const r = await fetch(ENDPOINT + encodeURIComponent(q), { headers: { 'User-Agent': UA, Accept: 'application/sparql-results+json' } });
