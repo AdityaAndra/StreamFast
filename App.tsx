@@ -30,7 +30,7 @@ import type { SearchResult, WatchProgress } from './types';
 import { useAppContext } from './contexts/AppContext';
 import { PlayerContext, PlayerTab } from './contexts/PlayerContext';
 import { useLinkUpdater } from './hooks/useLinkUpdater';
-import { consumeScrollRestore, navigate, Route, useLocationString, useRoute } from './utils/router';
+import { consumeScrollRestore, navigate, Route, useLocationString, useRoute, titleBackground, closeTitleWindow, parseRoute } from './utils/router';
 
 const NAV_PATHS: Record<string, string> = {
   home: '/',
@@ -61,6 +61,14 @@ const App: React.FC = () => {
   const { continueWatchingList, feedbackMessage, exportList, importList, resetData } = useAppContext();
   const route = useRoute();
   const location = useLocationString();
+  // A title opens as a window over the page you came from; that page keeps rendering behind it.
+  const isTitle = route.name === 'title';
+  const bgLocation = isTitle ? titleBackground() : location;
+  const bgRoute = useMemo<Route>(() => {
+    if (!isTitle) return route;
+    const r = parseRoute(bgLocation);
+    return r.name === 'title' || r.name === 'watch' ? { name: 'home' } : r;
+  }, [isTitle, route, bgLocation]);
   const { linkProps, actuallyUpdateFromLink, confirmationState } = useLinkUpdater();
 
   const [player, setPlayer] = useState<{ item: SearchResult; progress?: WatchProgress; tab?: PlayerTab; key: number } | null>(null);
@@ -70,15 +78,15 @@ const App: React.FC = () => {
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const lastBrowsePath = useRef('/');
 
-  const isSearching = route.name === 'search';
-  const searchQuery = isSearching ? route.q : '';
+  const isSearching = bgRoute.name === 'search';
+  const searchQuery = bgRoute.name === 'search' ? bgRoute.q : '';
 
   useEffect(() => {
     initSmoothScroll();
   }, []);
 
   // Freeze the page behind any open dialog.
-  const anyModal = !!player || isThemeModalOpen || isResetModalOpen || confirmationState.isOpen;
+  const anyModal = isTitle || !!player || isThemeModalOpen || isResetModalOpen || confirmationState.isOpen;
   useEffect(() => {
     if (anyModal) pauseScroll();
     else resumeScroll();
@@ -162,7 +170,7 @@ const App: React.FC = () => {
     setPlayer(null);
   };
 
-  const renderPage = () => {
+  const renderPage = (route: Route, location: string) => {
     switch (route.name) {
       case 'home':
         return <HomePage linkProps={linkProps} />;
@@ -179,7 +187,7 @@ const App: React.FC = () => {
       case 'search':
         return <SearchResultsPage query={route.q} />;
       case 'title':
-        return <TitlePage key={`${route.mediaType}-${route.id}`} mediaType={route.mediaType} id={route.id} autoPlay={route.play} />;
+        return null; // titles render as a window over the page behind (see below)
       case 'explore':
         return <ExplorePage />;
       case 'browse':
@@ -209,19 +217,19 @@ const App: React.FC = () => {
 
   const isWatch = route.name === 'watch';
   const pageKey =
-    route.name === 'watch'
-      ? `watch-${route.mediaType}-${route.id}`
-      : route.name === 'title'
-      ? `title-${route.mediaType}-${route.id}`
-      : route.name === 'company'
-        ? `company-${route.key}`
-        : route.name === 'provider'
-          ? `provider-${route.id}`
-          : route.name === 'franchise' || route.name === 'person'
-            ? `${route.name}-${route.id}`
-            : route.name === 'brands'
-              ? `brands-${route.kind}`
-              : route.name;
+    bgRoute.name === 'watch'
+      ? `watch-${bgRoute.mediaType}-${bgRoute.id}`
+      : bgRoute.name === 'title'
+      ? `title-${bgRoute.mediaType}-${bgRoute.id}`
+      : bgRoute.name === 'company'
+        ? `company-${bgRoute.key}`
+        : bgRoute.name === 'provider'
+          ? `provider-${bgRoute.id}`
+          : bgRoute.name === 'franchise' || bgRoute.name === 'person'
+            ? `${bgRoute.name}-${bgRoute.id}`
+            : bgRoute.name === 'brands'
+              ? `brands-${bgRoute.kind}`
+              : bgRoute.name;
 
   return (
     <PlayerContext.Provider value={playerApi}>
@@ -236,7 +244,7 @@ const App: React.FC = () => {
 
           {!isWatch && (
           <AppHeader
-            view={viewOf(route)}
+            view={viewOf(bgRoute)}
             isSearching={isSearching}
             searchQuery={searchQuery}
             onSearchChange={handleSearchChange}
@@ -250,8 +258,10 @@ const App: React.FC = () => {
           )}
 
           <main id="main" key={pageKey} className={isWatch ? '' : 'page-in min-h-[70vh] pb-6'}>
-            {renderPage()}
+            {renderPage(bgRoute, bgLocation)}
           </main>
+
+          {route.name === 'title' && <TitlePage mediaType={route.mediaType} id={route.id} autoPlay={route.play} onClose={closeTitleWindow} />}
 
           {!isWatch && <Footer onOpenGuide={() => navigate('/guide')} onThemeSelect={() => setIsThemeModalOpen(true)} onExport={exportList} onNavigate={handleNavigate as any} />}
 
@@ -277,7 +287,7 @@ const App: React.FC = () => {
           <ResetConfirmationModal isOpen={isResetModalOpen} onConfirm={handleConfirmReset} onCancel={() => setIsResetModalOpen(false)} />
           <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
 
-          {showScrollToTop && !player && !isWatch && <ScrollToTopButton onClick={() => scrollToY(0, true)} />}
+          {showScrollToTop && !player && !isWatch && !isTitle && <ScrollToTopButton onClick={() => scrollToY(0, true)} />}
           <Toast message={feedbackMessage} />
         </div>
       </HoverPreviewProvider>

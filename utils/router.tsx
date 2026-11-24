@@ -44,6 +44,8 @@ window.addEventListener('popstate', (e) => {
   emit();
 });
 
+const isTitleLoc = (loc: string) => /^\/(movie|tv)\/\d+/.test(new URL(loc, window.location.origin).pathname);
+
 export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boolean } = {}) => {
   if (to === currentLocation()) {
     if (!opts.keepScroll) scrollToY(0);
@@ -51,12 +53,38 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
   }
   // Remember where we were so "Back" lands in the same spot.
   window.history.replaceState({ ...(window.history.state || {}), scrollY: window.scrollY }, '');
-  const idx = Number(window.history.state?.idx || 0);
-  if (opts.replace) window.history.replaceState({ scrollY: 0, idx }, '', to);
-  else window.history.pushState({ scrollY: 0, idx: idx + 1 }, '', to);
+  const st = window.history.state || {};
+  const idx = Number(st.idx || 0);
+  const nextIdx = opts.replace ? idx : idx + 1;
+  let extra: Record<string, unknown> = {};
+  let keepScroll = opts.keepScroll;
+  // Titles open as a window over the page you were on (like Netflix): remember that page.
+  if (isTitleLoc(to)) {
+    keepScroll = true;
+    extra = isTitleLoc(currentLocation())
+      ? { bg: typeof st.bg === 'string' ? st.bg : '/', tStart: typeof st.tStart === 'number' ? st.tStart : idx }
+      : { bg: currentLocation(), tStart: nextIdx };
+  }
+  if (opts.replace) window.history.replaceState({ scrollY: 0, idx, ...extra }, '', to);
+  else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
   pendingRestoreY = null;
   emit();
-  if (!opts.keepScroll) scrollToY(0);
+  if (!keepScroll) scrollToY(0);
+};
+
+/** The page shown behind the title window (defaults to Home on a direct visit). */
+export const titleBackground = (): string => {
+  const bg = window.history.state?.bg;
+  return typeof bg === 'string' && !isTitleLoc(bg) ? bg : '/';
+};
+
+/** Close the title window: go back past every title opened from it, to the page behind. */
+export const closeTitleWindow = () => {
+  const st = window.history.state || {};
+  const idx = Number(st.idx || 0);
+  const tStart = typeof st.tStart === 'number' ? st.tStart : 0;
+  if (tStart > 0 && idx >= tStart) window.history.go(-(idx - tStart + 1));
+  else navigate(titleBackground(), { replace: true, keepScroll: true });
 };
 
 export const goBack = (fallback = '/') => {

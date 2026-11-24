@@ -218,16 +218,13 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
       <button
         type="button"
         onClick={play}
-        className="group/pv relative block aspect-video w-full cursor-pointer overflow-hidden bg-[#232323]"
+        className="relative block aspect-video w-full cursor-pointer overflow-hidden bg-[#232323]"
         aria-label={cw ? `Resume ${title}` : `Play ${title}`}
         title={cw ? 'Resume' : 'Play'}
       >
         {backdrop && <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         <span className="nf-card-shade" />
         <CardLogo item={item} />
-        <span className="pointer-events-none absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full border-2 border-white/90 bg-black/45 text-white opacity-0 transition duration-200 group-hover/pv:opacity-100">
-          <PlayIcon className="ml-[3px] h-5 w-5" />
-        </span>
         {percent !== null && (
           <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-[#4d4d4d]/80">
             <span className="block h-full bg-netflix-red" style={{ width: `${percent}%` }} />
