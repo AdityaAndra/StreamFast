@@ -437,7 +437,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
             </button>
             {serverMenu && (
               <div role="menu" className="vf-menu" aria-label="Choose server">
-                {[{ name: '', badge: '', details: 'Picks the best server for you' }, ...SERVER_INFO].map((x) => {
+                {[{ name: '', badge: '', details: 'Best available server' }, ...SERVER_INFO].map((x) => {
                   const on = server === x.name;
                   return (
                     <div
