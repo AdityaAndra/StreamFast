@@ -2,7 +2,6 @@ import React from 'react';
 import type { SearchResult } from '../types';
 import ResultCard from './ResultCard';
 import { RowShell } from './ContentCarousel';
-import { usePerRow } from '../utils/artwork';
 
 interface Top10RowProps {
   title: string;
@@ -10,28 +9,40 @@ interface Top10RowProps {
   onSelect?: (item: SearchResult) => void;
 }
 
-/** Netflix's outlined rank numbers (SVG so the stroke stays crisp at any size). */
-const RankNumber: React.FC<{ n: number }> = ({ n }) => (
-  <svg className="nf-top10-num" viewBox="0 0 130 150" preserveAspectRatio="xMinYMax meet" aria-hidden="true">
-    {n === 10 ? (
-      <text x="0" y="147" fontSize="186" letterSpacing="-14">
-        10
-      </text>
-    ) : (
-      <text x="128" y="147" fontSize="186" textAnchor="end">
+/** Rank numbers get dimmer down the list (Netflix: #1 brightest). */
+const rankOpacity = (n: number) => Math.max(0.3, 0.55 - n * 0.05);
+
+/** Outlined rank number that fades out toward the poster. Our own SVG (text glyph + gradient stroke). */
+const RankNumber: React.FC<{ n: number }> = ({ n }) => {
+  const id = `vf-rank-fade-${n}`;
+  return (
+    <svg className="nf-top10-num" viewBox="0 0 100 143" preserveAspectRatio="xMidYMax meet" aria-hidden="true" style={{ opacity: rankOpacity(n) }}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="0" gradientUnits="objectBoundingBox">
+          <stop offset="0.55" stopColor="#fff" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <text
+        x={n === 10 ? 2 : 98}
+        y="139"
+        textAnchor={n === 10 ? 'start' : 'end'}
+        fontSize={n === 10 ? 150 : 176}
+        letterSpacing={n === 10 ? -12 : 0}
+        stroke={`url(#${id})`}
+      >
         {n}
       </text>
-    )}
-  </svg>
-);
+    </svg>
+  );
+};
 
 const Top10Row: React.FC<Top10RowProps> = ({ title, items }) => {
-  const perRow = usePerRow();
   const top = (items || []).filter((i) => i.poster_path).slice(0, 10);
   if (top.length === 0) return null;
 
   return (
-    <RowShell title={title} itemCount={top.length} perRow={Math.max(2, perRow - 1)}>
+    <RowShell title={title} itemCount={top.length}>
       {top.map((item, index) => (
         <div key={`${item.media_type}-${item.id}`} className="nf-item">
           <div className="nf-top10-item">

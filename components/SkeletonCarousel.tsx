@@ -4,14 +4,14 @@ import { usePerRow } from '../utils/artwork';
 /** Netflix-style loading row: title bar + grey boxes pulsing left to right. */
 const SkeletonCarousel: React.FC<{ variant?: 'landscape' | 'top10' }> = ({ variant = 'landscape' }) => {
   const perRow = usePerRow();
-  const count = variant === 'top10' ? Math.max(2, perRow - 1) + 1 : perRow + 1;
+  const count = perRow + 1;
   return (
     <div className="nf-row" aria-hidden="true" style={{ contentVisibility: 'visible' }}>
       <div className="nf-row-header">
         <div className="nf-skel h-[max(15px,1.4vw)] w-[clamp(140px,16vw,300px)]" />
       </div>
       <div className="nf-slider overflow-hidden">
-        <div className="nf-track" style={{ ['--per-row' as any]: variant === 'top10' ? Math.max(2, perRow - 1) : perRow }}>
+        <div className="nf-track" style={{ ['--per-row' as any]: perRow }}>
           {Array.from({ length: count }).map((_, i) => (
             <div key={i} className="nf-item">
               {variant === 'top10' ? (
