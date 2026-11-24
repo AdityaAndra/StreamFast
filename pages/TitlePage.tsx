@@ -349,7 +349,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
   const curEpisode = curSeason ? seasonData.data?.episodes?.find((e) => e.episode_number === saved?.progress.episode) : undefined;
 
   useEffect(() => {
-    if (item) document.title = `${getTitle(item)} — VidFast`;
+    if (item) document.title = `${getTitle(item)} — StreamFast`;
   }, [item]);
   useEffect(() => {
     if (recs.length) prefetchLogos(recs);

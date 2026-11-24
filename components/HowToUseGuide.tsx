@@ -81,7 +81,7 @@ const HowToUseGuide: React.FC<HowToUseGuideProps> = ({ onGoBack, isClosing }) =>
                 </h3>
                 <div className="ml-0 sm:ml-9 text-neutral-300 space-y-2">
                    <p>
-                        The "Add or Update from Link" tool on the homepage is powerful. Paste any VidFast movie or episode link here.
+                        The "Update from Link" box in the Get Link window is powerful. Paste any VidFast movie or episode link there.
                    </p>
                    <ul className="list-disc list-inside pl-2 space-y-1">
                        <li>If it's an item already in your list, it will update your progress (e.g., to the new episode number).</li>

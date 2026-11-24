@@ -120,7 +120,7 @@ const App: React.FC = () => {
       const titles: Partial<Record<Route['name'], string>> = {
         home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse',
       };
-      document.title = `${titles[route.name] || 'VidFast'} — VidFast`;
+      document.title = `${titles[route.name] || 'StreamFast'} — StreamFast`;
     }
   }, [route.name]);
 

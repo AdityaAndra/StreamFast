@@ -6,42 +6,62 @@ import { getTitle, tmdbImage, titlePath } from '../utils/media';
 import { Link } from '../utils/router';
 import { BellIcon } from './Icons';
 
-/** Premium VidFast wordmark: condensed heavy letters, deep red gradient, top sheen and a soft glow. */
-export const VidFastLogo: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg viewBox="0 0 150 40" className={`vf-logo ${className}`} role="img" aria-label="VidFast">
+/** StreamFast logo: a sliced red play mark with motion trails, and a two-weight wordmark
+ *  (light STREAM, heavy red FAST with a top sheen). Text uses the site's Inter font. */
+export const StreamFastLogo: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <svg viewBox="-4 0 218 40" className={`sf-logo sf-logo ${className}`} role="img" aria-label="StreamFast">
     <defs>
-      <linearGradient id="vf-red" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#ff3341" />
-        <stop offset="0.52" stopColor="#e50914" />
-        <stop offset="1" stopColor="#97040c" />
+      <linearGradient id="sf-red" x1="0" y1="0" x2="0.35" y2="1">
+        <stop offset="0" stopColor="#ff3b47" />
+        <stop offset="0.55" stopColor="#e50914" />
+        <stop offset="1" stopColor="#8e050c" />
       </linearGradient>
-      <linearGradient id="vf-sheen" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#fff" stopOpacity="0.5" />
-        <stop offset="0.42" stopColor="#fff" stopOpacity="0.08" />
+      <linearGradient id="sf-sheen" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#fff" stopOpacity="0.55" />
+        <stop offset="0.45" stopColor="#fff" stopOpacity="0.06" />
         <stop offset="0.5" stopColor="#fff" stopOpacity="0" />
       </linearGradient>
+      <linearGradient id="sf-trail" x1="1" y1="0" x2="0" y2="0">
+        <stop offset="0" stopColor="#e50914" />
+        <stop offset="1" stopColor="#e50914" stopOpacity="0" />
+      </linearGradient>
+      <mask id="sf-cut">
+        <rect x="-4" width="44" height="40" fill="#fff" />
+        <rect x="-4" y="14.4" width="44" height="1.8" fill="#000" />
+        <rect x="-4" y="23.8" width="44" height="1.8" fill="#000" />
+      </mask>
     </defs>
-    <g style={{ fontFamily: '"Inter Variable", Inter, "Arial Black", Arial, sans-serif', fontWeight: 900 }}>
-      <text x="0.5" y="34.5" fontSize="41" textLength="149" lengthAdjust="spacingAndGlyphs" fill="url(#vf-red)">
-        VIDFAST
+    <g mask="url(#sf-cut)">
+      <path d="M11 7.5 L31.5 20 L11 32.5 Z" fill="url(#sf-red)" stroke="url(#sf-red)" strokeWidth="3.2" strokeLinejoin="round" />
+      <path d="M11 7.5 L31.5 20 L11 32.5 Z" fill="url(#sf-sheen)" />
+    </g>
+    <rect x="1" y="9.6" width="7.5" height="2.8" rx="1.4" fill="url(#sf-trail)" opacity="0.7" />
+    <rect x="-3.5" y="18.6" width="12" height="2.8" rx="1.4" fill="url(#sf-trail)" />
+    <rect x="1" y="27.6" width="7.5" height="2.8" rx="1.4" fill="url(#sf-trail)" opacity="0.7" />
+    <g style={{ fontFamily: '"Inter Variable", Inter, Arial, sans-serif' }}>
+      <text x="42" y="29" fontSize="24" fontWeight="300" fill="#f5f5f1" textLength="103" lengthAdjust="spacing" letterSpacing="1.6">
+        STREAM
       </text>
-      <text x="0.5" y="34.5" fontSize="41" textLength="149" lengthAdjust="spacingAndGlyphs" fill="url(#vf-sheen)" aria-hidden="true">
-        VIDFAST
+      <text x="146" y="29" fontSize="24" fontWeight="800" fill="url(#sf-red)" textLength="65" lengthAdjust="spacing">
+        FAST
+      </text>
+      <text x="146" y="29" fontSize="24" fontWeight="800" fill="url(#sf-sheen)" textLength="65" lengthAdjust="spacing" aria-hidden="true">
+        FAST
       </text>
     </g>
   </svg>
 );
 
-/** Profile avatar (rounded square with a smile, in VidFast red). */
+/** Profile avatar (rounded square with a smile, in StreamFast red). */
 export const Avatar: React.FC<{ size?: number }> = ({ size = 32 }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="flex-shrink-0">
     <defs>
-      <linearGradient id="vf-av" x1="0" y1="0" x2="1" y2="1">
+      <linearGradient id="sf-av" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stopColor="#ff4652" />
         <stop offset="1" stopColor="#8f050d" />
       </linearGradient>
     </defs>
-    <rect width="32" height="32" rx="6" fill="url(#vf-av)" />
+    <rect width="32" height="32" rx="6" fill="url(#sf-av)" />
     <rect width="32" height="16" rx="6" fill="#fff" fillOpacity="0.08" />
     <circle cx="11" cy="12.5" r="2.2" fill="#fff" />
     <circle cx="21" cy="12.5" r="2.2" fill="#fff" />
@@ -49,7 +69,7 @@ export const Avatar: React.FC<{ size?: number }> = ({ size = 32 }) => (
   </svg>
 );
 
-const SEEN_KEY = 'vf_bell_seen';
+const SEEN_KEY = 'sf_bell_seen';
 
 const interleave = (a: SearchResult[], b: SearchResult[]) => {
   const out: SearchResult[] = [];

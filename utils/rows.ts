@@ -114,7 +114,7 @@ export const TV_ROWS: RowDef[] = [
 ];
 
 export const LATEST_ROWS: RowDef[] = [
-  { id: 'l-new', title: 'New on VidFast', load: () => tmdb.getNowPlayingMovies(), viewAll: browse({ type: 'movie', list: 'new' }) },
+  { id: 'l-new', title: 'New on StreamFast', load: () => tmdb.getNowPlayingMovies(), viewAll: browse({ type: 'movie', list: 'new' }) },
   { id: 'l-top10-tv', title: 'Top 10 TV Shows Today', kind: 'top10', load: () => tmdb.getTrendingTv('day') },
   { id: 'l-top10-movies', title: 'Top 10 Movies Today', kind: 'top10', load: () => tmdb.getTrendingMovies('day') },
   { id: 'l-episodes', title: 'New Episodes This Week', load: () => tmdb.getOnTheAirTvShows(), viewAll: browse({ type: 'tv', list: 'on_the_air' }) },
