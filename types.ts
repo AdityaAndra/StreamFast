@@ -5,6 +5,8 @@ export interface BaseSearchResult {
   overview: string;
   popularity: number;
   backdrop_path: string | null;
+  vote_average?: number;
+  genre_ids?: number[];
 }
 
 export interface MovieSearchResult extends BaseSearchResult {

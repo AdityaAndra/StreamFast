@@ -1,13 +1,16 @@
 import React from 'react';
 import SkeletonCard from './SkeletonCard';
+import { LANDSCAPE_ITEM_CLASS } from './ContentCarousel';
 
 const SkeletonCarousel: React.FC = () => {
   return (
-    <div className="mb-8">
-      <div className="h-8 bg-neutral-800 rounded w-1/4 mb-4 animate-pulse"></div>
-      <div className="flex overflow-hidden space-x-6 pb-4">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="w-40 sm:w-48 md:w-52 flex-shrink-0">
+    <div aria-hidden="true">
+      <div className="mb-2 px-[4%]">
+        <div className="h-5 w-40 rounded shimmer sm:h-6 sm:w-56" />
+      </div>
+      <div className="flex gap-1.5 overflow-hidden px-[4%] py-1 sm:gap-2">
+        {Array.from({ length: 7 }).map((_, index) => (
+          <div key={index} className={LANDSCAPE_ITEM_CLASS}>
             <SkeletonCard />
           </div>
         ))}
