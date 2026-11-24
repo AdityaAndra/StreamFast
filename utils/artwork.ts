@@ -114,7 +114,7 @@ export function useImdb(item: Pick<SearchResult, 'id' | 'media_type'> | null | u
 
 const computePerRow = () => {
   const w = window.innerWidth;
-  return w >= 1400 ? 6 : w >= 1100 ? 5 : w >= 800 ? 4 : w >= 500 ? 3 : 2;
+  return w >= 1800 ? 6 : w >= 1100 ? 5 : w >= 800 ? 4 : w >= 500 ? 3 : 2;
 };
 let perRow = computePerRow();
 const perRowSubs = new Set<() => void>();
