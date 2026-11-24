@@ -69,7 +69,7 @@ const App: React.FC = () => {
     const r = parseRoute(bgLocation);
     return r.name === 'title' || r.name === 'watch' ? { name: 'home' } : r;
   }, [isTitle, route, bgLocation]);
-  const { linkProps, actuallyUpdateFromLink, confirmationState } = useLinkUpdater();
+  const { actuallyUpdateFromLink, confirmationState } = useLinkUpdater();
 
   const [player, setPlayer] = useState<{ item: SearchResult; progress?: WatchProgress; tab?: PlayerTab; key: number } | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -173,7 +173,7 @@ const App: React.FC = () => {
   const renderPage = (route: Route, location: string) => {
     switch (route.name) {
       case 'home':
-        return <HomePage linkProps={linkProps} />;
+        return <HomePage />;
       case 'movies':
         return <MoviesPage />;
       case 'tv':
