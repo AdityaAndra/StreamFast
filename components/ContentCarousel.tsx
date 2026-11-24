@@ -1,93 +1,163 @@
-
-import React, { useRef, useState, useLayoutEffect } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import type { SearchResult } from '../types';
 import ResultCard from './ResultCard';
+import SkeletonCarousel from './SkeletonCarousel';
+import Top10Row from './Top10Row';
 import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
+import { CAN_HOVER, prefetchLogos, setTop10, usePerRow } from '../utils/artwork';
+import { peekCache, useCachedData } from '../utils/useCachedData';
+import type { RowDef } from '../utils/rows';
+import { Link } from '../utils/router';
+
+interface RowShellProps {
+  title: ReactNode;
+  itemCount: number;
+  /** Override cards per page (Top 10 shows fewer, bigger items). */
+  perRow?: number;
+  actions?: ReactNode;
+  /** "View all" link (Netflix "Explore All"). */
+  viewAll?: string;
+  children: ReactNode;
+}
+
+/**
+ * Netflix row: on mouse devices it pages with a GPU translate (0.75s Netflix easing) and
+ * edge arrows; on touch devices it falls back to native momentum swiping.
+ */
+export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: perRowOverride, actions, viewAll, children }) => {
+  const basePerRow = usePerRow();
+  const perRow = perRowOverride ?? basePerRow;
+  const pages = Math.max(1, Math.ceil(itemCount / perRow));
+  const [page, setPage] = useState(0);
+
+  useEffect(() => {
+    setPage((p) => Math.min(p, pages - 1));
+  }, [pages]);
+
+  const shiftItems = Math.min(page * perRow, Math.max(0, itemCount - perRow));
+  const offset = -(shiftItems / perRow) * 100;
+  const go = (dir: -1 | 1) => setPage((p) => Math.min(Math.max(p + dir, 0), pages - 1));
+
+  return (
+    <section className="nf-row" aria-label={typeof title === 'string' ? title : undefined}>
+      <div className="nf-row-header">
+        <h2 className="nf-row-title">
+          {viewAll ? (
+            <Link to={viewAll} className="nf-row-link">
+              {title}
+              <span className="nf-viewall">
+                <span className="nf-viewall-text">View all</span>
+                <ChevronRightIcon />
+              </span>
+            </Link>
+          ) : (
+            title
+          )}
+        </h2>
+        <div className="flex items-center gap-3">
+          {actions}
+          {CAN_HOVER && pages > 1 && (
+            <div className="nf-pager" aria-hidden="true">
+              {Array.from({ length: pages }).map((_, i) => (
+                <span key={i} className={i === page ? 'on' : ''} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <div className={`nf-slider ${CAN_HOVER ? '' : 'is-touch'}`}>
+        {CAN_HOVER && page > 0 && (
+          <button type="button" className="nf-arrow left" onClick={() => go(-1)} aria-label="Previous titles">
+            <ChevronLeftIcon />
+          </button>
+        )}
+        <div
+          className="nf-track"
+          style={{
+            ['--per-row' as any]: CAN_HOVER ? perRow : perRow + 0.3,
+            transform: CAN_HOVER ? `translate3d(${offset}%, 0, 0)` : undefined,
+          }}
+        >
+          {children}
+        </div>
+        {CAN_HOVER && page < pages - 1 && (
+          <button type="button" className="nf-arrow right" onClick={() => go(1)} aria-label="More titles">
+            <ChevronRightIcon />
+          </button>
+        )}
+      </div>
+    </section>
+  );
+};
 
 interface ContentCarouselProps {
   title: string;
   items: SearchResult[];
-  onSelect: (item: SearchResult) => void;
   onRemoveItem?: (item: SearchResult) => void;
+  onSelect?: (item: SearchResult) => void;
+  viewAll?: string;
 }
 
-const ContentCarousel: React.FC<ContentCarouselProps> = ({ title, items, onSelect, onRemoveItem }) => {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [showArrows, setShowArrows] = useState(false);
-
-  if (!items || items.length === 0) {
-    return null;
-  }
-
-  useLayoutEffect(() => {
-    const checkForOverflow = () => {
-      if (scrollContainerRef.current) {
-        const { current } = scrollContainerRef;
-        const hasOverflow = current.scrollWidth > current.clientWidth;
-        setShowArrows(hasOverflow);
-      }
-    };
-
-    const timer = setTimeout(() => {
-        checkForOverflow();
-    }, 150);
-
-    window.addEventListener('resize', checkForOverflow);
-
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('resize', checkForOverflow);
-    };
+const ContentCarousel: React.FC<ContentCarouselProps> = ({ title, items, onRemoveItem, viewAll }) => {
+  useEffect(() => {
+    if (items?.length) prefetchLogos(items);
   }, [items]);
 
-  const scroll = (direction: 'left' | 'right') => {
-    if (scrollContainerRef.current) {
-      const { current } = scrollContainerRef;
-      const scrollAmount = current.offsetWidth * 0.8; // scroll by 80% of the visible width
-      current.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth',
-      });
-    }
-  };
+  if (!items || items.length === 0) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-2xl font-bold tracking-wider text-white mb-4">{title}</h2>
-      <div className="relative group/nav">
-        <button
-          onClick={() => scroll('left')}
-          className={`absolute -left-1 -translate-x-1/2 top-1/2 -translate-y-1/2 z-20 bg-black/60 backdrop-blur-sm text-white rounded-full p-2 hover:bg-white/20 transition-all opacity-0 disabled:opacity-0 ${showArrows ? 'group-hover/nav:opacity-100' : 'pointer-events-none'}`}
-          aria-label="Scroll left"
-          disabled={!showArrows}
-        >
-          <ChevronLeftIcon className="w-8 h-8" />
-        </button>
-        <div
-          ref={scrollContainerRef}
-          className="flex overflow-x-auto space-x-6 py-4 scrollbar-hide"
-        >
-          {items.map((item, index) => (
-            <div
-              key={`${item.media_type}-${item.id}`}
-              className="w-40 sm:w-48 md:w-52 flex-shrink-0 animate-fade-in"
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <ResultCard item={item} onSelect={onSelect} onRemove={onRemoveItem} />
-            </div>
-          ))}
+    <RowShell title={title} itemCount={items.length} viewAll={viewAll}>
+      {items.map((item) => (
+        <div key={`${item.media_type}-${item.id}`} className="nf-item">
+          <ResultCard item={item} onRemove={onRemoveItem} />
         </div>
-        <button
-          onClick={() => scroll('right')}
-          className={`absolute right-2 top-1/2 -translate-y-1/2 z-20 bg-black/60 backdrop-blur-sm text-white rounded-full p-2 hover:bg-white/20 transition-all opacity-0 disabled:opacity-0 ${showArrows ? 'group-hover/nav:opacity-100' : 'pointer-events-none'}`}
-          aria-label="Scroll right"
-          disabled={!showArrows}
-        >
-          <ChevronRightIcon className="w-8 h-8" />
-        </button>
-      </div>
-    </div>
+      ))}
+    </RowShell>
   );
+};
+
+/** Loads a row only when it is about to scroll into view (keeps 20+ rows fast). */
+export const LazyRow: React.FC<{ def: RowDef; eager?: boolean }> = ({ def, eager }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const key = `row:${def.id}`;
+  const [visible, setVisible] = useState(() => !!eager || peekCache(key) !== undefined);
+
+  useEffect(() => {
+    if (visible) return;
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setVisible(true);
+      return;
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '700px 0px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [visible]);
+
+  const { data, error } = useCachedData<SearchResult[]>(visible && def.load ? key : null, def.load || (async () => []));
+
+  useEffect(() => {
+    if (data && def.kind === 'top10') setTop10(data);
+  }, [data, def.kind]);
+
+  if (error) return null;
+  if (!data) {
+    return (
+      <div ref={ref}>
+        <SkeletonCarousel variant={def.kind === 'top10' ? 'top10' : 'landscape'} />
+      </div>
+    );
+  }
+  if (!data.length) return null;
+  return def.kind === 'top10' ? <Top10Row title={def.title} items={data} /> : <ContentCarousel title={def.title} items={data} viewAll={def.viewAll} />;
 };
 
 export default ContentCarousel;

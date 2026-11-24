@@ -1,15 +1,15 @@
-
 import React from 'react';
 import { ArrowUpIcon } from './Icons';
 
 const ScrollToTopButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="fixed bottom-8 right-8 z-50 p-3 bg-netflix-red text-white rounded-full shadow-lg hover:bg-netflix-red-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-netflix-red transition-colors animate-fade-in"
+      className="fixed bottom-6 right-5 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-[#141414]/80 text-white shadow-lg shadow-black/50 backdrop-blur-md transition-colors duration-200 hover:border-netflix-red hover:bg-netflix-red animate-fade-in sm:right-8"
       aria-label="Scroll to top"
     >
-      <ArrowUpIcon className="w-6 h-6" />
+      <ArrowUpIcon className="h-5 w-5" />
     </button>
   );
 };

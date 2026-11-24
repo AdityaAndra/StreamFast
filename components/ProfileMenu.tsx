@@ -1,16 +1,33 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { UserIcon, DownloadIcon, UploadIcon, TrashIcon, PaletteIcon } from './Icons';
+import { DownloadIcon, UploadIcon, TrashIcon, PaletteIcon, ChevronDownIcon, BookOpenIcon } from './Icons';
 import { useAppContext } from '../contexts/AppContext';
+import { Avatar } from './Brand';
 
 interface ProfileMenuProps {
     onImport: (file: File) => void;
     onExport: () => void;
     onReset: () => void;
     onThemeSelect: () => void;
+    onOpenGuide?: () => void;
 }
 
-const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, onThemeSelect }) => {
+const MenuItem: React.FC<{ onClick: () => void; icon: React.ReactNode; children: React.ReactNode; danger?: boolean }> = ({ onClick, icon, children, danger }) => (
+    <li>
+        <button
+            type="button"
+            onClick={onClick}
+            role="menuitem"
+            className={`flex w-full items-center gap-3 px-4 py-2 text-left text-[13px] transition-colors ${
+                danger ? 'text-red-400 hover:bg-red-500/15 hover:text-red-300' : 'text-netflix-text hover:underline'
+            }`}
+        >
+            <span className={danger ? 'text-red-400' : 'text-netflix-muted'}>{icon}</span>
+            {children}
+        </button>
+    </li>
+);
+
+const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, onThemeSelect, onOpenGuide }) => {
     const { continueWatchingList, myList } = useAppContext();
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -22,105 +39,66 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                 setIsOpen(false);
             }
         };
+        const handleKey = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') setIsOpen(false);
+        };
         document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('keydown', handleKey);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('keydown', handleKey);
         };
     }, []);
 
-    const handleImportClick = () => {
-        fileInputRef.current?.click();
+    const run = (fn?: () => void) => () => {
+        setIsOpen(false);
+        fn?.();
     };
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
-            onImport(file);
-        }
+        if (file) onImport(file);
         setIsOpen(false);
-        // Reset the input value to allow re-uploading the same file
-        if(event.target) {
-            event.target.value = '';
-        }
+        if (event.target) event.target.value = '';
     };
-
-    const handleExportClick = () => {
-        onExport();
-        setIsOpen(false);
-    };
-
-    const handleThemeSelectClick = () => {
-        onThemeSelect();
-        setIsOpen(false);
-    };
-    
-    const handleResetClick = () => {
-        onReset();
-        setIsOpen(false);
-    }
 
     return (
         <div className="relative" ref={menuRef}>
             <button
+                type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="p-2 rounded-full text-neutral-300 hover:bg-neutral-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-netflix-red transition-colors"
-                aria-label="User Profile"
+                className="group flex items-center gap-1.5 rounded p-0.5"
+                aria-label="Account menu"
                 aria-haspopup="true"
                 aria-expanded={isOpen}
             >
-                <UserIcon className="w-7 h-7" />
+                <Avatar />
+                <ChevronDownIcon className={`hidden h-4 w-4 text-white transition-transform duration-300 sm:block ${isOpen ? 'rotate-180' : ''}`} />
             </button>
+
             {isOpen && (
-                <div 
-                    className="absolute right-0 mt-2 w-56 origin-top-right bg-neutral-800 border border-neutral-700 rounded-md shadow-lg z-50 animate-zoom-in-fast"
+                <div
+                    className="absolute right-0 top-full mt-3 w-60 border border-white/15 bg-black/95 py-2 shadow-2xl shadow-black/80 animate-dropdown-in"
                     role="menu"
                     aria-orientation="vertical"
-                    aria-labelledby="user-menu-button"
                 >
-                    <ul className="py-1">
-                        <li className="px-4 pt-2 pb-1">
-                            <span className="text-xs font-bold text-neutral-500 uppercase">Stats</span>
-                        </li>
-                        <li className="px-4 py-1 text-sm text-neutral-300">
-                            Continue Watching: <span className="font-bold text-white">{continueWatchingList.length}</span>
-                        </li>
-                        <li className="px-4 pb-2 text-sm text-neutral-300">
-                            My List: <span className="font-bold text-white">{myList.length}</span>
-                        </li>
-                        <li>
-                            <div className="my-1 border-t border-neutral-700"></div>
-                        </li>
-                        <li>
-                            <button onClick={handleThemeSelectClick} className="w-full text-left flex items-center px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700" role="menuitem">
-                                <PaletteIcon className="w-5 h-5 mr-3" />
-                                Player Theme
-                            </button>
-                        </li>
-                        <li>
-                            <div className="my-1 border-t border-neutral-700"></div>
-                        </li>
-                        <li>
-                            <button onClick={handleImportClick} className="w-full text-left flex items-center px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700" role="menuitem">
-                                <UploadIcon className="w-5 h-5 mr-3" />
-                                Import History
-                            </button>
-                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" style={{ display: 'none' }} />
-                        </li>
-                        <li>
-                            <button onClick={handleExportClick} className="w-full text-left flex items-center px-4 py-2 text-sm text-neutral-200 hover:bg-neutral-700" role="menuitem">
-                                <DownloadIcon className="w-5 h-5 mr-3" />
-                                Export History
-                            </button>
-                        </li>
-                        <li>
-                            <div className="my-1 border-t border-neutral-700"></div>
-                        </li>
-                        <li>
-                            <button onClick={handleResetClick} className="w-full text-left flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-500 hover:text-white transition-colors" role="menuitem">
-                                <TrashIcon className="w-5 h-5 mr-3" />
-                                Reset Site
-                            </button>
-                        </li>
+                    <span className="absolute -top-[7px] right-4 h-0 w-0 border-x-[7px] border-b-[7px] border-x-transparent border-b-white/80 sm:right-7" aria-hidden="true" />
+                    <div className="flex items-center gap-3 px-4 pb-3 pt-1">
+                        <Avatar />
+                        <div className="text-[12px] leading-tight text-netflix-muted">
+                            <p><span className="font-bold text-white">{continueWatchingList.length}</span> in Continue Watching</p>
+                            <p><span className="font-bold text-white">{myList.length}</span> in My List</p>
+                        </div>
+                    </div>
+                    <ul className="border-t border-white/10 pt-1.5">
+                        {onOpenGuide && <MenuItem onClick={run(onOpenGuide)} icon={<BookOpenIcon className="h-4 w-4" />}>How to use VidFast</MenuItem>}
+                        <MenuItem onClick={run(onThemeSelect)} icon={<PaletteIcon className="h-4 w-4" />}>Player theme</MenuItem>
+                        <MenuItem onClick={() => fileInputRef.current?.click()} icon={<UploadIcon className="h-4 w-4" />}>Import history</MenuItem>
+                        <MenuItem onClick={run(onExport)} icon={<DownloadIcon className="h-4 w-4" />}>Export history</MenuItem>
+                    </ul>
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
+                    <ul className="mt-1.5 border-t border-white/10 pt-1.5">
+                        <MenuItem onClick={run(onReset)} icon={<TrashIcon className="h-4 w-4" />} danger>Reset site data</MenuItem>
                     </ul>
                 </div>
             )}
