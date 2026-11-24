@@ -79,7 +79,7 @@ export const consumeScrollRestore = () => {
 export const parseRoute = (loc: string): Route => {
   const url = new URL(loc, window.location.origin);
   const path = url.pathname.replace(/\/+$/, '') || '/';
-  if (path === '/' || path === '/browse') return { name: 'home' };
+  if (path === '/') return { name: 'home' };
   if (path === '/movies') return { name: 'movies' };
   if (path === '/tv' || path === '/tv-shows') return { name: 'tv' };
   if (path === '/latest') return { name: 'latest' };

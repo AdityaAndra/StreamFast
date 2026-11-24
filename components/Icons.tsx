@@ -110,7 +110,7 @@ export const TrashIcon = ({ className }: { className?: string }) => (
 );
 
 export const PlayIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" className={className}><path d="M6 4l12 8-12 8V4z"/></svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" className={className}><path d="M6.6 3.3C5.8 2.8 4.8 3.4 4.8 4.3v15.4c0 .9 1 1.5 1.8 1l12.9-7.7c.8-.5.8-1.6 0-2.1L6.6 3.3z"/></svg>
 );
 
 export const UserIcon = ({ className }: { className?: string }) => (

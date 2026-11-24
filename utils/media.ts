@@ -38,3 +38,11 @@ export const titlePath = (item: Pick<SearchResult, 'id' | 'media_type'> & { titl
 
 export const getMatch = (item: SearchResult): number | null =>
   typeof item.vote_average === 'number' && item.vote_average > 0 ? Math.min(99, Math.round(item.vote_average * 10 + 2)) : null;
+
+/** Released in the last 30 days (Netflix "Recently added"). */
+export const isRecent = (item: SearchResult): boolean => {
+  const date = item.media_type === 'movie' ? item.release_date : item.first_air_date;
+  if (!date) return false;
+  const age = (Date.now() - new Date(date).getTime()) / 86400000;
+  return age >= 0 && age <= 30;
+};

@@ -21,14 +21,13 @@ interface CategoryPageProps {
 const CategoryPage: React.FC<CategoryPageProps> = ({ id, heading, loadHero, rows, mediaType }) => {
   const hero = useCachedData<SearchResult[]>(loadHero ? `hero:${id}` : null, loadHero || (async () => []));
 
-  const title = (
-    <div className={`${loadHero ? 'pointer-events-none absolute left-[4%] top-[4.6rem] z-[30] sm:top-[5.4rem]' : 'px-[4%] pb-[1.5vw] pt-24 sm:pt-28'}`}>
-      <div className="flex flex-wrap items-center gap-[1.6vw]">
-        <h1 className="text-[clamp(1.6rem,2.6vw,2.75rem)] font-bold tracking-[-0.02em] text-white text-shadow-netflix">{heading}</h1>
-        {mediaType && <GenresMenu mediaType={mediaType} />}
-      </div>
+  const titleRow = (
+    <div className="flex flex-wrap items-center gap-[max(14px,1.4vw)]">
+      <h1 className="text-[clamp(1.6rem,2.4vw,2.6rem)] font-bold tracking-[-0.02em] text-white">{heading}</h1>
+      {mediaType && <GenresMenu mediaType={mediaType} />}
     </div>
   );
+  const title = loadHero ? null : <div className="px-[4%] pb-[1.5vw] pt-24 sm:pt-28">{titleRow}</div>;
 
   if (hero.error) {
     return (
@@ -41,7 +40,7 @@ const CategoryPage: React.FC<CategoryPageProps> = ({ id, heading, loadHero, rows
   return (
     <div className="relative">
       {title}
-      {loadHero && (hero.data ? <HeroBanner items={hero.data} /> : <HeroSkeleton />)}
+      {loadHero && (hero.data ? <HeroBanner items={hero.data} top={titleRow} /> : <HeroSkeleton top={titleRow} />)}
       <div className={loadHero ? ROWS_OVERLAP : ''}>
         <RowList rows={rows} />
       </div>

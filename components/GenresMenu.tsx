@@ -95,7 +95,7 @@ const GenresMenu: React.FC<{ mediaType: 'movie' | 'tv' }> = ({ mediaType }) => {
         aria-haspopup="menu"
         aria-expanded={open}
         className={`flex items-center gap-2 rounded-full border px-[1.1em] py-[0.5em] text-[max(15px,1.05vw)] font-bold text-white backdrop-blur-sm transition-colors duration-200 ${
-          open ? 'border-white/40 bg-white/20' : 'border-white/25 bg-black/30 hover:border-white/50 hover:bg-white/10'
+          open ? 'border-white/40 bg-white/20' : 'border-white/30 bg-white/[0.06] hover:border-white/60 hover:bg-white/10'
         }`}
       >
         Genres
