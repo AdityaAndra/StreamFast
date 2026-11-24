@@ -21,6 +21,8 @@ import NotFoundPage from './pages/NotFoundPage';
 import ExplorePage from './pages/ExplorePage';
 import FranchisePage from './pages/FranchisePage';
 import PersonPage from './pages/PersonPage';
+import WatchPage from './pages/WatchPage';
+import { watchPath } from './utils/media';
 import { BrowsePage, CompanyPage, ProviderPage } from './pages/BrowsePage';
 import { BrandGridPage } from './components/BrandRow';
 import { initSmoothScroll, pauseScroll, resumeScroll, scrollToY } from './utils/smoothScroll';
@@ -106,7 +108,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!['title', 'company', 'provider', 'franchise', 'person'].includes(route.name)) {
+    if (!['title', 'company', 'provider', 'franchise', 'person', 'watch'].includes(route.name)) {
       const titles: Partial<Record<Route['name'], string>> = {
         home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse',
       };
@@ -117,7 +119,13 @@ const App: React.FC = () => {
   const openPlayer = useCallback(
     (item: SearchResult, opts: { progress?: WatchProgress; tab?: PlayerTab } = {}) => {
       const saved = continueWatchingList.find((cw) => cw.media.id === item.id && cw.media.media_type === item.media_type);
-      setPlayer({ item, progress: opts.progress ?? saved?.progress, tab: opts.tab, key: Date.now() });
+      const progress = opts.progress ?? saved?.progress;
+      // "Play" opens the in-site player page (like Netflix); other tabs ("Get Link", episodes) open the link panel.
+      if (opts.tab === 'watch') {
+        navigate(watchPath(item, progress));
+        return;
+      }
+      setPlayer({ item, progress, tab: opts.tab, key: Date.now() });
     },
     [continueWatchingList]
   );
@@ -184,6 +192,8 @@ const App: React.FC = () => {
         return <ProviderPage id={route.id} search={route.search} />;
       case 'franchise':
         return <FranchisePage id={route.id} />;
+      case 'watch':
+        return <WatchPage mediaType={route.mediaType} id={route.id} season={route.season} episode={route.episode} startAt={route.t} />;
       case 'person':
         return <PersonPage key={route.id} id={route.id} />;
       case 'guide':
@@ -197,8 +207,11 @@ const App: React.FC = () => {
     }
   };
 
+  const isWatch = route.name === 'watch';
   const pageKey =
-    route.name === 'title'
+    route.name === 'watch'
+      ? `watch-${route.mediaType}-${route.id}`
+      : route.name === 'title'
       ? `title-${route.mediaType}-${route.id}`
       : route.name === 'company'
         ? `company-${route.key}`
@@ -221,6 +234,7 @@ const App: React.FC = () => {
             Skip to content
           </a>
 
+          {!isWatch && (
           <AppHeader
             view={viewOf(route)}
             isSearching={isSearching}
@@ -233,12 +247,13 @@ const App: React.FC = () => {
             onReset={() => setIsResetModalOpen(true)}
             onThemeSelect={() => setIsThemeModalOpen(true)}
           />
+          )}
 
-          <main id="main" key={pageKey} className="page-in min-h-[70vh] pb-6">
+          <main id="main" key={pageKey} className={isWatch ? '' : 'page-in min-h-[70vh] pb-6'}>
             {renderPage()}
           </main>
 
-          <Footer onOpenGuide={() => navigate('/guide')} onThemeSelect={() => setIsThemeModalOpen(true)} onExport={exportList} onNavigate={handleNavigate as any} />
+          {!isWatch && <Footer onOpenGuide={() => navigate('/guide')} onThemeSelect={() => setIsThemeModalOpen(true)} onExport={exportList} onNavigate={handleNavigate as any} />}
 
           {player && (
             <EmbedLinkModal
@@ -262,7 +277,7 @@ const App: React.FC = () => {
           <ResetConfirmationModal isOpen={isResetModalOpen} onConfirm={handleConfirmReset} onCancel={() => setIsResetModalOpen(false)} />
           <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
 
-          {showScrollToTop && !player && <ScrollToTopButton onClick={() => scrollToY(0, true)} />}
+          {showScrollToTop && !player && !isWatch && <ScrollToTopButton onClick={() => scrollToY(0, true)} />}
           <Toast message={feedbackMessage} />
         </div>
       </HoverPreviewProvider>

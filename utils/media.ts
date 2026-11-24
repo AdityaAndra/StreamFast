@@ -46,3 +46,7 @@ export const isRecent = (item: SearchResult): boolean => {
   const age = (Date.now() - new Date(date).getTime()) / 86400000;
   return age >= 0 && age <= 30;
 };
+
+/** In-site player URL: /watch/movie/603 or /watch/tv/1399/1/3 */
+export const watchPath = (item: { id: number; media_type: 'movie' | 'tv' }, p?: { season?: number; episode?: number }) =>
+  item.media_type === 'movie' ? `/watch/movie/${item.id}` : `/watch/tv/${item.id}/${p?.season || 1}/${p?.episode || 1}`;
