@@ -15,9 +15,10 @@ interface EmbedLinkModalProps {
   onClose: () => void;
   onUpdateFromLink: (url: string) => void;
   initialProgress?: WatchProgress;
+  initialTab?: 'episodes' | 'watch' | 'actions';
 }
 
-const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdateFromLink, initialProgress }) => {
+const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdateFromLink, initialProgress, initialTab }) => {
   const { saveItem, removeItem, playerTheme, continueWatchingList, myList, toggleMyListItem } = useAppContext();
 
   const [tvDetails, setTvDetails] = useState<TVDetails | null>(null);
@@ -31,7 +32,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
   const [selectedSeason, setSelectedSeason] = useState<number>(initialProgress?.season || 1);
   const [selectedEpisode, setSelectedEpisode] = useState<number>(initialProgress?.episode || 1);
   const [isCopied, setIsCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'episodes' | 'watch' | 'actions'>(item.media_type === 'tv' ? 'episodes' : 'actions');
+  const [activeTab, setActiveTab] = useState<'episodes' | 'watch' | 'actions'>(initialTab || (item.media_type === 'tv' ? 'episodes' : 'actions'));
   
   const episodeListRef = useRef<HTMLDivElement>(null);
   const episodeRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -179,7 +180,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
 
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-start md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in-fast overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in-fast overflow-y-auto" onClick={onClose}>
       <div 
         className={`bg-netflix-dark md:rounded-xl shadow-2xl w-full text-white animate-zoom-in flex flex-col md:flex-row relative ${isMovie ? 'md:max-w-4xl' : 'md:max-w-6xl md:h-[90vh] md:max-h-[800px]'}`} 
         onClick={e => e.stopPropagation()}

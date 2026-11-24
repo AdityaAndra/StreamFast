@@ -4,16 +4,29 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    const tmdbKey = env.TMDB_API_KEY || '';
+
     return {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // Local development only: mimics the /api/tmdb serverless function (api/tmdb.js)
+        // so `npm run dev` works. Put TMDB_API_KEY in a .env.local file (see .env.example).
+        proxy: {
+          '/api/tmdb': {
+            target: 'https://api.themoviedb.org',
+            changeOrigin: true,
+            rewrite: (requestPath) => {
+              const url = new URL(requestPath, 'http://localhost');
+              const tmdbPath = url.searchParams.get('path') || '';
+              url.searchParams.delete('path');
+              url.searchParams.set('api_key', tmdbKey);
+              return `/3${tmdbPath}?${url.searchParams.toString()}`;
+            },
+          },
+        },
       },
       plugins: [react()],
-      define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

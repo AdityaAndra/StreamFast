@@ -1,60 +1,126 @@
-
-import React from 'react';
-import { TMDB_IMAGE_BASE_URL } from '../constants';
+import React, { useRef, useState } from 'react';
 import type { SearchResult } from '../types';
-import { FilmIcon, TvIcon, TrashIcon } from './Icons';
+import { getTitle, getYear, tmdbImage, titlePath, isRecent } from '../utils/media';
+import { useLogo, isTop10 } from '../utils/artwork';
+import { Link } from '../utils/router';
+import { useHoverPreview } from './HoverPreview';
+import { TrashIcon } from './Icons';
 
 interface ResultCardProps {
   item: SearchResult;
-  onSelect: (item: SearchResult) => void;
   onRemove?: (item: SearchResult) => void;
+  /** landscape = Netflix boxart (backdrop + title logo), poster = tall key art (Top 10) */
+  variant?: 'landscape' | 'poster';
+  /** Kept for backwards compatibility; cards now open the title page. */
+  onSelect?: (item: SearchResult) => void;
+  eager?: boolean;
 }
 
-const ResultCard: React.FC<ResultCardProps> = ({ item, onSelect, onRemove }) => {
-  const title = item.media_type === 'movie' ? item.title : item.name;
-  const releaseDate = item.media_type === 'movie' ? item.release_date : item.first_air_date;
-  
-  const posterUrl = item.poster_path
-    ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}`
-    : `https://picsum.photos/seed/${item.id}/500/750`;
+const LANDSCAPE_SIZES = '(min-width: 1400px) 16vw, (min-width: 1100px) 19vw, (min-width: 800px) 23vw, (min-width: 500px) 31vw, 46vw';
 
-  const handleRemoveClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onRemove) {
-        onRemove(item);
-    }
-  };
+/** Title logo (or bold text fallback) over textless artwork — what Netflix boxart looks like. */
+export const CardLogo: React.FC<{ item: SearchResult; className?: string; textClassName?: string; size?: 'w300' | 'w500' }> = ({
+  item,
+  className = 'nf-card-logo',
+  textClassName = 'nf-card-title',
+  size = 'w300',
+}) => {
+  const logo = useLogo(item);
+  const [loaded, setLoaded] = useState(false);
+  if (logo === undefined) return null;
+  if (logo === null) return <p className={textClassName}>{getTitle(item)}</p>;
+  return (
+    <img
+      src={tmdbImage(logo.p, size) || ''}
+      alt={getTitle(item)}
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      className={`${className} ${loaded ? 'is-loaded' : ''} ${logo.r && logo.r < 1.6 ? 'is-tall' : ''}`}
+    />
+  );
+};
+
+const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'landscape', eager }) => {
+  const { show, cancel } = useHoverPreview();
+  const ref = useRef<HTMLAnchorElement>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const title = getTitle(item);
+  const year = getYear(item);
+  const isLandscape = variant === 'landscape';
+  const hasBackdrop = !!item.backdrop_path;
+
+  let src: string | null;
+  let srcSet: string | undefined;
+  if (isLandscape) {
+    src = hasBackdrop ? tmdbImage(item.backdrop_path, 'w780') : tmdbImage(item.poster_path, 'w500');
+    srcSet = hasBackdrop ? `${tmdbImage(item.backdrop_path, 'w300')} 300w, ${tmdbImage(item.backdrop_path, 'w780')} 780w` : undefined;
+  } else {
+    src = tmdbImage(item.poster_path, 'w342');
+    srcSet = item.poster_path ? `${tmdbImage(item.poster_path, 'w185')} 185w, ${tmdbImage(item.poster_path, 'w342')} 342w, ${tmdbImage(item.poster_path, 'w500')} 500w` : undefined;
+  }
 
   return (
-    <div
-      onClick={() => onSelect(item)}
-      className="bg-netflix-dark rounded-md overflow-hidden shadow-lg hover:scale-105 hover:shadow-lg hover:shadow-netflix-red/40 transform transition-all duration-300 cursor-pointer group"
+    <Link
+      ref={ref}
+      to={titlePath(item)}
+      aria-label={`${title}${year ? ` (${year})` : ''}`}
+      onMouseEnter={() => ref.current && show({ item, el: ref.current, onRemove, variant })}
+      onMouseLeave={cancel}
+      onClick={cancel}
+      draggable={false}
+      className={`nf-card group/card ${isLandscape ? '' : 'is-poster'} ${isLandscape && isRecent(item) ? 'has-badge' : ''}`}
     >
-      <div className="relative">
+      {src && !failed ? (
         <img
-          src={posterUrl}
-          alt={`Poster for ${title}`}
-          className="w-full h-auto object-cover aspect-[2/3] transition-opacity duration-300"
-          loading="lazy"
+          src={src}
+          srcSet={srcSet}
+          sizes={isLandscape ? LANDSCAPE_SIZES : '(min-width: 1100px) 11vw, (min-width: 800px) 14vw, 26vw'}
+          alt=""
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          draggable={false}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={`nf-art ${loaded ? 'is-loaded' : ''} ${isLandscape && !hasBackdrop ? 'object-[center_20%]' : ''}`}
         />
-        <div className="absolute top-2 left-2 p-1.5 bg-black/60 rounded-full text-white z-10">
-            {item.media_type === 'movie' ? <FilmIcon className="w-5 h-5" /> : <TvIcon className="w-5 h-5" />}
-        </div>
-        {onRemove && (
-            <button
-                onClick={handleRemoveClick}
-                className="absolute top-2 right-2 bg-black/50 backdrop-blur-md text-white rounded-full p-2 hover:bg-netflix-red transition-colors opacity-0 group-hover:opacity-100 duration-300 z-10"
-                aria-label={`Remove ${title} from list`}
-            >
-                <TrashIcon className="w-5 h-5" />
-            </button>
-        )}
-      </div>
-      <div className="p-3">
-        <h3 className="text-md font-bold text-white truncate">{title}</h3>
-        <p className="text-sm text-neutral-400">{releaseDate ? new Date(releaseDate).getFullYear() : 'N/A'}</p>
-      </div>
-    </div>
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-[#2b2b2b] to-[#161616]" />
+      )}
+
+      {isLandscape && (
+        <>
+          <div className="nf-card-shade" />
+          <CardLogo item={item} />
+          {isTop10(item) && (
+            <span className="nf-top10-badge" aria-label="Top 10">
+              <small>TOP</small>
+              <b>10</b>
+            </span>
+          )}
+        </>
+      )}
+      {!isLandscape && (failed || !src) && <p className="nf-card-title">{title}</p>}
+
+      {isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
+      <span className="nf-card-hover" />
+
+      {onRemove && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove(item);
+          }}
+          className="absolute right-1.5 top-1.5 hidden h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white [@media(hover:none)]:flex"
+          aria-label={`Remove ${title} from My List`}
+        >
+          <TrashIcon className="h-4 w-4" />
+        </button>
+      )}
+    </Link>
   );
 };
 

@@ -1,16 +1,30 @@
 import React from 'react';
-import SkeletonCard from './SkeletonCard';
+import { usePerRow } from '../utils/artwork';
 
-const SkeletonCarousel: React.FC = () => {
+/** Netflix-style loading row: title bar + grey boxes pulsing left to right. */
+const SkeletonCarousel: React.FC<{ variant?: 'landscape' | 'top10' }> = ({ variant = 'landscape' }) => {
+  const perRow = usePerRow();
+  const top10PerRow = typeof window !== 'undefined' && window.innerWidth >= 1400 ? 5 : Math.max(2, perRow - 1);
+  const count = variant === 'top10' ? top10PerRow + 1 : perRow + 1;
   return (
-    <div className="mb-8">
-      <div className="h-8 bg-neutral-800 rounded w-1/4 mb-4 animate-pulse"></div>
-      <div className="flex overflow-hidden space-x-6 pb-4">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="w-40 sm:w-48 md:w-52 flex-shrink-0">
-            <SkeletonCard />
-          </div>
-        ))}
+    <div className="nf-row" aria-hidden="true" style={{ contentVisibility: 'visible' }}>
+      <div className="nf-row-header">
+        <div className="nf-skel h-[max(15px,1.4vw)] w-[clamp(140px,16vw,300px)]" />
+      </div>
+      <div className="nf-slider overflow-hidden">
+        <div className="nf-track" style={{ ['--per-row' as any]: variant === 'top10' ? top10PerRow : perRow }}>
+          {Array.from({ length: count }).map((_, i) => (
+            <div key={i} className="nf-item">
+              {variant === 'top10' ? (
+                <div className="nf-top10-item">
+                  <div className="nf-skel absolute right-0 top-0 aspect-[2/3] w-1/2" style={{ ['--i' as any]: i }} />
+                </div>
+              ) : (
+                <div className="nf-skel aspect-video w-full" style={{ ['--i' as any]: i }} />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );

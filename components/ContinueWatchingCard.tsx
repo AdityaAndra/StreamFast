@@ -1,9 +1,12 @@
-
 import React from 'react';
-import { TMDB_IMAGE_BASE_URL, VIDFAST_MOVIE_URL, VIDFAST_TV_URL } from '../constants';
+import { VIDFAST_MOVIE_URL, VIDFAST_TV_URL } from '../constants';
 import type { WatchProgressItem } from '../types';
-import { TrashIcon, PlayIcon, FilmIcon, TvIcon } from './Icons';
+import { CloseIcon, PlayIcon, InfoIcon } from './Icons';
+import { CardLogo } from './ResultCard';
+import { Link } from '../utils/router';
+import { titlePath } from '../utils/media';
 import { useAppContext } from '../contexts/AppContext';
+import { tmdbImage } from '../utils/media';
 
 interface ContinueWatchingCardProps {
   item: WatchProgressItem;
@@ -14,11 +17,11 @@ const ContinueWatchingCard: React.FC<ContinueWatchingCardProps> = ({ item, onSel
   const { removeItem, playerTheme } = useAppContext();
   const { media, progress, cleanPosterPath } = item;
   const title = media.media_type === 'movie' ? media.title : media.name;
-  
-  const posterPath = cleanPosterPath || media.poster_path;
-  const posterUrl = posterPath
-    ? `${TMDB_IMAGE_BASE_URL}${posterPath}`
-    : `https://picsum.photos/seed/${media.id}/500/750`;
+  const [loaded, setLoaded] = React.useState(false);
+
+  const image =
+    tmdbImage(media.backdrop_path, 'w780') || tmdbImage(cleanPosterPath || media.poster_path, 'w500');
+  const usingPoster = !media.backdrop_path;
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -38,50 +41,96 @@ const ContinueWatchingCard: React.FC<ContinueWatchingCardProps> = ({ item, onSel
 
     if (link) {
       window.open(link, '_blank', 'noopener,noreferrer');
+    } else {
+      onSelect(item);
     }
   };
-  
+
   let progressText = '';
   if (media.media_type === 'tv' && progress.season && progress.episode) {
-      progressText = `S${progress.season} E${progress.episode}`;
+    progressText = `S${progress.season}:E${progress.episode}`;
   } else if (media.media_type === 'movie') {
-      progressText = 'Continue Watching';
+    progressText = 'Movie';
   } else {
-      progressText = 'Saved';
+    progressText = 'Saved';
   }
 
-  return (
-    <div onClick={() => onSelect(item)} className="bg-netflix-dark rounded-md overflow-hidden shadow-lg group relative cursor-pointer transform hover:-translate-y-2 transition-transform duration-300">
-      <img
-        src={posterUrl}
-        alt={`Poster for ${title}`}
-        className="w-full h-auto object-cover aspect-[2/3] group-hover:scale-105 group-hover:filter group-hover:brightness-50 transition-all duration-300"
-        loading="lazy"
-      />
-      {/* Permanent gradient for text readability */}
-      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-none"></div>
-      
-      {/* Media Type Icon */}
-      <div className="absolute top-2 left-2 p-1.5 bg-black/60 rounded-full text-white z-10">
-          {media.media_type === 'movie' ? <FilmIcon className="w-5 h-5" /> : <TvIcon className="w-5 h-5" />}
-      </div>
+  const percent =
+    progress.watched && progress.duration ? Math.min(100, Math.max(3, (progress.watched / progress.duration) * 100)) : null;
 
-      {/* Permanent text */}
-      <div className="absolute inset-x-0 bottom-0 p-3 text-white" style={{textShadow: '0 2px 4px rgba(0,0,0,0.8)'}}>
-          <h3 className="font-bold truncate">{title}</h3>
-          <p className="text-sm text-neutral-300">{progressText}</p>
-      </div>
-      
-      {/* Hover elements */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-        <button onClick={handlePlayClick} className="bg-white/20 backdrop-blur-sm border-2 border-white/50 text-white rounded-full p-3 hover:bg-white/30 transform hover:scale-110 transition-all" aria-label={`Resume ${title}`}>
-            <PlayIcon className="w-8 h-8" />
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect(item)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(item);
+        }
+      }}
+      aria-label={`${title}, ${progressText}`}
+      className="group/cw relative cursor-pointer"
+    >
+      <div className={`relative aspect-video overflow-hidden bg-netflix-card ${percent !== null ? 'rounded-t-[4px]' : 'rounded-[4px]'}`}>
+        {image ? (
+          <>
+            {!loaded && <div className="absolute inset-0 shimmer" />}
+            <img
+              src={image}
+              alt=""
+              loading="lazy"
+              onLoad={() => setLoaded(true)}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+                loaded ? 'opacity-100' : 'opacity-0'
+              } ${usingPoster ? 'object-[center_25%]' : ''}`}
+            />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-[#2b2b2b] to-[#151515]" />
+        )}
+
+        <div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-300 group-hover/cw:bg-black/35" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+
+        <CardLogo item={media} />
+        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-[3px] bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">{progressText}</span>
+
+        <button
+          type="button"
+          onClick={handlePlayClick}
+          className="absolute inset-0 m-auto flex h-11 w-11 scale-90 items-center justify-center rounded-full border-2 border-white bg-black/50 text-white opacity-0 transition duration-300 ease-netflix hover:bg-black/75 group-hover/cw:scale-100 group-hover/cw:opacity-100 focus-visible:scale-100 focus-visible:opacity-100 sm:h-14 sm:w-14 [@media(hover:none)]:scale-100 [@media(hover:none)]:opacity-100"
+          aria-label={`Resume ${title}`}
+        >
+          <PlayIcon className="ml-1 h-5 w-5 sm:h-6 sm:w-6" />
+        </button>
+
+        <Link
+          to={titlePath(media)}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-white/60 bg-black/50 text-white opacity-0 transition-opacity duration-200 hover:border-white group-hover/cw:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          aria-label={`More info about ${title}`}
+          title="More info"
+        >
+          <InfoIcon className="h-4 w-4" />
+        </Link>
+
+        <button
+          type="button"
+          onClick={handleRemove}
+          className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity duration-300 hover:bg-netflix-red group-hover/cw:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          aria-label={`Remove ${title} from Continue Watching`}
+          title="Remove from row"
+        >
+          <CloseIcon className="h-4 w-4" />
         </button>
       </div>
 
-      <button onClick={handleRemove} className="absolute top-2 right-2 bg-black/50 backdrop-blur-md text-white rounded-full p-2 hover:bg-netflix-red transition-colors opacity-0 group-hover:opacity-100 duration-300 z-10" aria-label={`Remove ${title} from list`}>
-        <TrashIcon className="w-5 h-5" />
-      </button>
+      {percent !== null && (
+        <div className="h-[3px] w-full overflow-hidden rounded-b-[4px] bg-[#4d4d4d]" aria-hidden="true">
+          <div className="h-full bg-netflix-red" style={{ width: `${percent}%` }} />
+        </div>
+      )}
     </div>
   );
 };

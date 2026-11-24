@@ -30,9 +30,9 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, item, pro
     : `https://picsum.photos/seed/${episodeDetails?.id}/300/169`;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-[60] animate-fade-in-fast" onClick={onCancel}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in-fast" onClick={onCancel}>
       <div 
-        className="bg-netflix-dark rounded-xl shadow-2xl w-full text-white animate-zoom-in max-w-4xl md:h-auto"
+        className="bg-netflix-dark rounded-xl shadow-2xl shadow-black/80 ring-1 ring-white/10 w-full text-white animate-zoom-in max-w-4xl md:h-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex flex-col md:flex-row overflow-hidden md:h-[460px]">
