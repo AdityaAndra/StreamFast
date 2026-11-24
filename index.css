@@ -429,3 +429,49 @@ html.lenis, html.lenis body { height: auto; }
   .nf-title-overlay { padding: 0; }
   .nf-title-modal { width: 100%; min-height: 100%; border-radius: 0; }
 }
+
+/* ============ Watch page: Netflix layout on top of the VidFast player ============
+   Positions follow the player's own control bar, which sits ~42px from the bottom and
+   scales with the window width (measured at 1000px and 1536px wide). */
+.nf-watch { --vf-icon: calc(26px + 0.93vw); --vf-gap: calc(18.5px + 3.7vw); --vf-subs: calc(91.6px + 7.84vw); }
+.nf-watch-back {
+  position: absolute; z-index: 4; left: calc(18px + 1.5vw); top: calc(18px + 1.5vw);
+  display: flex; height: calc(var(--vf-icon) + 6px); width: calc(var(--vf-icon) + 6px); align-items: center; justify-content: center;
+  border-radius: 9999px; color: #fff; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7)); transition: transform 0.15s, background-color 0.2s;
+}
+.nf-watch-back:hover { transform: scale(1.12); background: rgba(255,255,255,0.12); }
+.nf-watch-bottom {
+  position: absolute; inset: auto 0 calc(42px - var(--vf-icon) / 2) 0; z-index: 3; height: var(--vf-icon);
+  pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
+}
+.nf-watch-bottom.is-on { opacity: 1; }
+.nf-watch-bottom.is-on button { pointer-events: auto; }
+.nf-watch-title {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 34vw;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: max(15px, 1.15vw); color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8); pointer-events: none;
+}
+/* Right-aligned so our last icon sits one slot in front of the player's subtitles button. */
+.nf-watch-right {
+  position: absolute; top: 0; right: calc(var(--vf-subs) + var(--vf-gap) - var(--vf-icon) / 2);
+  display: flex; height: 100%; align-items: center; gap: calc(var(--vf-gap) - var(--vf-icon));
+}
+.nf-watch-icon {
+  display: flex; height: var(--vf-icon); width: var(--vf-icon); align-items: center; justify-content: center; border-radius: 6px;
+  color: #fff; transition: transform 0.15s, color 0.15s;
+}
+.nf-watch-icon:hover { transform: scale(1.15); }
+.nf-watch-icon.is-active { color: var(--nf-red, #e50914); }
+.nf-server-menu {
+  position: absolute; right: 0; bottom: calc(100% + 14px); min-width: 15rem; overflow: hidden; padding-bottom: 6px; border-radius: 6px;
+  background: rgba(20,20,20,0.97); box-shadow: 0 10px 30px rgba(0,0,0,0.6); pointer-events: auto; animation: nf-fade-up 0.18s ease both;
+}
+@keyframes nf-fade-up { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
+.nf-watch:fullscreen { background: #000; }
+@media (max-width: 640px) {
+  .nf-watch-title { display: none; }
+  .nf-watch-bottom { inset: calc(16px + 1.5vw) calc(12px + 14vw) auto auto; height: 40px; opacity: 1; }
+  .nf-watch-bottom button { pointer-events: auto; }
+  .nf-watch-right { position: static; }
+  .nf-server-menu { top: calc(100% + 8px); bottom: auto; }
+}
