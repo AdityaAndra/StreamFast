@@ -145,15 +145,12 @@ img { -webkit-user-drag: none; }
 .nf-top10-badge small { font-size: max(5px, 0.36vw); }
 .nf-top10-badge b { font-size: max(10px, 0.72vw); }
 
-/* ============ Top 10 row (Netflix proportions: tile = normal card width; number | poster halves) ============ */
-.nf-top10-item { position: relative; display: flex; width: 100%; aspect-ratio: 1.4 / 1; border-radius: 8px; }
-.nf-top10-num { flex: 0 0 50%; height: 100%; overflow: visible; pointer-events: none; transition: opacity 0.3s ease; }
-.nf-top10-num text {
-  font-family: "Inter Variable", Inter, "Helvetica Neue", Arial, sans-serif; font-weight: 700; letter-spacing: -0.03em;
-  fill: none; stroke-width: 2.6px; stroke-linejoin: round; vector-effect: non-scaling-stroke;
-}
-.nf-item:hover .nf-top10-num { opacity: 0.75 !important; }
-.nf-top10-poster { position: relative; flex: 0 0 50%; height: 100%; }
+/* ============ Top 10 row (matches Netflix's tile structure) ============ */
+/* tile: 1.374:1, clipped to 12px corners; left half = number box, right half = poster (cover, 4px corners) */
+.nf-top10-item { position: relative; width: 100%; aspect-ratio: 1.374 / 1; border-radius: 12px; overflow: hidden; }
+.nf-top10-numbox { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.nf-top10-num { display: block; width: 100%; height: 100%; overflow: hidden; }
+.nf-top10-poster { position: absolute; top: 0; bottom: 0; left: 50%; width: 50%; }
 .nf-top10-poster .nf-card { height: 100%; aspect-ratio: auto; border-radius: 4px; }
 .nf-top10-poster .nf-recent-badge { font-size: max(10px, 0.72vw); padding: 0.28em 0.65em; }
 
