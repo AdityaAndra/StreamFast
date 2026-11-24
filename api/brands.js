@@ -7,7 +7,7 @@ const TMDB = 'https://api.themoviedb.org/3';
 const MAX_IDS = 50;
 // Rent/buy stores and add-on "channels" are not streaming services.
 const SKIP_IDS = new Set([2, 3, 7, 10, 35, 68, 175, 192, 279, 1796]);
-const SKIP_NAME = /channel|with ads|amazon video|google play|microsoft store|fandango|vudu|redbox/i;
+const SKIP_NAME = /justwatch|channel|with ads|amazon video|google play|microsoft store|fandango|vudu|redbox/i;
 
 const getJSON = async (url) => {
   const r = await fetch(url);

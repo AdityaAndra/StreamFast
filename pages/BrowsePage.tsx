@@ -26,14 +26,17 @@ interface BrowseViewProps {
   search: string;
   base?: Partial<BrowseParams>;
   locked?: (keyof BrowseParams)[];
+  /** Hidden from the filter bar but still kept in the URL. */
+  hideFilters?: (keyof BrowseParams)[];
+  resetQuery?: string;
   header?: ReactNode;
 }
 
-export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [], header }) => {
+export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [], hideFilters = [], resetQuery = '', header }) => {
   const urlParams = useMemo(() => parseBrowse(search), [search]);
   const baseKey = JSON.stringify(base || {});
   const params = useMemo<BrowseParams>(() => ({ ...urlParams, ...(base || {}) }), [urlParams, baseKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const fetchKey = useMemo(() => JSON.stringify({ ...params, q: undefined }), [params]);
+  const fetchKey = useMemo(() => JSON.stringify({ ...params, q: undefined, title: undefined }), [params]);
 
   const [state, setState] = useState<Loaded>(() => stateCache.get(fetchKey) || EMPTY);
   const [loading, setLoading] = useState(false);
@@ -114,17 +117,19 @@ export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [
 
   const update = (patch: Partial<BrowseParams>) => {
     const next = { ...urlParams, ...patch } as BrowseParams;
+    if (Object.keys(patch).some((k) => !['q', 'sort', 'window', 'region'].includes(k))) delete next.title;
     navigate(`${window.location.pathname}${toQuery(next, locked)}`, { replace: true, keepScroll: true });
     if (!('q' in patch) && window.scrollY > 320) scrollToY(0, true);
   };
-  const reset = () => navigate(window.location.pathname + (params.region && locked.includes('provider') ? `?region=${params.region}` : ''), { replace: true, keepScroll: true });
+  const reset = () =>
+    navigate(window.location.pathname + (resetQuery || (params.region && locked.includes('provider') ? `?region=${params.region}` : '')), { replace: true, keepScroll: true });
 
   const initialLoading = state.page === 0 && !error;
 
   return (
     <div className="px-[4%] pt-24 sm:pt-28">
       {header ?? <h1 className="mb-[1.6vw] text-[clamp(1.6rem,2.6vw,2.75rem)] font-bold tracking-[-0.02em] text-white">{describe(params)}</h1>}
-      <FilterBar params={params} onChange={update} onReset={reset} locked={locked} />
+      <FilterBar params={params} onChange={update} onReset={reset} locked={[...locked, ...hideFilters]} />
 
       {error && state.items.length === 0 ? (
         <ErrorState message={error} onRetry={() => loadPage(1)} />

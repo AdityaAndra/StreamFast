@@ -2,8 +2,7 @@ import React from 'react';
 import type { SearchResult } from '../types';
 import HeroBanner, { HeroSkeleton } from '../components/HeroBanner';
 import { RowList } from '../components/BrandRow';
-import { navigate } from '../utils/router';
-import { MOVIE_GENRES, TV_GENRES } from '../utils/browse';
+import GenresMenu from '../components/GenresMenu';
 import ErrorState from '../components/ErrorState';
 import { useCachedData } from '../utils/useCachedData';
 import type { RowDef } from '../utils/rows';
@@ -23,22 +22,10 @@ const CategoryPage: React.FC<CategoryPageProps> = ({ id, heading, loadHero, rows
   const hero = useCachedData<SearchResult[]>(loadHero ? `hero:${id}` : null, loadHero || (async () => []));
 
   const title = (
-    <div className={`${loadHero ? 'pointer-events-none absolute left-[4%] top-[4.6rem] z-[5] sm:top-[5.4rem]' : 'px-[4%] pb-[1.5vw] pt-24 sm:pt-28'}`}>
+    <div className={`${loadHero ? 'pointer-events-none absolute left-[4%] top-[4.6rem] z-[30] sm:top-[5.4rem]' : 'px-[4%] pb-[1.5vw] pt-24 sm:pt-28'}`}>
       <div className="flex flex-wrap items-center gap-[1.6vw]">
         <h1 className="text-[clamp(1.6rem,2.6vw,2.75rem)] font-bold tracking-[-0.02em] text-white text-shadow-netflix">{heading}</h1>
-        {mediaType && (
-          <select
-            aria-label="Genres"
-            value=""
-            onChange={(e) => e.target.value && navigate(`/browse?type=${mediaType}&genre=${e.target.value}`)}
-            className="nf-select pointer-events-auto !bg-black/80"
-          >
-            <option value="">Genres</option>
-            {(mediaType === 'tv' ? TV_GENRES : MOVIE_GENRES).map(([gid, n]) => (
-              <option key={gid} value={gid}>{n}</option>
-            ))}
-          </select>
-        )}
+        {mediaType && <GenresMenu mediaType={mediaType} />}
       </div>
     </div>
   );

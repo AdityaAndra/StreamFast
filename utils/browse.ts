@@ -15,6 +15,10 @@ export interface BrowseParams {
   region?: string;
   company?: string;
   network?: string;
+  /** TMDB keyword ids (e.g. holidays) */
+  keyword?: string;
+  /** Optional page heading carried in the URL (e.g. "Hindi Movies") */
+  title?: string;
   q?: string;
 }
 
@@ -92,7 +96,7 @@ export const yearOptions = (): [string, string][] => {
 };
 
 const DEFAULTS: Pick<BrowseParams, 'type' | 'sort'> = { type: 'all', sort: 'popular' };
-const KEYS: (keyof BrowseParams)[] = ['type', 'list', 'window', 'sort', 'genre', 'year', 'lang', 'rating', 'provider', 'region', 'company', 'network', 'q'];
+const KEYS: (keyof BrowseParams)[] = ['type', 'list', 'window', 'sort', 'genre', 'year', 'lang', 'rating', 'provider', 'region', 'company', 'network', 'keyword', 'title', 'q'];
 
 export const parseBrowse = (search: string): BrowseParams => {
   const sp = new URLSearchParams(search);
@@ -120,6 +124,7 @@ export const toQuery = (p: Partial<BrowseParams>, omit: (keyof BrowseParams)[] =
 
 /** Human page title for a filter combination, e.g. "Action Movies", "Coming Soon". */
 export const describe = (p: BrowseParams) => {
+  if (p.title) return p.title;
   const noun = p.type === 'movie' ? 'Movies' : p.type === 'tv' ? 'TV Shows' : 'Movies & TV';
   const g = genreLabel(p.genre);
   const prefix =
@@ -188,6 +193,7 @@ const discoverParams = (type: 'movie' | 'tv', p: BrowseParams): Record<string, s
     out.with_watch_monetization_types = 'flatrate|free|ads';
   }
   if (p.company) out.with_companies = p.company;
+  if (p.keyword) out.with_keywords = p.keyword;
   if (p.network) {
     if (isMovie) return null;
     out.with_networks = p.network;

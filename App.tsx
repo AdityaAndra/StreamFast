@@ -13,7 +13,8 @@ import HomePage from './pages/HomePage';
 import MoviesPage from './pages/MoviesPage';
 import TvShowsPage from './pages/TvShowsPage';
 import LatestPage from './pages/LatestPage';
-import MyListPage from './pages/MyListPage';
+import MyContentPage from './pages/MyContentPage';
+import LanguagesPage from './pages/LanguagesPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import TitlePage from './pages/TitlePage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -33,8 +34,9 @@ const NAV_PATHS: Record<string, string> = {
   'tv-shows': '/tv',
   movies: '/movies',
   latest: '/latest',
-  explore: '/explore',
-  'my-list': '/my-list',
+  explore: '/categories',
+  'my-list': '/my-content',
+  languages: '/languages',
 };
 
 const viewOf = (route: Route): AppView => {
@@ -45,6 +47,7 @@ const viewOf = (route: Route): AppView => {
     case 'latest': return 'latest';
     case 'explore': case 'browse': case 'brands': case 'company': case 'provider': case 'franchise': return 'explore';
     case 'my-list': return 'my-list';
+    case 'languages': return 'languages';
     case 'guide': return 'how-to-use';
     case 'title': return 'title';
     default: return 'other';
@@ -104,7 +107,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!['title', 'company', 'provider', 'franchise'].includes(route.name)) {
       const titles: Partial<Record<Route['name'], string>> = {
-        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My List', guide: 'How to use', search: 'Search', explore: 'Explore', browse: 'Browse', brands: 'Browse',
+        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse',
       };
       document.title = `${titles[route.name] || 'VidFast'} — VidFast`;
     }
@@ -161,7 +164,9 @@ const App: React.FC = () => {
       case 'latest':
         return <LatestPage />;
       case 'my-list':
-        return <MyListPage onBrowse={() => navigate('/')} />;
+        return <MyContentPage onBrowse={() => navigate('/')} onThemeSelect={() => setIsThemeModalOpen(true)} onExport={exportList} />;
+      case 'languages':
+        return <LanguagesPage search={route.search} />;
       case 'search':
         return <SearchResultsPage query={route.q} />;
       case 'title':

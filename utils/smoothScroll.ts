@@ -6,14 +6,13 @@ let lenis: Lenis | null = null;
 export const initSmoothScroll = () => {
   if (lenis || typeof window === 'undefined' || !window.matchMedia) return;
   const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!fine || reduce) return;
+  if (!fine) return;
   lenis = new Lenis({
     lerp: 0.09,
     wheelMultiplier: 1,
     smoothWheel: true,
     // Let modals, menus, dropdowns and inner scroll areas scroll natively.
-    prevent: (node: HTMLElement) => !!(node && node.closest && node.closest('[data-lenis-prevent], .fixed, [role="dialog"], [role="menu"], select')),
+    prevent: (node: HTMLElement) => !!(node && node.closest && node.closest('[data-lenis-prevent], .fixed:not(header), [role="dialog"], [role="menu"], select, .overflow-y-auto')),
   } as any);
   const raf = (time: number) => {
     lenis?.raf(time);
