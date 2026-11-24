@@ -4,10 +4,19 @@ import type { SearchResult } from '../types';
 /* ---------- Title logos (batched, cached in memory + localStorage) ---------- */
 
 export type Logo = { p: string; r: number } | null;
+/** Per-title metadata from /api/logos: logo + IMDb rating. */
+export type Meta = { p: string | null; r: number; imdb?: string | null; ir?: number | null; iv?: number | null } | null;
+export type Imdb = { rating: number; votes: number | null; id: string | null } | null;
 
-const LS_KEY = 'vf_logos_v1';
+const LS_KEY = 'vf_meta_v2';
 const MAX_STORED = 1500;
-const mem = new Map<string, Logo>();
+const mem = new Map<string, Meta>();
+
+try {
+  localStorage.removeItem('vf_logos_v1');
+} catch {
+  /* ignore */
+}
 const pending = new Set<string>();
 const listeners = new Map<string, Set<() => void>>();
 let queue: string[] = [];
@@ -67,8 +76,7 @@ const request = (key: string) => {
 
 export const prefetchLogos = (items: SearchResult[]) => items.forEach((i) => request(logoKey(i)));
 
-/** undefined = still loading, null = no logo (show text title) */
-export function useLogo(item: Pick<SearchResult, 'id' | 'media_type'> | null | undefined): Logo | undefined {
+function useMeta(item: Pick<SearchResult, 'id' | 'media_type'> | null | undefined): Meta | undefined {
   const key = item ? logoKey(item) : null;
   const [, force] = useReducer((x: number) => x + 1, 0);
   useEffect(() => {
@@ -85,7 +93,21 @@ export function useLogo(item: Pick<SearchResult, 'id' | 'media_type'> | null | u
     };
   }, [key]);
   if (!key) return undefined;
-  return mem.has(key) ? (mem.get(key) as Logo) : undefined;
+  return mem.has(key) ? (mem.get(key) as Meta) : undefined;
+}
+
+/** undefined = still loading, null = no logo (show text title) */
+export function useLogo(item: Pick<SearchResult, 'id' | 'media_type'> | null | undefined): Logo | undefined {
+  const m = useMeta(item);
+  if (m === undefined) return undefined;
+  return m && m.p ? { p: m.p, r: m.r } : null;
+}
+
+/** undefined = still loading, null = no IMDb rating available */
+export function useImdb(item: Pick<SearchResult, 'id' | 'media_type'> | null | undefined): Imdb | undefined {
+  const m = useMeta(item);
+  if (m === undefined) return undefined;
+  return m && typeof m.ir === 'number' && m.ir > 0 ? { rating: m.ir, votes: m.iv ?? null, id: m.imdb ?? null } : null;
 }
 
 /* ---------- Responsive cards-per-row (Netflix breakpoints) ---------- */

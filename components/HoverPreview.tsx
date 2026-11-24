@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import type { SearchResult } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import { usePlayer } from '../contexts/PlayerContext';
-import { getTitle, getYear, getGenres, getMatch, tmdbImage, titlePath } from '../utils/media';
+import { getTitle, getYear, getGenres, tmdbImage, titlePath } from '../utils/media';
+import { ImdbRating } from './Imdb';
 import { CAN_HOVER } from '../utils/artwork';
 import { navigate, useLocationString } from '../utils/router';
 import { CardLogo } from './ResultCard';
@@ -155,7 +156,6 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
   const title = getTitle(item);
   const year = getYear(item);
   const genres = getGenres(item, 3);
-  const match = getMatch(item);
   const cardImg = el.querySelector('img.nf-art') as HTMLImageElement | null;
   const backdrop = (variant === 'landscape' && cardImg?.currentSrc) || tmdbImage(item.backdrop_path, 'w780') || tmdbImage(item.poster_path, 'w500');
   const inList = myList.some((i) => i.media.id === item.id && i.media.media_type === item.media_type);
@@ -216,7 +216,7 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
         </div>
 
         <div className="mb-[0.6em] flex flex-wrap items-center gap-x-[0.5em] gap-y-1 font-medium">
-          {match !== null && <span className="font-bold text-netflix-green">{match}% Match</span>}
+          <ImdbRating item={item} size="sm" />
           <span className="border border-white/40 px-[0.4em] text-[11px] leading-[1.6] text-[#bcbcbc]">{item.media_type === 'movie' ? 'Movie' : 'Series'}</span>
           {year && <span className="text-[#bcbcbc]">{year}</span>}
           <span className="rounded-[3px] border border-white/40 px-[0.3em] text-[10px] font-bold leading-[1.5] text-[#bcbcbc]">HD</span>
