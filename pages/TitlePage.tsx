@@ -4,7 +4,7 @@ import { getTitleDetails, TitleDetails } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
 import { usePlayer } from '../contexts/PlayerContext';
-import { getTitle, getYear, tmdbImage, titlePath } from '../utils/media';
+import { getTitle, getYear, tmdbImage, watchPath } from '../utils/media';
 import { ImdbRating } from '../components/Imdb';
 import { prefetchLogos } from '../utils/artwork';
 import { goBack, navigate } from '../utils/router';
@@ -151,8 +151,8 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
 
   useEffect(() => {
     if (item && autoPlay) {
-      openPlayer(item, { tab: 'watch' });
-      navigate(titlePath(item), { replace: true, keepScroll: true });
+      const sv = continueWatchingList.find((cw) => cw.media.id === item.id && cw.media.media_type === item.media_type);
+      navigate(watchPath(item, sv?.progress), { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, autoPlay]);

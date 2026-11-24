@@ -366,3 +366,27 @@ html.lenis, html.lenis body { height: auto; }
 .nf-person-name { display: block; margin-top: 0.6em; font-size: max(13px, 0.95vw); font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nf-person:hover .nf-person-name { text-decoration: underline; text-underline-offset: 2px; }
 .nf-person-sub { display: block; font-size: max(12px, 0.82vw); color: #a3a3a3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ============ In-site player (/watch) ============ */
+.nf-watch { position: fixed; inset: 0; z-index: 50; background: #000; }
+.nf-watch-top {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 2; display: flex; align-items: center; gap: 14px;
+  padding: max(14px, 1.4vw) max(16px, 2vw) 56px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0) 100%);
+  opacity: 0; transform: translate3d(0, -8px, 0); transition: opacity 0.35s ease, transform 0.45s var(--nf-out);
+}
+.nf-watch-top.is-on { opacity: 1; transform: none; }
+.nf-watch-top.is-on button, .nf-watch-top.is-on select { pointer-events: auto; }
+.nf-watch-btn { display: flex; height: 46px; width: 46px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 9999px; color: #fff; transition: background-color 0.2s, transform 0.15s; }
+.nf-watch-btn:hover { background: rgba(255,255,255,0.14); transform: scale(1.06); }
+.nf-watch-pill {
+  display: inline-flex; align-items: center; gap: 4px; height: 38px; padding: 0 16px; border-radius: 9999px; font-size: 14px; font-weight: 600; color: #fff;
+  background: rgba(255,255,255,0.16); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); transition: background-color 0.2s;
+}
+.nf-watch-pill:hover, .nf-watch-pill.is-active { background: rgba(255,255,255,0.3); }
+.nf-watch-panel {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 3; display: flex; flex-direction: column; width: min(92vw, 25rem);
+  background: rgba(20,20,20,0.96); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+  box-shadow: -18px 0 40px rgba(0,0,0,0.5); animation: nf-panel-in 0.4s var(--nf-out) both;
+}
+@keyframes nf-panel-in { from { transform: translate3d(100%, 0, 0); } to { transform: none; } }
