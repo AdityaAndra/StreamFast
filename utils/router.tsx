@@ -23,6 +23,7 @@ export type Route =
   | { name: 'provider'; id: number; search: string }
   | { name: 'franchise'; id: number }
   | { name: 'person'; id: number }
+  | { name: 'watch'; mediaType: 'movie' | 'tv'; id: number; season?: number; episode?: number; t?: number }
   | { name: 'not-found' };
 
 export type BrandKind = 'studios' | 'production' | 'providers' | 'franchises';
@@ -43,6 +44,8 @@ window.addEventListener('popstate', (e) => {
   emit();
 });
 
+const isTitleLoc = (loc: string) => /^\/(movie|tv)\/\d+/.test(new URL(loc, window.location.origin).pathname);
+
 export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boolean } = {}) => {
   if (to === currentLocation()) {
     if (!opts.keepScroll) scrollToY(0);
@@ -50,12 +53,38 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
   }
   // Remember where we were so "Back" lands in the same spot.
   window.history.replaceState({ ...(window.history.state || {}), scrollY: window.scrollY }, '');
-  const idx = Number(window.history.state?.idx || 0);
-  if (opts.replace) window.history.replaceState({ scrollY: 0, idx }, '', to);
-  else window.history.pushState({ scrollY: 0, idx: idx + 1 }, '', to);
+  const st = window.history.state || {};
+  const idx = Number(st.idx || 0);
+  const nextIdx = opts.replace ? idx : idx + 1;
+  let extra: Record<string, unknown> = {};
+  let keepScroll = opts.keepScroll;
+  // Titles open as a window over the page you were on (like Netflix): remember that page.
+  if (isTitleLoc(to)) {
+    keepScroll = true;
+    extra = isTitleLoc(currentLocation())
+      ? { bg: typeof st.bg === 'string' ? st.bg : '/', tStart: typeof st.tStart === 'number' ? st.tStart : idx }
+      : { bg: currentLocation(), tStart: nextIdx };
+  }
+  if (opts.replace) window.history.replaceState({ scrollY: 0, idx, ...extra }, '', to);
+  else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
   pendingRestoreY = null;
   emit();
-  if (!opts.keepScroll) scrollToY(0);
+  if (!keepScroll) scrollToY(0);
+};
+
+/** The page shown behind the title window (defaults to Home on a direct visit). */
+export const titleBackground = (): string => {
+  const bg = window.history.state?.bg;
+  return typeof bg === 'string' && !isTitleLoc(bg) ? bg : '/';
+};
+
+/** Close the title window: go back past every title opened from it, to the page behind. */
+export const closeTitleWindow = () => {
+  const st = window.history.state || {};
+  const idx = Number(st.idx || 0);
+  const tStart = typeof st.tStart === 'number' ? st.tStart : 0;
+  if (tStart > 0 && idx >= tStart) window.history.go(-(idx - tStart + 1));
+  else navigate(titleBackground(), { replace: true, keepScroll: true });
 };
 
 export const goBack = (fallback = '/') => {
@@ -95,6 +124,11 @@ export const parseRoute = (loc: string): Route => {
   if (b) return { name: 'company', key: b[1], search: url.search };
   b = path.match(/^\/provider\/(\d+)/);
   if (b) return { name: 'provider', id: Number(b[1]), search: url.search };
+  b = path.match(/^\/watch\/(movie|tv)\/(\d+)(?:\/(\d+)\/(\d+))?/);
+  if (b) {
+    const t = Number(url.searchParams.get('t'));
+    return { name: 'watch', mediaType: b[1] as 'movie' | 'tv', id: Number(b[2]), season: b[3] ? Number(b[3]) : undefined, episode: b[4] ? Number(b[4]) : undefined, t: t > 0 ? t : undefined };
+  }
   b = path.match(/^\/(?:person|name)\/(\d+)/);
   if (b) return { name: 'person', id: Number(b[1]) };
   b = path.match(/^\/franchise\/(\d+)/);

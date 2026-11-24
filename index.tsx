@@ -14,11 +14,18 @@ if ('scrollRestoration' in window.history) {
   window.history.scrollRestoration = 'manual';
 }
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <AppContextProvider>
-      <App />
-    </AppContextProvider>
-  </React.StrictMode>
-);
+// When saved lists are arriving from the old address, wait until they're in place.
+const ready: Promise<unknown> = (window as any).__vfReady || Promise.resolve();
+
+ready
+  .catch(() => undefined)
+  .then(() => {
+    const root = ReactDOM.createRoot(rootElement);
+    root.render(
+      <React.StrictMode>
+        <AppContextProvider>
+          <App />
+        </AppContextProvider>
+      </React.StrictMode>
+    );
+  });
