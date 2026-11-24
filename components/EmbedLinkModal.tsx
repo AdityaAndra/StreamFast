@@ -179,7 +179,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
 
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-80 flex items-start md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in-fast overflow-y-auto" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-start md:items-center justify-center p-0 md:p-4 z-50 animate-fade-in-fast overflow-y-auto" onClick={onClose}>
       <div 
         className={`bg-netflix-dark md:rounded-xl shadow-2xl w-full text-white animate-zoom-in flex flex-col md:flex-row relative ${isMovie ? 'md:max-w-4xl' : 'md:max-w-6xl md:h-[90vh] md:max-h-[800px]'}`} 
         onClick={e => e.stopPropagation()}

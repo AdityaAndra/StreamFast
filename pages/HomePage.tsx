@@ -1,136 +1,106 @@
 import React, { useState, useEffect } from 'react';
-import { getTrending, getPopularMovies, getTopRatedTvShows } from '../services/tmdb';
+import { getTrending, getPopularMovies, getPopularTvShows, getTopRatedTvShows } from '../services/tmdb';
 import type { SearchResult, WatchProgressItem } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import ContinueWatchingGrid from '../components/ContinueWatchingGrid';
 import UpdateFromLink, { UpdateFromLinkProps } from '../components/UpdateFromLink';
 import ContentCarousel from '../components/ContentCarousel';
 import SkeletonCarousel from '../components/SkeletonCarousel';
-import { FilmIcon, TvIcon } from '../components/Icons';
+import HeroBanner, { HeroSkeleton } from '../components/HeroBanner';
+import Top10Row from '../components/Top10Row';
+import ErrorState from '../components/ErrorState';
 
 interface HomePageProps {
-    onSelectCategory: (category: 'movies' | 'tv-shows') => void;
     onSelect: (item: SearchResult) => void;
     onSelectFromContinueWatching: (item: WatchProgressItem) => void;
     linkProps: Omit<UpdateFromLinkProps, 'variant'>;
 }
 
-const CategoryButtons: React.FC<{onSelectCategory: (category: 'movies' | 'tv-shows') => void}> = ({onSelectCategory}) => (
-    <div className="my-10 flex flex-col sm:flex-row items-center justify-center gap-6 animate-fade-in">
-        <button
-            onClick={() => onSelectCategory('movies')}
-            className="group flex items-center justify-center w-full sm:w-64 h-24 bg-neutral-900/50 border-2 border-neutral-800 rounded-lg text-white text-2xl font-bold hover:bg-neutral-800 hover:border-netflix-red transition-all duration-300 transform hover:scale-105"
-        >
-            <FilmIcon className="w-8 h-8 mr-4 text-neutral-400 group-hover:text-netflix-red transition-colors" />
-            Movies
-        </button>
-        <button
-            onClick={() => onSelectCategory('tv-shows')}
-            className="group flex items-center justify-center w-full sm:w-64 h-24 bg-neutral-900/50 border-2 border-neutral-800 rounded-lg text-white text-2xl font-bold hover:bg-neutral-800 hover:border-netflix-red transition-all duration-300 transform hover:scale-105"
-        >
-            <TvIcon className="w-8 h-8 mr-4 text-neutral-400 group-hover:text-netflix-red transition-colors" />
-            TV Shows
-        </button>
-    </div>
-);
+interface HomeData {
+    trending: SearchResult[];
+    popularMovies: SearchResult[];
+    popularTv: SearchResult[];
+    topRatedTv: SearchResult[];
+}
 
+const EMPTY: HomeData = { trending: [], popularMovies: [], popularTv: [], topRatedTv: [] };
 
-const HomePage: React.FC<HomePageProps> = ({ onSelectCategory, onSelect, onSelectFromContinueWatching, linkProps }) => {
+/** Rows rise into the bottom of the billboard, like Netflix. */
+const ROWS_WRAPPER = 'relative z-10 -mt-[16vw] space-y-7 pb-4 sm:-mt-[11vw] sm:space-y-10 lg:-mt-[9vw] lg:space-y-12';
+
+const HomePage: React.FC<HomePageProps> = ({ onSelect, onSelectFromContinueWatching, linkProps }) => {
     const { continueWatchingList, myList, toggleMyListItem } = useAppContext();
-    const [trending, setTrending] = useState<SearchResult[]>([]);
-    const [popularMovies, setPopularMovies] = useState<SearchResult[]>([]);
-    const [topRatedTv, setTopRatedTv] = useState<SearchResult[]>([]);
+    const [data, setData] = useState<HomeData>(EMPTY);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [reloadKey, setReloadKey] = useState(0);
 
     useEffect(() => {
         const controller = new AbortController();
-        const fetchHomepageContent = async () => {
+        const load = async () => {
             setIsLoading(true);
             setError(null);
             try {
-                const [trendingRes, popularMoviesRes, topRatedTvRes] = await Promise.all([
+                const [trending, popularMovies, popularTv, topRatedTv] = await Promise.all([
                     getTrending(controller.signal),
                     getPopularMovies(controller.signal),
-                    getTopRatedTvShows(controller.signal)
+                    getPopularTvShows(controller.signal),
+                    getTopRatedTvShows(controller.signal),
                 ]);
-                if (!controller.signal.aborted) {
-                    setTrending(trendingRes);
-                    setPopularMovies(popularMoviesRes);
-                    setTopRatedTv(topRatedTvRes);
-                }
+                if (!controller.signal.aborted) setData({ trending, popularMovies, popularTv, topRatedTv });
             } catch (err) {
                 if (!controller.signal.aborted) {
-                    console.error("Failed to fetch homepage content:", err);
-                    setError("Could not load discovery sections. Please try again later.");
+                    console.error('Failed to fetch homepage content:', err);
+                    setError("We couldn't load titles right now. Check your connection and try again.");
                 }
             } finally {
-                if (!controller.signal.aborted) {
-                    setIsLoading(false);
-                }
+                if (!controller.signal.aborted) setIsLoading(false);
             }
         };
-
-        fetchHomepageContent();
-        
+        load();
         return () => controller.abort();
-    }, []);
+    }, [reloadKey]);
 
     if (isLoading) {
         return (
-            <div className="mt-4 space-y-4">
-                <SkeletonCarousel />
-                <SkeletonCarousel />
-                <SkeletonCarousel />
+            <div>
+                <HeroSkeleton />
+                <div className={ROWS_WRAPPER}>
+                    <SkeletonCarousel />
+                    <SkeletonCarousel />
+                    <SkeletonCarousel />
+                </div>
             </div>
         );
     }
 
     if (error) {
-        return <p className="text-center text-red-400 text-lg py-16" role="alert">{error}</p>;
+        return (
+            <div className="pt-28">
+                <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
+            </div>
+        );
     }
 
-    if (continueWatchingList.length > 0) {
-        // Returning User Layout
-        return (
-            <div className="mt-4">
-                <ContinueWatchingGrid onSelect={onSelectFromContinueWatching} />
+    const hasContinueWatching = continueWatchingList.length > 0;
+
+    return (
+        <div>
+            <HeroBanner items={data.trending} onSelect={onSelect} eyebrow="Trending this week" />
+            <div className={ROWS_WRAPPER}>
+                {hasContinueWatching && <ContinueWatchingGrid onSelect={onSelectFromContinueWatching} />}
                 <UpdateFromLink {...linkProps} />
-                <CategoryButtons onSelectCategory={onSelectCategory} />
-                <div className="space-y-4">
-                    {myList.length > 0 && <ContentCarousel title="My List" items={myList.map(i => i.media)} onSelect={onSelect} onRemoveItem={toggleMyListItem} />}
-                    {trending.length > 0 && <ContentCarousel title="Trending This Week" items={trending} onSelect={onSelect} />}
-                    {popularMovies.length > 0 && <ContentCarousel title="Popular Movies" items={popularMovies} onSelect={onSelect} />}
-                    {topRatedTv.length > 0 && <ContentCarousel title="Top Rated TV Shows" items={topRatedTv} onSelect={onSelect} />}
-                </div>
+                {myList.length > 0 && (
+                    <ContentCarousel title="My List" items={myList.map((i) => i.media)} onSelect={onSelect} onRemoveItem={toggleMyListItem} />
+                )}
+                <Top10Row title="Top 10 This Week" items={data.trending} onSelect={onSelect} />
+                <ContentCarousel title="Trending Now" items={data.trending.slice(10)} onSelect={onSelect} />
+                <ContentCarousel title="Popular Movies" items={data.popularMovies} onSelect={onSelect} />
+                <ContentCarousel title="Popular on TV" items={data.popularTv} onSelect={onSelect} />
+                <ContentCarousel title="Critically Acclaimed TV Shows" items={data.topRatedTv} onSelect={onSelect} />
             </div>
-        );
-    } else {
-        // New User Layout
-        return (
-            <div className="mt-4">
-                <div className="max-w-4xl mx-auto bg-neutral-900/40 border border-neutral-800 rounded-2xl p-6 md:p-12 my-8 text-center animate-fade-in">
-                    <div className="flex justify-center items-center space-x-4 text-neutral-800 mb-8">
-                        <FilmIcon className="w-16 h-16 opacity-80 -rotate-12"/>
-                        <TvIcon className="w-20 h-20 opacity-90 rotate-6"/>
-                    </div>
-                    <h2 className="text-3xl sm:text-4xl font-bold mb-3 text-white">Welcome to VidFast</h2>
-                    <div className="mb-8">
-                        <p className="text-xl font-medium text-neutral-100">Your list is currently empty.</p>
-                        <p className="text-lg text-neutral-400 mt-2">Get started by searching, browsing the sections below, or pasting a VidFast link to add to your list.</p>
-                    </div>
-                    <UpdateFromLink {...linkProps} variant="compact" />
-                </div>
-                <CategoryButtons onSelectCategory={onSelectCategory} />
-                <div className="space-y-4">
-                    {myList.length > 0 && <ContentCarousel title="My List" items={myList.map(i => i.media)} onSelect={onSelect} onRemoveItem={toggleMyListItem} />}
-                    {trending.length > 0 && <ContentCarousel title="Trending This Week" items={trending} onSelect={onSelect} />}
-                    {popularMovies.length > 0 && <ContentCarousel title="Popular Movies" items={popularMovies} onSelect={onSelect} />}
-                    {topRatedTv.length > 0 && <ContentCarousel title="Top Rated TV Shows" items={topRatedTv} onSelect={onSelect} />}
-                </div>
-            </div>
-        );
-    }
+        </div>
+    );
 };
 
 export default HomePage;

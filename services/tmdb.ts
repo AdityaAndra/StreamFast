@@ -1,28 +1,36 @@
-
-import { TMDB_API_KEY, TMDB_API_BASE_URL } from '../constants';
 import type { TMDBResponse, SearchResult, TVDetails, MovieSearchResult, SeasonDetails, ImagesResponse, TVSearchResult } from '../types';
 
+// All TMDB calls go through our own /api/tmdb endpoint (a Vercel serverless function, see api/tmdb.js),
+// so the TMDB API key never ships to the browser.
+const API_ENDPOINT = '/api/tmdb';
+
+// Small in-memory cache so moving between pages feels instant. Only successful responses are cached.
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const cache = new Map<string, { at: number; data: any }>();
+
 const fetchFromTMDB = async (path: string, params: Record<string, string> = {}, signal?: AbortSignal) => {
-    const url = new URL(`${TMDB_API_BASE_URL}${path}`);
-    url.searchParams.set('api_key', TMDB_API_KEY);
-    for (const [key, value] of Object.entries(params)) {
-        url.searchParams.set(key, value);
+    const query = new URLSearchParams({ path, ...params }).toString();
+    const hit = cache.get(query);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+        return hit.data;
     }
 
-    const response = await fetch(url.toString(), { signal });
+    const response = await fetch(`${API_ENDPOINT}?${query}`, { signal });
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({ status_message: 'An unknown error occurred' }));
         throw new Error(errorData.status_message || `Request failed with status ${response.status}`);
     }
-    return response.json();
+    const data = await response.json();
+    cache.set(query, { at: Date.now(), data });
+    return data;
 };
 
 export const searchMulti = async (query: string, signal?: AbortSignal): Promise<SearchResult[]> => {
   const data: TMDBResponse = await fetchFromTMDB('/search/multi', { query }, signal);
   return data.results.filter(
     (item): item is SearchResult => item.media_type === 'movie' || item.media_type === 'tv'
-  ).sort((a,b) => b.popularity - a.popularity);
+  ).sort((a, b) => b.popularity - a.popularity);
 };
 
 export const getTrending = async (signal?: AbortSignal): Promise<SearchResult[]> => {
@@ -46,7 +54,6 @@ export const getUpcomingMovies = async (signal?: AbortSignal): Promise<MovieSear
     const data = await fetchFromTMDB('/movie/upcoming', {}, signal);
     return data.results.map((movie: any) => ({ ...movie, media_type: 'movie' }));
 };
-
 
 export const getPopularTvShows = async (signal?: AbortSignal): Promise<TVSearchResult[]> => {
     const data = await fetchFromTMDB('/tv/popular', {}, signal);

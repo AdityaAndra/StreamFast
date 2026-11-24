@@ -32,9 +32,9 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
     };
     
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center p-4 z-50 animate-fade-in-fast" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in-fast" onClick={onClose}>
             <div
-                className="bg-netflix-dark rounded-xl shadow-2xl w-full max-w-2xl text-white animate-zoom-in flex flex-col h-full sm:h-[90vh] sm:max-h-[700px]"
+                className="bg-netflix-dark rounded-xl shadow-2xl shadow-black/80 ring-1 ring-white/10 w-full max-w-2xl text-white animate-zoom-in flex flex-col h-full sm:h-[90vh] sm:max-h-[700px]"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
