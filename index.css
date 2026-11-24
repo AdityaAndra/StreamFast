@@ -68,8 +68,6 @@ img { -webkit-user-drag: none; }
 .nf-row {
   position: relative;
   margin: 0 0 3vw;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 20vw;
 }
 .nf-row-header {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem;
@@ -79,12 +77,11 @@ img { -webkit-user-drag: none; }
   font-size: max(15px, 1.4vw); font-weight: 600; line-height: 1.25;
   color: #e5e5e5; letter-spacing: -0.01em;
 }
-.nf-row-title a { display: inline-flex; align-items: center; gap: 0.3em; }
-.nf-row-title .nf-explore { font-size: 0.6em; color: #54b9c5; opacity: 0; max-width: 0; overflow: hidden; white-space: nowrap; transition: opacity 0.35s, max-width 0.5s var(--nf-out); }
-.nf-row:hover .nf-explore { opacity: 1; max-width: 10em; }
+.nf-row-title a { color: inherit; }
 
 .nf-slider { position: relative; padding: 0 var(--nf-gutter); }
-.nf-track { display: flex; transition: transform 0.75s var(--nf-ease); will-change: transform; }
+.nf-track { display: flex; transition: transform 0.75s var(--nf-ease); }
+.nf-row:hover .nf-track { will-change: transform; }
 .nf-item { flex: 0 0 auto; box-sizing: border-box; padding: 0 var(--nf-gap); width: calc(100% / var(--per-row, 6)); }
 
 /* Touch devices: native momentum scrolling */
@@ -116,7 +113,6 @@ img { -webkit-user-drag: none; }
 .nf-card {
   position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
   border-radius: 4px; overflow: hidden; background: #232323; cursor: pointer;
-  transform: translateZ(0);
 }
 .nf-card.is-poster { aspect-ratio: 2 / 3; }
 .nf-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.4s ease; }
@@ -191,9 +187,9 @@ img { -webkit-user-drag: none; }
   position: fixed; z-index: 45; overflow: hidden; border-radius: 6px; background: #181818;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.75);
   transform-origin: 0 0; will-change: transform, opacity; backface-visibility: hidden;
-  transition: transform 0.32s var(--nf-out), opacity 0.22s ease, box-shadow 0.32s ease;
+  transition: transform 0.3s cubic-bezier(0.2, 0.85, 0.25, 1), opacity 0.2s ease;
 }
-.nf-preview.is-closing { transition: transform 0.22s ease-in, opacity 0.22s ease-in; }
+.nf-preview.is-closing { transition: transform 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease-in; pointer-events: none; }
 .nf-circle {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 2.4em; height: 2.4em; border-radius: 9999px; border: 2px solid rgba(255,255,255,0.5);
@@ -222,3 +218,54 @@ img { -webkit-user-drag: none; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
   .nf-billboard-timer { animation-duration: var(--dur, 10s) !important; }
 }
+
+/* ============ Lenis smooth scrolling ============ */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
+
+/* ============ Row "View all" (Netflix "Explore All") ============ */
+.nf-row-link { display: inline-flex; align-items: baseline; gap: 0.6em; color: inherit; }
+.nf-viewall { display: inline-flex; align-items: center; gap: 0.1em; font-size: 0.6em; font-weight: 600; color: #54b9c5; white-space: nowrap; }
+.nf-viewall svg { width: 1.15em; height: 1.15em; transition: transform 0.3s var(--nf-out); }
+.nf-row-link:hover .nf-viewall svg { transform: translate3d(3px, 0, 0); }
+@media (hover: hover) and (pointer: fine) {
+  .nf-viewall-text { display: inline-block; opacity: 0; transform: translate3d(-0.6em, 0, 0); transition: opacity 0.25s ease, transform 0.4s var(--nf-out); }
+  .nf-row:hover .nf-viewall-text { opacity: 1; transform: none; }
+}
+
+/* ============ Brand tiles (studios / production houses / streaming / franchises) ============ */
+.nf-brand {
+  position: relative; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 16 / 9;
+  border-radius: 6px; overflow: hidden; background: linear-gradient(155deg, #fbfbfb 0%, #d9d9d9 100%);
+  transition: transform 0.35s var(--nf-out), box-shadow 0.35s ease;
+}
+.nf-brand:hover { transform: scale(1.05); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55); }
+.nf-brand img { max-width: 66%; max-height: 50%; object-fit: contain; opacity: 0; transition: opacity 0.35s ease; }
+.nf-brand img.is-loaded { opacity: 1; }
+.nf-brand-name { font-weight: 800; letter-spacing: -0.02em; color: #141414; font-size: max(13px, 1.05vw); text-align: center; padding: 0 10%; line-height: 1.1; }
+.nf-brand.is-dark { background: radial-gradient(120% 130% at 25% 15%, #333 0%, #1a1a1a 55%, #111 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+.nf-brand.is-dark img { max-height: 48%; max-width: 40%; border-radius: 16%; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); margin-bottom: 9%; }
+.nf-brand-caption { position: absolute; left: 6%; right: 6%; bottom: 8%; text-align: center; font-size: max(11px, 0.8vw); font-weight: 600; color: #d2d2d2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-franchise-name { position: absolute; left: 7%; right: 7%; bottom: 9%; font-weight: 900; letter-spacing: -0.02em; line-height: 1.02; color: #fff; font-size: max(14px, 1.3vw); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65); }
+
+/* ============ Filters ============ */
+.nf-select {
+  -webkit-appearance: none; appearance: none; cursor: pointer; max-width: 15rem;
+  background: rgba(0, 0, 0, 0.6) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 0.7em center / 0.85em;
+  color: #fff; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 3px;
+  padding: 0.5em 2.1em 0.5em 0.85em; font-size: 14px; font-weight: 500; line-height: 1.2;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.nf-select:hover { border-color: #fff; background-color: rgba(255, 255, 255, 0.08); }
+.nf-select.is-active { border-color: #fff; background-color: #fff; color: #000; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E"); }
+.nf-select option { background: #181818; color: #fff; }
+.nf-select:disabled { opacity: 0.45; cursor: not-allowed; }
+.nf-seg { display: inline-flex; border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 3px; overflow: hidden; }
+.nf-seg button { padding: 0.5em 0.95em; font-size: 14px; font-weight: 600; color: #ddd; line-height: 1.2; transition: background-color 0.15s ease, color 0.15s ease; }
+.nf-seg button:hover { background: rgba(255, 255, 255, 0.1); }
+.nf-seg button.on { background: #fff; color: #000; }
+.nf-input { width: 100%; background: rgba(0, 0, 0, 0.6); border: 1px solid rgba(255, 255, 255, 0.5); border-radius: 3px; color: #fff; padding: 0.5em 0.85em 0.5em 2.3em; font-size: 14px; line-height: 1.2; transition: border-color 0.15s ease; }
+.nf-input::placeholder { color: #8c8c8c; }
+.nf-input:focus { border-color: #fff; outline: none; }

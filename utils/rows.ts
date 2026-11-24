@@ -1,12 +1,20 @@
 import type { SearchResult } from '../types';
 import * as tmdb from '../services/tmdb';
+import { toQuery, BrowseParams } from './browse';
+import type { BrandKind } from './router';
 
 export interface RowDef {
   id: string;
   title: string;
-  kind?: 'row' | 'top10';
-  load: () => Promise<SearchResult[]>;
+  kind?: 'row' | 'top10' | 'brands';
+  load?: () => Promise<SearchResult[]>;
+  /** "View all" destination (omitted for Top 10 rows). */
+  viewAll?: string;
+  brand?: BrandKind;
+  mediaType?: 'movie' | 'tv';
 }
+
+const browse = (p: Partial<BrowseParams>) => `/browse${toQuery({ type: 'all', sort: 'popular', ...p })}`;
 
 const genre = (type: 'movie' | 'tv', withGenres: string, extra: Record<string, string> = {}) => () =>
   tmdb.discover(type, { with_genres: withGenres, ...extra });
@@ -14,86 +22,118 @@ const genre = (type: 'movie' | 'tv', withGenres: string, extra: Record<string, s
 const anime = () => tmdb.discover('tv', { with_genres: '16', with_original_language: 'ja', 'vote_count.gte': '40' });
 const kdramas = () => tmdb.discover('tv', { with_genres: '18', with_original_language: 'ko', 'vote_count.gte': '20' });
 
+const g = (id: string, title: string, type: 'movie' | 'tv', withGenres: string, extra: Record<string, string> = {}, browseExtra: Partial<BrowseParams> = {}): RowDef => ({
+  id, title, load: genre(type, withGenres, extra), viewAll: browse({ type, genre: withGenres, ...browseExtra }),
+});
+
+const brands = (brand: BrandKind, title: string, mediaType?: 'movie' | 'tv'): RowDef => ({ id: `brands-${brand}`, title, kind: 'brands', brand, mediaType });
+
 export const HOME_HERO = () => tmdb.getTrending();
 
 export const HOME_ROWS: RowDef[] = [
   { id: 'top10-tv', title: 'Top 10 TV Shows Today', kind: 'top10', load: () => tmdb.getTrendingTv('day') },
-  { id: 'trending', title: 'Trending Now', load: () => tmdb.getTrending() },
-  { id: 'new-releases', title: 'New Releases', load: () => tmdb.getNowPlayingMovies() },
+  { id: 'trending', title: 'Trending Now', load: () => tmdb.getTrending(), viewAll: browse({ list: 'trending', window: 'week' }) },
+  { id: 'new-releases', title: 'New Releases', load: () => tmdb.getNowPlayingMovies(), viewAll: browse({ type: 'movie', list: 'new' }) },
   { id: 'top10-movies', title: 'Top 10 Movies Today', kind: 'top10', load: () => tmdb.getTrendingMovies('day') },
-  { id: 'popular-movies', title: 'Popular Movies', load: () => tmdb.getPopularMovies() },
-  { id: 'bingeworthy', title: 'Bingeworthy TV Shows', load: () => tmdb.getPopularTvShows() },
-  { id: 'action', title: 'Action & Adventure Movies', load: genre('movie', '28|12') },
-  { id: 'acclaimed-movies', title: 'Critically Acclaimed Movies', load: () => tmdb.getTopRatedMovies() },
-  { id: 'comedies', title: 'Comedies', load: genre('movie', '35') },
-  { id: 'anime', title: 'Anime', load: anime },
-  { id: 'scifi', title: 'Sci-Fi & Fantasy Movies', load: genre('movie', '878|14') },
-  { id: 'thrillers', title: 'Thrillers', load: genre('movie', '53') },
-  { id: 'kdramas', title: 'K-Dramas', load: kdramas },
-  { id: 'crime-tv', title: 'Crime TV Shows', load: genre('tv', '80') },
-  { id: 'horror', title: 'Horror Movies', load: genre('movie', '27') },
-  { id: 'romance', title: 'Romantic Movies', load: genre('movie', '10749') },
-  { id: 'acclaimed-tv', title: 'Critically Acclaimed TV Shows', load: () => tmdb.getTopRatedTvShows() },
-  { id: 'family', title: 'Family Movie Night', load: genre('movie', '10751') },
-  { id: 'animation', title: 'Animated Movies', load: genre('movie', '16') },
-  { id: 'mystery-tv', title: 'Mystery TV Shows', load: genre('tv', '9648') },
-  { id: 'docs', title: 'Documentaries', load: genre('movie', '99') },
-  { id: 'coming-soon', title: 'Coming Soon', load: () => tmdb.getUpcomingMovies() },
+  { id: 'popular-movies', title: 'Popular Movies', load: () => tmdb.getPopularMovies(), viewAll: browse({ type: 'movie' }) },
+  brands('providers', 'Streaming Services'),
+  { id: 'bingeworthy', title: 'Bingeworthy TV Shows', load: () => tmdb.getPopularTvShows(), viewAll: browse({ type: 'tv' }) },
+  g('action', 'Action & Adventure Movies', 'movie', '28|12'),
+  { id: 'acclaimed-movies', title: 'Critically Acclaimed Movies', load: () => tmdb.getTopRatedMovies(), viewAll: browse({ type: 'movie', sort: 'rating' }) },
+  brands('studios', 'Studios'),
+  g('comedies', 'Comedies', 'movie', '35'),
+  { id: 'anime', title: 'Anime', load: anime, viewAll: browse({ type: 'tv', genre: '16', lang: 'ja' }) },
+  g('scifi', 'Sci-Fi & Fantasy Movies', 'movie', '878|14'),
+  brands('franchises', 'Popular Franchises'),
+  g('thrillers', 'Thrillers', 'movie', '53'),
+  { id: 'kdramas', title: 'K-Dramas', load: kdramas, viewAll: browse({ type: 'tv', genre: '18', lang: 'ko' }) },
+  g('crime-tv', 'Crime TV Shows', 'tv', '80'),
+  brands('production', 'Production Houses'),
+  g('horror', 'Horror Movies', 'movie', '27'),
+  g('romance', 'Romantic Movies', 'movie', '10749'),
+  { id: 'acclaimed-tv', title: 'Critically Acclaimed TV Shows', load: () => tmdb.getTopRatedTvShows(), viewAll: browse({ type: 'tv', sort: 'rating' }) },
+  g('family', 'Family Movie Night', 'movie', '10751'),
+  g('animation', 'Animated Movies', 'movie', '16'),
+  g('mystery-tv', 'Mystery TV Shows', 'tv', '9648'),
+  g('docs', 'Documentaries', 'movie', '99'),
+  { id: 'coming-soon', title: 'Coming Soon', load: () => tmdb.getUpcomingMovies(), viewAll: browse({ type: 'movie', list: 'upcoming' }) },
 ];
 
 export const MOVIES_HERO = () => tmdb.getPopularMovies();
 
 export const MOVIES_ROWS: RowDef[] = [
   { id: 'm-top10', title: 'Top 10 Movies Today', kind: 'top10', load: () => tmdb.getTrendingMovies('day') },
-  { id: 'm-popular', title: 'Popular Movies', load: () => tmdb.getPopularMovies() },
-  { id: 'm-new', title: 'New Releases', load: () => tmdb.getNowPlayingMovies() },
-  { id: 'm-trending', title: 'Trending This Week', load: () => tmdb.getTrendingMovies('week') },
-  { id: 'm-action', title: 'Action Movies', load: genre('movie', '28') },
-  { id: 'm-comedy', title: 'Comedies', load: genre('movie', '35') },
-  { id: 'm-drama', title: 'Dramas', load: genre('movie', '18') },
-  { id: 'm-thriller', title: 'Thrillers', load: genre('movie', '53') },
-  { id: 'm-scifi', title: 'Sci-Fi Movies', load: genre('movie', '878') },
-  { id: 'm-fantasy', title: 'Fantasy Movies', load: genre('movie', '14') },
-  { id: 'm-horror', title: 'Horror Movies', load: genre('movie', '27') },
-  { id: 'm-romance', title: 'Romantic Movies', load: genre('movie', '10749') },
-  { id: 'm-crime', title: 'Crime Movies', load: genre('movie', '80') },
-  { id: 'm-mystery', title: 'Mysteries', load: genre('movie', '9648') },
-  { id: 'm-animation', title: 'Animated Movies', load: genre('movie', '16') },
-  { id: 'm-family', title: 'Family Movies', load: genre('movie', '10751') },
-  { id: 'm-war', title: 'War & History', load: genre('movie', '10752|36') },
-  { id: 'm-docs', title: 'Documentaries', load: genre('movie', '99') },
-  { id: 'm-acclaimed', title: 'Critically Acclaimed Movies', load: () => tmdb.getTopRatedMovies() },
-  { id: 'm-soon', title: 'Coming Soon', load: () => tmdb.getUpcomingMovies() },
+  { id: 'm-popular', title: 'Popular Movies', load: () => tmdb.getPopularMovies(), viewAll: browse({ type: 'movie' }) },
+  { id: 'm-new', title: 'New Releases', load: () => tmdb.getNowPlayingMovies(), viewAll: browse({ type: 'movie', list: 'new' }) },
+  { id: 'm-trending', title: 'Trending This Week', load: () => tmdb.getTrendingMovies('week'), viewAll: browse({ type: 'movie', list: 'trending', window: 'week' }) },
+  brands('providers', 'Streaming Services', 'movie'),
+  g('m-action', 'Action Movies', 'movie', '28'),
+  g('m-comedy', 'Comedies', 'movie', '35'),
+  brands('studios', 'Studios', 'movie'),
+  g('m-drama', 'Dramas', 'movie', '18'),
+  g('m-thriller', 'Thrillers', 'movie', '53'),
+  g('m-scifi', 'Sci-Fi Movies', 'movie', '878'),
+  brands('franchises', 'Popular Franchises'),
+  g('m-fantasy', 'Fantasy Movies', 'movie', '14'),
+  g('m-horror', 'Horror Movies', 'movie', '27'),
+  brands('production', 'Production Houses', 'movie'),
+  g('m-romance', 'Romantic Movies', 'movie', '10749'),
+  g('m-crime', 'Crime Movies', 'movie', '80'),
+  g('m-mystery', 'Mysteries', 'movie', '9648'),
+  g('m-animation', 'Animated Movies', 'movie', '16'),
+  g('m-family', 'Family Movies', 'movie', '10751'),
+  g('m-war', 'War & History', 'movie', '10752|36'),
+  g('m-docs', 'Documentaries', 'movie', '99'),
+  { id: 'm-acclaimed', title: 'Critically Acclaimed Movies', load: () => tmdb.getTopRatedMovies(), viewAll: browse({ type: 'movie', sort: 'rating' }) },
+  { id: 'm-soon', title: 'Coming Soon', load: () => tmdb.getUpcomingMovies(), viewAll: browse({ type: 'movie', list: 'upcoming' }) },
 ];
 
 export const TV_HERO = () => tmdb.getPopularTvShows();
 
 export const TV_ROWS: RowDef[] = [
   { id: 't-top10', title: 'Top 10 TV Shows Today', kind: 'top10', load: () => tmdb.getTrendingTv('day') },
-  { id: 't-popular', title: 'Bingeworthy TV Shows', load: () => tmdb.getPopularTvShows() },
-  { id: 't-new', title: 'New Episodes This Week', load: () => tmdb.getOnTheAirTvShows() },
-  { id: 't-today', title: 'Airing Today', load: () => tmdb.getAiringTodayTv() },
-  { id: 't-anime', title: 'Anime Series', load: anime },
-  { id: 't-kdrama', title: 'K-Dramas', load: kdramas },
-  { id: 't-crime', title: 'Crime TV Shows', load: genre('tv', '80') },
-  { id: 't-drama', title: 'TV Dramas', load: genre('tv', '18') },
-  { id: 't-comedy', title: 'TV Comedies', load: genre('tv', '35') },
-  { id: 't-scifi', title: 'Sci-Fi & Fantasy TV', load: genre('tv', '10765') },
-  { id: 't-action', title: 'Action & Adventure TV', load: genre('tv', '10759') },
-  { id: 't-mystery', title: 'Mystery TV Shows', load: genre('tv', '9648') },
-  { id: 't-animation', title: 'Animated Series', load: genre('tv', '16', { without_genres: '10762' }) },
-  { id: 't-reality', title: 'Reality TV', load: genre('tv', '10764', { 'vote_count.gte': '10' }) },
-  { id: 't-docs', title: 'Docuseries', load: genre('tv', '99', { 'vote_count.gte': '20' }) },
-  { id: 't-kids', title: 'Kids TV', load: genre('tv', '10762', { 'vote_count.gte': '20' }) },
-  { id: 't-acclaimed', title: 'Critically Acclaimed TV Shows', load: () => tmdb.getTopRatedTvShows() },
+  { id: 't-popular', title: 'Bingeworthy TV Shows', load: () => tmdb.getPopularTvShows(), viewAll: browse({ type: 'tv' }) },
+  { id: 't-new', title: 'New Episodes This Week', load: () => tmdb.getOnTheAirTvShows(), viewAll: browse({ type: 'tv', list: 'on_the_air' }) },
+  { id: 't-today', title: 'Airing Today', load: () => tmdb.getAiringTodayTv(), viewAll: browse({ type: 'tv', list: 'airing_today' }) },
+  brands('providers', 'Streaming Services', 'tv'),
+  { id: 't-anime', title: 'Anime Series', load: anime, viewAll: browse({ type: 'tv', genre: '16', lang: 'ja' }) },
+  { id: 't-kdrama', title: 'K-Dramas', load: kdramas, viewAll: browse({ type: 'tv', genre: '18', lang: 'ko' }) },
+  g('t-crime', 'Crime TV Shows', 'tv', '80'),
+  brands('studios', 'Studios', 'tv'),
+  g('t-drama', 'TV Dramas', 'tv', '18'),
+  g('t-comedy', 'TV Comedies', 'tv', '35'),
+  g('t-scifi', 'Sci-Fi & Fantasy TV', 'tv', '10765'),
+  brands('production', 'Production Houses', 'tv'),
+  g('t-action', 'Action & Adventure TV', 'tv', '10759'),
+  g('t-mystery', 'Mystery TV Shows', 'tv', '9648'),
+  g('t-animation', 'Animated Series', 'tv', '16', { without_genres: '10762' }),
+  g('t-reality', 'Reality TV', 'tv', '10764', { 'vote_count.gte': '10' }),
+  g('t-docs', 'Docuseries', 'tv', '99', { 'vote_count.gte': '20' }),
+  g('t-kids', 'Kids TV', 'tv', '10762', { 'vote_count.gte': '20' }),
+  { id: 't-acclaimed', title: 'Critically Acclaimed TV Shows', load: () => tmdb.getTopRatedTvShows(), viewAll: browse({ type: 'tv', sort: 'rating' }) },
 ];
 
 export const LATEST_ROWS: RowDef[] = [
-  { id: 'l-new', title: 'New on VidFast', load: () => tmdb.getNowPlayingMovies() },
+  { id: 'l-new', title: 'New on VidFast', load: () => tmdb.getNowPlayingMovies(), viewAll: browse({ type: 'movie', list: 'new' }) },
   { id: 'l-top10-tv', title: 'Top 10 TV Shows Today', kind: 'top10', load: () => tmdb.getTrendingTv('day') },
   { id: 'l-top10-movies', title: 'Top 10 Movies Today', kind: 'top10', load: () => tmdb.getTrendingMovies('day') },
-  { id: 'l-episodes', title: 'New Episodes This Week', load: () => tmdb.getOnTheAirTvShows() },
-  { id: 'l-soon', title: 'Worth the Wait', load: () => tmdb.getUpcomingMovies() },
-  { id: 'l-trending', title: 'Trending This Week', load: () => tmdb.getTrending() },
-  { id: 'l-today', title: 'Airing Today', load: () => tmdb.getAiringTodayTv() },
+  { id: 'l-episodes', title: 'New Episodes This Week', load: () => tmdb.getOnTheAirTvShows(), viewAll: browse({ type: 'tv', list: 'on_the_air' }) },
+  brands('providers', 'Streaming Services'),
+  { id: 'l-soon', title: 'Worth the Wait', load: () => tmdb.getUpcomingMovies(), viewAll: browse({ type: 'movie', list: 'upcoming' }) },
+  { id: 'l-trending', title: 'Trending This Week', load: () => tmdb.getTrending(), viewAll: browse({ list: 'trending', window: 'week' }) },
+  { id: 'l-today', title: 'Airing Today', load: () => tmdb.getAiringTodayTv(), viewAll: browse({ type: 'tv', list: 'airing_today' }) },
+];
+
+export const EXPLORE_ROWS: RowDef[] = [
+  { id: 'x-trending', title: 'Trending Now', load: () => tmdb.getTrending(), viewAll: browse({ list: 'trending', window: 'week' }) },
+  { id: 'x-new', title: 'New Releases', load: () => tmdb.getNowPlayingMovies(), viewAll: browse({ type: 'movie', list: 'new' }) },
+  { id: 'x-popular-movies', title: 'Popular Movies', load: () => tmdb.getPopularMovies(), viewAll: browse({ type: 'movie' }) },
+  { id: 'x-popular-tv', title: 'Popular TV Shows', load: () => tmdb.getPopularTvShows(), viewAll: browse({ type: 'tv' }) },
+  brands('providers', 'Streaming Services'),
+  brands('studios', 'Studios'),
+  brands('production', 'Production Houses'),
+  brands('franchises', 'Popular Franchises'),
+  { id: 'x-top-movies', title: 'Highest Rated Movies', load: () => tmdb.getTopRatedMovies(), viewAll: browse({ type: 'movie', sort: 'rating' }) },
+  { id: 'x-top-tv', title: 'Highest Rated TV Shows', load: () => tmdb.getTopRatedTvShows(), viewAll: browse({ type: 'tv', sort: 'rating' }) },
+  { id: 'x-soon', title: 'Coming Soon', load: () => tmdb.getUpcomingMovies(), viewAll: browse({ type: 'movie', list: 'upcoming' }) },
 ];

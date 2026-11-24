@@ -3,14 +3,15 @@ import ProfileMenu from './ProfileMenu';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
 import { loadRecentSearches, clearRecentSearches } from '../utils/recentSearches';
 
-export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'my-list' | 'how-to-use' | 'title' | 'other';
-type NavView = 'home' | 'tv-shows' | 'movies' | 'latest' | 'my-list';
+export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'explore' | 'my-list' | 'how-to-use' | 'title' | 'other';
+type NavView = 'home' | 'tv-shows' | 'movies' | 'latest' | 'explore' | 'my-list';
 
 const NAV_ITEMS: { id: NavView; label: string }[] = [
     { id: 'home', label: 'Home' },
     { id: 'tv-shows', label: 'TV Shows' },
     { id: 'movies', label: 'Movies' },
     { id: 'latest', label: 'New & Popular' },
+    { id: 'explore', label: 'Explore' },
     { id: 'my-list', label: 'My List' },
 ];
 

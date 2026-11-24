@@ -154,3 +154,17 @@ export const getTitleDetails = async (type: 'movie' | 'tv', id: number, signal?:
   const data = await fetchFromTMDB(`/${type}/${id}`, { append_to_response: append, include_image_language: 'en,null' }, signal);
   return { ...data, media_type: type };
 };
+
+/** Raw (cached) TMDB GET through our proxy — used by the Browse / filter pages. */
+export const tmdbGet = (path: string, params: Record<string, string> = {}, signal?: AbortSignal) => fetchFromTMDB(path, params, signal);
+
+export interface CollectionDetails {
+  id: number;
+  name: string;
+  overview: string;
+  poster_path: string | null;
+  backdrop_path: string | null;
+  parts: any[];
+}
+
+export const getCollection = async (id: number, signal?: AbortSignal): Promise<CollectionDetails> => fetchFromTMDB(`/collection/${id}`, {}, signal);

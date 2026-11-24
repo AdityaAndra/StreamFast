@@ -7,6 +7,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
 import { CAN_HOVER, prefetchLogos, setTop10, usePerRow } from '../utils/artwork';
 import { peekCache, useCachedData } from '../utils/useCachedData';
 import type { RowDef } from '../utils/rows';
+import { Link } from '../utils/router';
 
 interface RowShellProps {
   title: ReactNode;
@@ -14,6 +15,8 @@ interface RowShellProps {
   /** Override cards per page (Top 10 shows fewer, bigger items). */
   perRow?: number;
   actions?: ReactNode;
+  /** "View all" link (Netflix "Explore All"). */
+  viewAll?: string;
   children: ReactNode;
 }
 
@@ -21,7 +24,7 @@ interface RowShellProps {
  * Netflix row: on mouse devices it pages with a GPU translate (0.75s Netflix easing) and
  * edge arrows; on touch devices it falls back to native momentum swiping.
  */
-export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: perRowOverride, actions, children }) => {
+export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: perRowOverride, actions, viewAll, children }) => {
   const basePerRow = usePerRow();
   const perRow = perRowOverride ?? basePerRow;
   const pages = Math.max(1, Math.ceil(itemCount / perRow));
@@ -38,7 +41,19 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
   return (
     <section className="nf-row" aria-label={typeof title === 'string' ? title : undefined}>
       <div className="nf-row-header">
-        <h2 className="nf-row-title">{title}</h2>
+        <h2 className="nf-row-title">
+          {viewAll ? (
+            <Link to={viewAll} className="nf-row-link">
+              {title}
+              <span className="nf-viewall">
+                <span className="nf-viewall-text">View all</span>
+                <ChevronRightIcon />
+              </span>
+            </Link>
+          ) : (
+            title
+          )}
+        </h2>
         <div className="flex items-center gap-3">
           {actions}
           {CAN_HOVER && pages > 1 && (
@@ -80,9 +95,10 @@ interface ContentCarouselProps {
   items: SearchResult[];
   onRemoveItem?: (item: SearchResult) => void;
   onSelect?: (item: SearchResult) => void;
+  viewAll?: string;
 }
 
-const ContentCarousel: React.FC<ContentCarouselProps> = ({ title, items, onRemoveItem }) => {
+const ContentCarousel: React.FC<ContentCarouselProps> = ({ title, items, onRemoveItem, viewAll }) => {
   useEffect(() => {
     if (items?.length) prefetchLogos(items);
   }, [items]);
@@ -90,7 +106,7 @@ const ContentCarousel: React.FC<ContentCarouselProps> = ({ title, items, onRemov
   if (!items || items.length === 0) return null;
 
   return (
-    <RowShell title={title} itemCount={items.length}>
+    <RowShell title={title} itemCount={items.length} viewAll={viewAll}>
       {items.map((item) => (
         <div key={`${item.media_type}-${item.id}`} className="nf-item">
           <ResultCard item={item} onRemove={onRemoveItem} />
@@ -126,7 +142,7 @@ export const LazyRow: React.FC<{ def: RowDef; eager?: boolean }> = ({ def, eager
     return () => io.disconnect();
   }, [visible]);
 
-  const { data, error } = useCachedData<SearchResult[]>(visible ? key : null, def.load);
+  const { data, error } = useCachedData<SearchResult[]>(visible && def.load ? key : null, def.load || (async () => []));
 
   useEffect(() => {
     if (data && def.kind === 'top10') setTop10(data);
@@ -141,7 +157,7 @@ export const LazyRow: React.FC<{ def: RowDef; eager?: boolean }> = ({ def, eager
     );
   }
   if (!data.length) return null;
-  return def.kind === 'top10' ? <Top10Row title={def.title} items={data} /> : <ContentCarousel title={def.title} items={data} />;
+  return def.kind === 'top10' ? <Top10Row title={def.title} items={data} /> : <ContentCarousel title={def.title} items={data} viewAll={def.viewAll} />;
 };
 
 export default ContentCarousel;

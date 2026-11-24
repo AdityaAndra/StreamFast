@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { SearchResult } from '../types';
 import { useAppContext } from '../contexts/AppContext';
@@ -29,7 +29,7 @@ interface HoverPreviewApi {
 const HoverPreviewContext = createContext<HoverPreviewApi>({ show: () => {}, cancel: () => {} });
 export const useHoverPreview = () => useContext(HoverPreviewContext);
 
-const OPEN_DELAY_MS = 420;
+const OPEN_DELAY_MS = 330;
 
 export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [active, setActive] = useState<(PreviewRequest & { key: number }) | null>(null);
@@ -84,8 +84,11 @@ export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ childr
 
   useEffect(() => () => clear(), []);
 
+  // Stable value: otherwise every card on the page re-renders each time a preview opens/closes.
+  const api = useMemo(() => ({ show, cancel }), [show, cancel]);
+
   return (
-    <HoverPreviewContext.Provider value={{ show, cancel }}>
+    <HoverPreviewContext.Provider value={api}>
       {children}
       {active && createPortal(<PreviewCard key={active.key} req={active} closing={closing} onClose={close} onClosed={remove} />, document.body)}
     </HoverPreviewContext.Provider>
@@ -175,13 +178,12 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
         width: layout.width,
         transform: expanded ? 'translate3d(0,0,0) scale(1)' : layout.from,
         opacity: fadeFromCard ? (expanded ? 1 : 0) : 1,
-        boxShadow: expanded ? '0 3px 10px rgba(0,0,0,0.75)' : '0 0 0 rgba(0,0,0,0)',
       }}
     >
       <button type="button" onClick={goToTitle} className="relative block aspect-video w-full overflow-hidden bg-[#232323]" aria-label={`Open ${title}`}>
         {backdrop && <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />}
         <span className="nf-card-shade" />
-        <CardLogo item={item} size="w500" />
+        <CardLogo item={item} />
       </button>
 
       <div

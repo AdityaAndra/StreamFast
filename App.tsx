@@ -17,6 +17,11 @@ import MyListPage from './pages/MyListPage';
 import SearchResultsPage from './pages/SearchResultsPage';
 import TitlePage from './pages/TitlePage';
 import NotFoundPage from './pages/NotFoundPage';
+import ExplorePage from './pages/ExplorePage';
+import FranchisePage from './pages/FranchisePage';
+import { BrowsePage, CompanyPage, ProviderPage } from './pages/BrowsePage';
+import { BrandGridPage } from './components/BrandRow';
+import { initSmoothScroll, pauseScroll, resumeScroll, scrollToY } from './utils/smoothScroll';
 import type { SearchResult, WatchProgress } from './types';
 import { useAppContext } from './contexts/AppContext';
 import { PlayerContext, PlayerTab } from './contexts/PlayerContext';
@@ -28,6 +33,7 @@ const NAV_PATHS: Record<string, string> = {
   'tv-shows': '/tv',
   movies: '/movies',
   latest: '/latest',
+  explore: '/explore',
   'my-list': '/my-list',
 };
 
@@ -37,6 +43,7 @@ const viewOf = (route: Route): AppView => {
     case 'tv': return 'tv-shows';
     case 'movies': return 'movies';
     case 'latest': return 'latest';
+    case 'explore': case 'browse': case 'brands': case 'company': case 'provider': case 'franchise': return 'explore';
     case 'my-list': return 'my-list';
     case 'guide': return 'how-to-use';
     case 'title': return 'title';
@@ -59,6 +66,17 @@ const App: React.FC = () => {
 
   const isSearching = route.name === 'search';
   const searchQuery = isSearching ? route.q : '';
+
+  useEffect(() => {
+    initSmoothScroll();
+  }, []);
+
+  // Freeze the page behind any open dialog.
+  const anyModal = !!player || isThemeModalOpen || isResetModalOpen || confirmationState.isOpen;
+  useEffect(() => {
+    if (anyModal) pauseScroll();
+    else resumeScroll();
+  }, [anyModal]);
 
   // Back/forward: restore scroll position once the page has rendered.
   useLayoutEffect(() => {
@@ -84,9 +102,9 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (route.name !== 'title') {
+    if (!['title', 'company', 'provider', 'franchise'].includes(route.name)) {
       const titles: Partial<Record<Route['name'], string>> = {
-        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My List', guide: 'How to use', search: 'Search',
+        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My List', guide: 'How to use', search: 'Search', explore: 'Explore', browse: 'Browse', brands: 'Browse',
       };
       document.title = `${titles[route.name] || 'VidFast'} — VidFast`;
     }
@@ -148,6 +166,18 @@ const App: React.FC = () => {
         return <SearchResultsPage query={route.q} />;
       case 'title':
         return <TitlePage key={`${route.mediaType}-${route.id}`} mediaType={route.mediaType} id={route.id} autoPlay={route.play} />;
+      case 'explore':
+        return <ExplorePage />;
+      case 'browse':
+        return <BrowsePage search={route.search} />;
+      case 'brands':
+        return <BrandGridPage kind={route.kind} search={location.includes('?') ? location.slice(location.indexOf('?')) : ''} />;
+      case 'company':
+        return <CompanyPage brandKey={route.key} search={route.search} />;
+      case 'provider':
+        return <ProviderPage id={route.id} search={route.search} />;
+      case 'franchise':
+        return <FranchisePage id={route.id} />;
       case 'guide':
         return (
           <div className="px-[4%] pt-24 sm:pt-28">
@@ -159,7 +189,18 @@ const App: React.FC = () => {
     }
   };
 
-  const pageKey = route.name === 'title' ? `title-${route.mediaType}-${route.id}` : route.name;
+  const pageKey =
+    route.name === 'title'
+      ? `title-${route.mediaType}-${route.id}`
+      : route.name === 'company'
+        ? `company-${route.key}`
+        : route.name === 'provider'
+          ? `provider-${route.id}`
+          : route.name === 'franchise'
+            ? `franchise-${route.id}`
+            : route.name === 'brands'
+              ? `brands-${route.kind}`
+              : route.name;
 
   return (
     <PlayerContext.Provider value={playerApi}>
@@ -213,7 +254,7 @@ const App: React.FC = () => {
           <ResetConfirmationModal isOpen={isResetModalOpen} onConfirm={handleConfirmReset} onCancel={() => setIsResetModalOpen(false)} />
           <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
 
-          {showScrollToTop && !player && <ScrollToTopButton onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />}
+          {showScrollToTop && !player && <ScrollToTopButton onClick={() => scrollToY(0, true)} />}
           <Toast message={feedbackMessage} />
         </div>
       </HoverPreviewProvider>
