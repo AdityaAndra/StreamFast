@@ -65,6 +65,7 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
       });
     push(ranked.strong);
     if (!personFirst && rel.data) push(rel.data.titles);
+    push(ranked.medium);
     push(ranked.weak);
     return out;
   }, [ranked, rel.data, personFirst]);
