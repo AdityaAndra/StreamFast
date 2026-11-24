@@ -3,7 +3,8 @@ import type { SearchResult } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 import ContinueWatchingGrid from '../components/ContinueWatchingGrid';
 import UpdateFromLink, { UpdateFromLinkProps } from '../components/UpdateFromLink';
-import ContentCarousel, { LazyRow } from '../components/ContentCarousel';
+import ContentCarousel from '../components/ContentCarousel';
+import { RowList } from '../components/BrandRow';
 import HeroBanner, { HeroSkeleton } from '../components/HeroBanner';
 import ErrorState from '../components/ErrorState';
 import { useCachedData } from '../utils/useCachedData';
@@ -30,19 +31,15 @@ const HomePage: React.FC<HomePageProps> = ({ linkProps }) => {
 
   return (
     <div>
-      {hero.data ? <HeroBanner items={hero.data} eyebrow="Trending this week" /> : <HeroSkeleton />}
+      {hero.data ? <HeroBanner items={hero.data} /> : <HeroSkeleton />}
       <div className={ROWS_OVERLAP}>
         <ContinueWatchingGrid />
-        {myList.length > 0 && <ContentCarousel title="My List" items={myList.map((i) => i.media)} onRemoveItem={toggleMyListItem} />}
-        {HOME_ROWS.slice(0, 2).map((def) => (
-          <LazyRow key={def.id} def={def} eager />
-        ))}
+        {myList.length > 0 && <ContentCarousel title="My List" items={myList.map((i) => i.media)} onRemoveItem={toggleMyListItem} viewAll="/my-list" />}
+        <RowList rows={HOME_ROWS.slice(0, 2)} />
         <div className="mb-[3vw]">
           <UpdateFromLink {...linkProps} />
         </div>
-        {HOME_ROWS.slice(2).map((def) => (
-          <LazyRow key={def.id} def={def} />
-        ))}
+        <RowList rows={HOME_ROWS.slice(2)} eagerCount={0} />
       </div>
     </div>
   );

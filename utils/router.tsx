@@ -1,4 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
+import { scrollToY } from './smoothScroll';
 
 /**
  * Tiny History-API router: real URLs (/movie/603-the-matrix, /tv/1399, /search?q=dune, …),
@@ -14,7 +15,16 @@ export type Route =
   | { name: 'guide' }
   | { name: 'search'; q: string }
   | { name: 'title'; mediaType: 'movie' | 'tv'; id: number; play: boolean }
+  | { name: 'explore' }
+  | { name: 'browse'; search: string }
+  | { name: 'brands'; kind: BrandKind }
+  | { name: 'company'; key: string; search: string }
+  | { name: 'provider'; id: number; search: string }
+  | { name: 'franchise'; id: number }
   | { name: 'not-found' };
+
+export type BrandKind = 'studios' | 'production' | 'providers' | 'franchises';
+const BRAND_LISTS: Record<string, BrandKind> = { '/studios': 'studios', '/production-houses': 'production', '/streaming': 'providers', '/franchises': 'franchises' };
 
 const listeners = new Set<() => void>();
 const currentLocation = () => window.location.pathname + window.location.search;
@@ -33,7 +43,7 @@ window.addEventListener('popstate', (e) => {
 
 export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boolean } = {}) => {
   if (to === currentLocation()) {
-    if (!opts.keepScroll) window.scrollTo({ top: 0 });
+    if (!opts.keepScroll) scrollToY(0);
     return;
   }
   // Remember where we were so "Back" lands in the same spot.
@@ -43,7 +53,7 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
   else window.history.pushState({ scrollY: 0, idx: idx + 1 }, '', to);
   pendingRestoreY = null;
   emit();
-  if (!opts.keepScroll) window.scrollTo({ top: 0 });
+  if (!opts.keepScroll) scrollToY(0);
 };
 
 export const goBack = (fallback = '/') => {
@@ -59,7 +69,7 @@ export const consumeScrollRestore = () => {
   let tries = 0;
   const attempt = () => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
-    window.scrollTo({ top: Math.min(target, Math.max(0, max)) });
+    scrollToY(Math.min(target, Math.max(0, max)));
     if (max < target && tries++ < 40) requestAnimationFrame(attempt);
   };
   requestAnimationFrame(attempt);
@@ -75,6 +85,15 @@ export const parseRoute = (loc: string): Route => {
   if (path === '/my-list') return { name: 'my-list' };
   if (path === '/guide') return { name: 'guide' };
   if (path === '/search') return { name: 'search', q: url.searchParams.get('q') || '' };
+  if (path === '/explore') return { name: 'explore' };
+  if (path === '/browse') return { name: 'browse', search: url.search };
+  if (BRAND_LISTS[path]) return { name: 'brands', kind: BRAND_LISTS[path] };
+  let b = path.match(/^\/(?:studio|production|company)\/([a-z0-9-]+)/);
+  if (b) return { name: 'company', key: b[1], search: url.search };
+  b = path.match(/^\/provider\/(\d+)/);
+  if (b) return { name: 'provider', id: Number(b[1]), search: url.search };
+  b = path.match(/^\/franchise\/(\d+)/);
+  if (b) return { name: 'franchise', id: Number(b[1]) };
   const m = path.match(/^\/(?:title\/)?(movie|tv)\/(\d+)/);
   if (m) return { name: 'title', mediaType: m[1] as 'movie' | 'tv', id: Number(m[2]), play: url.searchParams.get('play') === '1' };
   return { name: 'not-found' };

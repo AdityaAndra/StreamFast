@@ -125,12 +125,6 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, eyebrow }) => {
 
       <div className="nf-billboard-info">
         <div key={`${current.media_type}-${current.id}`} className="nf-billboard-swap">
-          {eyebrow && (
-            <p className="mb-[1.2vw] flex items-center gap-2 text-[max(11px,0.95vw)] font-semibold uppercase tracking-[0.3em] text-white/85 text-shadow-netflix max-sm:justify-center">
-              <span className="text-[1.5em] font-black leading-none tracking-[-0.08em] text-netflix-red">V</span>
-              {eyebrow}
-            </p>
-          )}
           <div className="nf-billboard-logo mb-[1.2vw] max-sm:mb-4">
             <BillboardLogo item={current} />
           </div>
