@@ -430,55 +430,59 @@ html.lenis, html.lenis body { height: auto; }
   .nf-title-modal { width: 100%; min-height: 100%; border-radius: 0; }
 }
 
-/* ============ Watch page: Netflix layout on top of the VidFast player ============
-   Positions follow the player's own control bar, which sits ~42px from the bottom and
-   scales with the window width (measured at 1000px and 1536px wide). */
-.nf-watch { --vf-icon: calc(26px + 0.93vw); --vf-gap: calc(18.5px + 3.7vw); --vf-subs: calc(91.6px + 7.84vw); }
-.nf-watch-back {
-  position: absolute; z-index: 4; left: calc(18px + 1.5vw); top: calc(18px + 1.5vw);
-  display: flex; height: calc(var(--vf-icon) + 6px); width: calc(var(--vf-icon) + 6px); align-items: center; justify-content: center;
-  border-radius: 9999px; color: #fff; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.7)); transition: transform 0.15s, background-color 0.2s;
-}
-.nf-watch-back:hover { transform: scale(1.12); background: rgba(255,255,255,0.12); }
-.nf-watch-bottom {
-  position: absolute; inset: auto 0 calc(42px - var(--vf-icon) / 2) 0; z-index: 3; height: var(--vf-icon);
-  pointer-events: none; opacity: 0; transition: opacity 0.3s ease;
-}
-.nf-watch-bottom.is-on { opacity: 1; }
-.nf-watch-bottom.is-on button { pointer-events: auto; }
-.nf-watch-title {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 34vw;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: max(15px, 1.15vw); color: #fff;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.8); pointer-events: none;
-}
-/* Right-aligned so our last icon sits one slot in front of the player's subtitles button. */
-.nf-watch-right {
-  position: absolute; top: 0; right: calc(var(--vf-subs) + var(--vf-gap) - var(--vf-icon) / 2);
-  display: flex; height: 100%; align-items: center; gap: calc(var(--vf-gap) - var(--vf-icon));
-}
-.nf-watch-icon {
-  display: flex; height: var(--vf-icon); width: var(--vf-icon); align-items: center; justify-content: center; border-radius: 6px;
-  color: #fff; transition: transform 0.15s, color 0.15s;
-}
-.nf-watch-icon:hover { transform: scale(1.15); }
-.nf-watch-icon.is-active { color: var(--nf-red, #e50914); }
-.nf-server-menu {
-  position: absolute; right: 0; bottom: calc(100% + 14px); min-width: 15rem; overflow: hidden; padding-bottom: 6px; border-radius: 6px;
-  background: rgba(20,20,20,0.97); box-shadow: 0 10px 30px rgba(0,0,0,0.6); pointer-events: auto; animation: nf-fade-up 0.18s ease both;
-}
-@keyframes nf-fade-up { from { opacity: 0; transform: translate3d(0, 6px, 0); } to { opacity: 1; transform: none; } }
-.nf-watch:fullscreen { background: #000; }
-@media (max-width: 640px) {
-  .nf-watch-title { display: none; }
-  .nf-watch-bottom { inset: calc(16px + 1.5vw) calc(12px + 14vw) auto auto; height: 40px; opacity: 1; }
-  .nf-watch-bottom button { pointer-events: auto; }
-  .nf-watch-right { position: static; }
-  .nf-server-menu { top: calc(100% + 8px); bottom: auto; }
-}
+/* ============ Watch page: our controls drawn in VidFast's own player style ============
+   VidFast sizes its UI from the root font size with these exact breakpoints (1em = 10px on
+   big screens). The player fills the window, so the same queries keep us in step with it. */
+.nf-watch { font-size: 10px; font-family: 'Inter Variable', Inter, system-ui, sans-serif; }
+@media (max-width: 1280px), (max-height: 720px) { .nf-watch { font-size: 9px; } }
+@media (max-width: 1152px), (max-height: 648px) { .nf-watch { font-size: 8px; } }
+@media (max-width: 1024px), (max-height: 576px) { .nf-watch { font-size: 7.2px; } }
+@media (max-width: 960px), (max-height: 540px) { .nf-watch { font-size: 6.6px; } }
+@media (max-width: 854px), (max-height: 480px) { .nf-watch { font-size: 6px; } }
+@media (max-width: 640px), (max-height: 360px) { .nf-watch { font-size: 5.3px; } }
+@media (max-width: 426px), (max-height: 240px) { .nf-watch { font-size: 4.8px; } }
 
-/* The player can't tell us when its controls are showing, so pointing at our part of the
-   bottom bar brings our title / server / episode buttons back. */
-.nf-watch-bottom .nf-watch-right, .nf-watch-bottom .nf-watch-title { pointer-events: auto; }
-.nf-watch-bottom:not(.is-on) button { pointer-events: none; }
-.nf-watch-bottom .nf-watch-right { padding: 10px 8px; margin: -10px -8px; }
-.nf-watch-back { height: calc(var(--vf-icon) + 10px); width: calc(var(--vf-icon) + 10px); padding: 4px; }
+/* Back arrow: exactly where (and how) VidFast drew its server button. */
+.vf-back {
+  position: absolute; left: 0; top: 0; z-index: 4; margin: 2em; padding: 1em; line-height: 0;
+  color: rgba(255, 255, 255, 0.8); transition: opacity 250ms;
+}
+.vf-back svg { width: min(5.8em, 52px); height: min(5.8em, 52px); }
+.vf-back:hover, .vf-back:active { color: #fff; }
+
+/* Bottom control row: buttons are 5.2em, 3em apart, 3em above the bottom, 4.5em in from the right. */
+.vf-bottom { position: absolute; left: 0; right: 0; bottom: 3em; z-index: 3; height: 5.2em; pointer-events: none; opacity: 0; transition: opacity 250ms; }
+.vf-bottom.is-on { opacity: 1; }
+.vf-bottom .vf-right, .vf-bottom .vf-title { pointer-events: auto; }
+.vf-bottom:not(.is-on) button { pointer-events: none; }
+.vf-title {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 34%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;
+  font-size: max(1.8em, 14px); font-weight: 500; color: #fff;
+}
+.vf-title-ep { margin-left: 0.5em; font-weight: 400; color: #ccc; }
+/* Player's right group (in our page): fullscreen, settings, subtitles. Ours sit right before subtitles. */
+.vf-right { position: absolute; top: 0; right: calc(4.5em + 3 * 8.2em); display: flex; flex-direction: row-reverse; gap: 3em; }
+.vf-btn { display: block; width: 5.2em; height: 5.2em; line-height: 0; color: rgba(255, 255, 255, 0.8); transition: color 0.15s; }
+.vf-btn svg { width: 100%; height: 100%; }
+.vf-btn:hover, .vf-btn:active, .vf-btn.is-active { color: #fff; }
+
+/* Server list: VidFast's own menu. */
+.vf-menu {
+  position: absolute; right: -1em; bottom: calc(100% + 1.5em); width: 29.5em; max-height: 70vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 2px; padding: 1.225em;
+  border: 1.6px solid rgba(255, 255, 255, 0.1); border-radius: 1.35em; background: rgba(0, 0, 0, 0.95);
+  pointer-events: auto; animation: vf-menu-in 0.15s ease both;
+}
+@keyframes vf-menu-in { from { opacity: 0; } to { opacity: 1; } }
+.vf-menu-row { display: flex; width: 100%; align-items: center; gap: 0.8em; padding: 1.225em; border-radius: 0.655em; color: #fff; font-weight: 500; }
+.vf-menu-row:hover, .vf-menu-row:active { background: rgb(26, 26, 26); }
+.vf-menu-badge { display: flex; width: 2.67em; height: 2.67em; flex-shrink: 0; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.8); }
+.vf-menu-badge img, .vf-menu-badge svg { width: 100%; height: 100%; object-fit: contain; }
+.vf-menu-name { display: block; font-size: 1.6em; line-height: 1.2; color: #fff; }
+.vf-menu-details { display: block; margin-top: 0.15em; font-size: 1.2em; line-height: 1.2; color: rgb(113, 113, 122); }
+.vf-menu-end { display: flex; width: 2.45em; height: 2.45em; flex-shrink: 0; color: #fff; }
+.vf-menu-end svg { width: 100%; height: 100%; }
+
+.nf-watch:fullscreen { background: #000; }
+@media (max-width: 640px) { .vf-title { display: none; } }

@@ -6,7 +6,7 @@ import { useAppContext } from '../contexts/AppContext';
 import { VIDFAST_MOVIE_URL, VIDFAST_TV_URL } from '../constants';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate } from '../utils/router';
-import { ChevronLeftIcon, CloseIcon, PlayIcon } from '../components/Icons';
+import { CloseIcon, PlayIcon } from '../components/Icons';
 
 const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
@@ -14,8 +14,53 @@ const VIDFAST_ORIGINS = [
 ];
 const SAVE_EVERY_MS = 5000;
 const IDLE_MS = 3500;
-/** VidFast's servers (its own cloud menu). "Auto" lets the player pick. */
-const SERVERS = ['vRapid', 'vBlaze', 'Cobra', 'Bravo', 'Delta'];
+/** VidFast's servers, as its own server menu lists them (badge + details). "Auto" lets the player pick. */
+const BADGE_4K = 'https://vidfast.vc/4k.png';
+const FLAG_US = 'https://flagsapi.com/US/flat/24.png';
+const SERVER_INFO: { name: string; badge: string; details: string }[] = [
+  { name: 'vRapid', badge: BADGE_4K, details: 'Original audio, 4K?' },
+  { name: 'vBlaze', badge: BADGE_4K, details: 'Original audio, 4K?' },
+  { name: 'Cobra', badge: FLAG_US, details: 'Original audio' },
+  { name: 'Bravo', badge: FLAG_US, details: 'Original audio' },
+  { name: 'Delta', badge: FLAG_US, details: 'Original audio' },
+];
+const SERVERS = SERVER_INFO.map((x) => x.name);
+
+/* VidFast's own icon style: 24px grid, 1.5 stroke, round joins. */
+const VfBack = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 12H4.5" />
+    <path d="M10 6C10 6 4 10.4189 4 12C4 13.5812 10 18 10 18" />
+  </svg>
+);
+const VfCloud = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M17.4776 10.0001C17.485 10 17.4925 10 17.5 10C19.9853 10 22 12.0147 22 14.5C22 16.9853 19.9853 19 17.5 19H7C4.23858 19 2 16.7614 2 14C2 11.4003 3.98398 9.26407 6.52042 9.0227M17.4776 10.0001C17.4924 9.83536 17.5 9.66856 17.5 9.5C17.5 6.46243 15.0376 4 12 4C9.12324 4 6.76233 6.20862 6.52042 9.0227M17.4776 10.0001C17.3753 11.1345 16.9286 12.1696 16.2428 13M6.52042 9.0227C6.67826 9.00768 6.83823 9 7 9C8.12582 9 9.16474 9.37209 10.0005 10" />
+  </svg>
+);
+const VfChevron = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" />
+  </svg>
+);
+const VfPlaying = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M1.25 12C1.25 6.06294 6.06294 1.25 12 1.25C17.9371 1.25 22.75 6.06294 22.75 12C22.75 17.9371 17.9371 22.75 12 22.75C6.06294 22.75 1.25 17.9371 1.25 12Z" fill="#1abc9c" opacity="0.4" />
+    <path fill="#16a085" d="M16.4375 12.4512C16.2355 13.1675 15.281 13.6736 13.3719 14.6859C11.5263 15.6645 10.6035 16.1538 9.8599 15.9571C9.55246 15.8758 9.27234 15.7214 9.04643 15.5086C8.5 14.9941 8.5 13.9961 8.5 12C8.5 10.0039 8.5 9.00592 9.04643 8.49137C9.27234 8.27864 9.55246 8.12421 9.8599 8.04289C10.6035 7.84617 11.5263 8.33547 13.3719 9.31407C15.281 10.3264 16.2355 10.8325 16.4375 11.5488C16.5208 11.8445 16.5208 12.1555 16.4375 12.4512Z" />
+  </svg>
+);
+const VfEpisodes = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 9.5C3 8.11929 4.11929 7 5.5 7H14.5C15.8807 7 17 8.11929 17 9.5V18.5C17 19.8807 15.8807 21 14.5 21H5.5C4.11929 21 3 19.8807 3 18.5V9.5Z" />
+    <path d="M7 3.5H17.5C19.433 3.5 21 5.067 21 7V17" />
+  </svg>
+);
+const VfNext = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 6.27V17.73C5 19.25 6.66 20.2 7.97 19.43L17.08 13.7C18.3 12.94 18.3 11.06 17.08 10.3L7.97 4.57C6.66 3.8 5 4.75 5 6.27Z" />
+    <path d="M20.5 4.5V19.5" />
+  </svg>
+);
 const SERVER_KEY = 'vf_server';
 const loadServer = () => {
   try {
@@ -238,62 +283,70 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         referrerPolicy="origin"
       />
 
-      {/* always-on back arrow, where VidFast's server button used to be */}
-      <button type="button" onClick={back} onMouseMove={wake} className="nf-watch-back" aria-label="Back to browse" title="Back">
-        <ChevronLeftIcon className="h-full w-full" />
+      {/* always-on back arrow, in VidFast's own server-button spot and style */}
+      <button type="button" onClick={back} className="vf-back" aria-label="Back to browse" title="Back">
+        <VfBack />
       </button>
 
-      {/* bottom row, lined up with the player's own controls */}
-      <div className={`nf-watch-bottom ${chrome || paused || panel || serverMenu ? 'is-on' : ''}`} onMouseMove={wake}>
-        <p className="nf-watch-title" title={title} onMouseEnter={wake}>
-          <span className="font-bold">{title}</span>
+      {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
+      <div className={`vf-bottom ${chrome || paused || panel || serverMenu ? 'is-on' : ''}`}>
+        <p className="vf-title" title={title} onMouseEnter={wake}>
+          {title}
           {mediaType === 'tv' && (
-            <span className="ml-[0.6em] font-normal text-[#d2d2d2]">
+            <span className="vf-title-ep">
               E{episode}
               {current?.name ? ` ${current.name}` : ''}
             </span>
           )}
         </p>
 
-        <div className="nf-watch-right" onMouseEnter={wake}>
+        <div className="vf-right" onMouseEnter={wake} onMouseMove={wake}>
           {mediaType === 'tv' && next && (
-            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="nf-watch-icon" aria-label="Next episode" title="Next episode">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="h-[62%] w-[62%]" aria-hidden="true"><path d="M5 4.5v15l11-7.5L5 4.5z" /><rect x="17" y="4.5" width="2.6" height="15" rx="0.6" /></svg>
+            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="vf-btn" aria-label="Next episode" title="Next episode">
+              <VfNext />
             </button>
           )}
           {mediaType === 'tv' && (
-            <button type="button" onClick={() => setPanel((v) => !v)} className={`nf-watch-icon ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" className="h-[62%] w-[62%]" aria-hidden="true"><rect x="3" y="7" width="14" height="13" rx="1.5" /><path d="M7 4h13a1 1 0 0 1 1 1v12" /></svg>
+            <button type="button" onClick={() => setPanel((v) => !v)} className={`vf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
+              <VfEpisodes />
             </button>
           )}
           <div className="relative">
             <button
               type="button"
               onClick={() => setServerMenu((v) => !v)}
-              className={`nf-watch-icon ${serverMenu ? 'is-active' : ''}`}
+              className={`vf-btn ${serverMenu ? 'is-active' : ''}`}
               aria-expanded={serverMenu}
               aria-haspopup="menu"
               aria-label={`Server: ${server || 'Auto'}`}
               title="Server"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[70%] w-[70%]" aria-hidden="true"><path d="M7 18.5h10.5a4.5 4.5 0 0 0 .6-8.96A6 6 0 0 0 6.6 8.2 5.2 5.2 0 0 0 7 18.5z" /></svg>
+              <VfCloud />
             </button>
             {serverMenu && (
-              <div role="menu" className="nf-server-menu" aria-label="Choose server">
-                <p className="px-4 pb-1.5 pt-3 text-[12px] font-semibold uppercase tracking-wider text-[#8c8c8c]">Server</p>
-                {['', ...SERVERS].map((name) => (
-                  <button
-                    key={name || 'auto'}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={server === name}
-                    onClick={() => chooseServer(name)}
-                    className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-[15px] transition-colors hover:bg-white/10 ${server === name ? 'font-bold text-white' : 'text-[#d2d2d2]'}`}
-                  >
-                    <span className="w-4 text-netflix-red">{server === name ? '✓' : ''}</span>
-                    {name || 'Auto (best available)'}
-                  </button>
-                ))}
+              <div role="menu" className="vf-menu" aria-label="Choose server">
+                {[{ name: '', badge: '', details: 'Picks the best server for you' }, ...SERVER_INFO].map((x) => {
+                  const on = server === x.name;
+                  return (
+                    <button
+                      key={x.name || 'auto'}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={on}
+                      onClick={() => chooseServer(x.name)}
+                      className="vf-menu-row"
+                    >
+                      <span className="vf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
+                      <span className="min-w-0 flex-1 text-left">
+                        <span className="vf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
+                          {x.name || 'Auto'}
+                        </span>
+                        <span className="vf-menu-details">{x.details}</span>
+                      </span>
+                      <span className="vf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
