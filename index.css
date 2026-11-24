@@ -390,3 +390,42 @@ html.lenis, html.lenis body { height: auto; }
   box-shadow: -18px 0 40px rgba(0,0,0,0.5); animation: nf-panel-in 0.4s var(--nf-out) both;
 }
 @keyframes nf-panel-in { from { transform: translate3d(100%, 0, 0); } to { transform: none; } }
+
+/* ============ Title window (Netflix "jbv" modal) ============ */
+.nf-title-overlay {
+  position: fixed; inset: 0; z-index: 45; overflow-y: auto; overscroll-behavior: contain;
+  padding: 2rem 0 3rem; background: rgba(0,0,0,0); transition: background-color 0.3s ease;
+}
+.nf-title-overlay.is-open { background: rgba(0,0,0,0.7); }
+.nf-title-modal {
+  position: relative; margin: 0 auto; width: min(94vw, 850px); overflow: hidden; border-radius: 8px;
+  background: #181818; color: #fff; box-shadow: rgba(0,0,0,0.75) 0 3px 10px;
+  opacity: 0; transform: translate3d(0, 28px, 0) scale(0.96); transform-origin: 50% 0;
+  transition: opacity 0.22s ease, transform 0.45s var(--nf-out);
+}
+.nf-title-overlay.is-open .nf-title-modal { opacity: 1; transform: none; }
+.nf-title-close {
+  position: absolute; right: 1em; top: 1em; z-index: 5; display: flex; height: 36px; width: 36px; align-items: center; justify-content: center;
+  border-radius: 9999px; background: #181818; color: #fff; transition: background-color 0.2s, transform 0.15s;
+}
+.nf-title-close:hover { background: #2a2a2a; }
+.nf-title-close:active { transform: scale(0.92); }
+.nf-season-select {
+  cursor: pointer; border-radius: 4px; border: 1px solid #4d4d4d; background: #242424; padding: 0.55em 1em;
+  font-size: 16px; font-weight: 700; color: #fff; transition: border-color 0.2s;
+}
+.nf-season-select:hover { border-color: #fff; }
+.nf-chip {
+  display: inline-flex; max-width: 100%; align-items: center; gap: 8px; height: 34px; padding: 0 13px 0 3px; border-radius: 9999px;
+  background: rgba(255,255,255,0.07); color: #ddd; font-size: 13.5px; transition: background-color 0.2s, color 0.2s;
+}
+.nf-chip:hover { background: rgba(255,255,255,0.16); color: #fff; }
+.nf-chip-img {
+  display: flex; height: 28px; width: 28px; flex-shrink: 0; align-items: center; justify-content: center; overflow: hidden; border-radius: 9999px;
+  background: #3a3a3a; font-size: 11px; font-weight: 700; color: #bbb;
+}
+.nf-chip-img img { height: 100%; width: 100%; object-fit: cover; }
+@media (max-width: 640px) {
+  .nf-title-overlay { padding: 0; }
+  .nf-title-modal { width: 100%; min-height: 100%; border-radius: 0; }
+}
