@@ -72,6 +72,8 @@ interface Person {
   name: string;
   profile_path?: string | null;
   sub?: string;
+  /** Custom link (genres); people link to their person page. */
+  to?: string;
 }
 
 /* ---------------------------------------------------------------- small pieces */
@@ -87,7 +89,7 @@ const TextCredits: React.FC<{ label: string; items: (string | Person)[]; onMore?
           {typeof it === 'string' ? (
             <span className="text-[#ddd]">{it}</span>
           ) : (
-            <Link to={personPath(it)} className="text-[#ddd] transition-colors hover:text-white hover:underline">
+            <Link to={it.to || personPath(it)} className="text-[#ddd] transition-colors hover:text-white hover:underline">
               {it.name}
             </Link>
           )}
@@ -374,7 +376,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
   const inList = myList.some((i) => i.media.id === item.id && i.media.media_type === item.media_type);
   const pct = progressPct(saved?.progress);
   const pText = progressText(saved?.progress);
-  const genres = (data.genres || []).map((g) => g.name);
+  const genres: Person[] = (data.genres || []).map((g) => ({ id: g.id, name: g.name, to: `/browse?type=${mediaType}&genre=${g.id}` }));
 
   const crew = data.credits?.crew || [];
   const byJobs = (jobs: string[], n = 6): Person[] =>
@@ -541,7 +543,16 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
           <PeopleCredits label="Cinematography" people={dop} />
           <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
             <span className="flex-shrink-0 text-[#777] sm:w-[7.5rem]">Genres:</span>
-            <span className="text-[#ddd]">{genres.join(', ') || '—'}</span>
+            <span className="text-[#ddd]">
+              {genres.length
+                ? genres.map((g, i) => (
+                    <React.Fragment key={g.id}>
+                      {i > 0 && ', '}
+                      <Link to={g.to!} className="transition-colors hover:text-white hover:underline">{g.name}</Link>
+                    </React.Fragment>
+                  ))
+                : '—'}
+            </span>
           </div>
           {rating && (
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
