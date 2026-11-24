@@ -1,98 +1,49 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import type { SearchResult } from '../types';
 import HeroBanner, { HeroSkeleton } from '../components/HeroBanner';
-import Top10Row from '../components/Top10Row';
-import ContentCarousel from '../components/ContentCarousel';
-import SkeletonCarousel from '../components/SkeletonCarousel';
+import { LazyRow } from '../components/ContentCarousel';
 import ErrorState from '../components/ErrorState';
-
-export interface CategorySection {
-    title: string;
-    load: (signal: AbortSignal) => Promise<SearchResult[]>;
-}
+import { useCachedData } from '../utils/useCachedData';
+import type { RowDef } from '../utils/rows';
+import { ROWS_OVERLAP } from './HomePage';
 
 interface CategoryPageProps {
-    heading: string;
-    heroEyebrow: string;
-    top10Title: string;
-    /** Feeds the billboard and the Top 10 row. */
-    primary: CategorySection;
-    sections: CategorySection[];
-    onSelect: (item: SearchResult) => void;
+  id: string;
+  heading: string;
+  heroEyebrow?: string;
+  loadHero?: () => Promise<SearchResult[]>;
+  rows: RowDef[];
 }
 
-const ROWS_WRAPPER = 'relative z-10 -mt-[16vw] space-y-7 pb-4 sm:-mt-[11vw] sm:space-y-10 lg:-mt-[9vw] lg:space-y-12';
+/** Netflix category layout (TV Shows / Movies / New & Popular). */
+const CategoryPage: React.FC<CategoryPageProps> = ({ id, heading, heroEyebrow, loadHero, rows }) => {
+  const hero = useCachedData<SearchResult[]>(loadHero ? `hero:${id}` : null, loadHero || (async () => []));
 
-/** Netflix genre-page layout (Movies / TV Shows): page title, billboard, Top 10, themed rows. */
-const CategoryPage: React.FC<CategoryPageProps> = ({ heading, heroEyebrow, top10Title, primary, sections, onSelect }) => {
-    const [primaryItems, setPrimaryItems] = useState<SearchResult[]>([]);
-    const [rows, setRows] = useState<SearchResult[][]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [reloadKey, setReloadKey] = useState(0);
+  const title = (
+    <div className={`${loadHero ? 'pointer-events-none absolute left-[4%] top-[4.6rem] z-[5] sm:top-[5.4rem]' : 'px-[4%] pb-[1.5vw] pt-24 sm:pt-28'}`}>
+      <h1 className="text-[clamp(1.6rem,2.6vw,2.75rem)] font-bold tracking-[-0.02em] text-white text-shadow-netflix">{heading}</h1>
+    </div>
+  );
 
-    useEffect(() => {
-        const controller = new AbortController();
-        const load = async () => {
-            setIsLoading(true);
-            setError(null);
-            try {
-                const [main, ...rest] = await Promise.all([primary.load(controller.signal), ...sections.map((s) => s.load(controller.signal))]);
-                if (!controller.signal.aborted) {
-                    setPrimaryItems(main);
-                    setRows(rest);
-                }
-            } catch (err) {
-                if (!controller.signal.aborted) setError(`We couldn't load ${heading.toLowerCase()} right now. Please try again.`);
-            } finally {
-                if (!controller.signal.aborted) setIsLoading(false);
-            }
-        };
-        load();
-        return () => controller.abort();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [reloadKey]);
-
-    const title = (
-        <div className="pointer-events-none absolute left-[4%] top-[4.75rem] z-[5] sm:top-[5.6rem]">
-            <h1 className="text-2xl font-bold text-white text-shadow-netflix sm:text-4xl">{heading}</h1>
-        </div>
-    );
-
-    if (isLoading) {
-        return (
-            <div className="relative">
-                {title}
-                <HeroSkeleton />
-                <div className={ROWS_WRAPPER}>
-                    <SkeletonCarousel />
-                    <SkeletonCarousel />
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="pt-28">
-                <ErrorState message={error} onRetry={() => setReloadKey((k) => k + 1)} />
-            </div>
-        );
-    }
-
+  if (hero.error) {
     return (
-        <div className="relative">
-            {title}
-            <HeroBanner items={primaryItems} onSelect={onSelect} eyebrow={heroEyebrow} />
-            <div className={ROWS_WRAPPER}>
-                <Top10Row title={top10Title} items={primaryItems} onSelect={onSelect} />
-                {sections.map((section, i) => (
-                    <ContentCarousel key={section.title} title={section.title} items={rows[i] || []} onSelect={onSelect} />
-                ))}
-                <ContentCarousel title={`More Popular ${heading}`} items={primaryItems.slice(10)} onSelect={onSelect} />
-            </div>
-        </div>
+      <div className="pt-28">
+        <ErrorState message={`We couldn't load ${heading.toLowerCase()} right now.`} onRetry={hero.reload} />
+      </div>
     );
+  }
+
+  return (
+    <div className="relative">
+      {title}
+      {loadHero && (hero.data ? <HeroBanner items={hero.data} eyebrow={heroEyebrow} /> : <HeroSkeleton />)}
+      <div className={loadHero ? ROWS_OVERLAP : ''}>
+        {rows.map((def, i) => (
+          <LazyRow key={def.id} def={def} eager={i < 2} />
+        ))}
+      </div>
+    </div>
+  );
 };
 
 export default CategoryPage;

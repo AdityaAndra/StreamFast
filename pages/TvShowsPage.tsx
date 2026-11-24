@@ -1,27 +1,9 @@
 import React from 'react';
-import { getPopularTvShows, getTopRatedTvShows, getOnTheAirTvShows } from '../services/tmdb';
-import type { SearchResult } from '../types';
 import CategoryPage from './CategoryPage';
+import { TV_HERO, TV_ROWS } from '../utils/rows';
 
-interface TvShowsPageProps {
-    onSelect: (item: SearchResult) => void;
-}
-
-const PRIMARY = { title: 'Popular TV Shows', load: getPopularTvShows };
-const SECTIONS = [
-    { title: 'New Episodes This Week', load: getOnTheAirTvShows },
-    { title: 'Critically Acclaimed TV Shows', load: getTopRatedTvShows },
-];
-
-const TvShowsPage: React.FC<TvShowsPageProps> = ({ onSelect }) => (
-    <CategoryPage
-        heading="TV Shows"
-        heroEyebrow="Series"
-        top10Title="Top 10 TV Shows Right Now"
-        primary={PRIMARY}
-        sections={SECTIONS}
-        onSelect={onSelect}
-    />
+const TvShowsPage: React.FC = () => (
+  <CategoryPage id="tv" heading="TV Shows" heroEyebrow="Series" loadHero={TV_HERO} rows={TV_ROWS} />
 );
 
 export default TvShowsPage;

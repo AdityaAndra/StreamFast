@@ -1,212 +1,185 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { SearchResult } from '../types';
-import { getImages } from '../services/tmdb';
-import { useAppContext } from '../contexts/AppContext';
-import { getTitle, getYear, getGenres, tmdbImage } from '../utils/media';
-import { PlayIcon, PlusIcon, CheckStaticIcon } from './Icons';
+import { usePlayer } from '../contexts/PlayerContext';
+import { getTitle, getYear, getGenres, getMatch, tmdbImage, titlePath } from '../utils/media';
+import { useLogo, prefetchLogos } from '../utils/artwork';
+import { navigate } from '../utils/router';
+import { PlayIcon, InfoIcon } from './Icons';
 
 const MAX_SLIDES = 6;
-const logoCache = new Map<string, string | null>();
+const SLIDE_MS = 10000;
+const COMPACT_AFTER_MS = 4500;
 
 interface HeroBannerProps {
   items: SearchResult[];
-  onSelect: (item: SearchResult) => void;
-  /** Small label shown above the title, e.g. "Trending this week" */
+  onSelect?: (item: SearchResult) => void;
   eyebrow?: string;
 }
 
 export const HeroSkeleton: React.FC = () => (
-  <div className="relative h-[80vw] max-h-[95vh] min-h-[440px] w-full overflow-hidden bg-netflix-bg sm:h-[56.25vw]">
-    <div className="absolute inset-0 shimmer" />
-    <div className="absolute bottom-[32%] left-[4%] w-[80%] space-y-4 sm:w-[40%]">
-      <div className="h-16 w-3/4 rounded bg-white/[0.06] sm:h-24" />
-      <div className="h-4 w-1/3 rounded bg-white/[0.06]" />
-      <div className="hidden h-4 w-full rounded bg-white/[0.06] sm:block" />
-      <div className="hidden h-4 w-5/6 rounded bg-white/[0.06] sm:block" />
-      <div className="flex gap-3 pt-2">
-        <div className="h-11 w-28 rounded bg-white/[0.08]" />
-        <div className="h-11 w-36 rounded bg-white/[0.06]" />
+  <div className="nf-billboard" aria-hidden="true">
+    <div className="nf-skel absolute inset-0 rounded-none opacity-60" />
+    <div className="nf-billboard-vignette" />
+    <div className="nf-billboard-info space-y-4">
+      <div className="nf-skel h-[clamp(56px,8vw,140px)] w-3/4" />
+      <div className="nf-skel hidden h-4 w-full sm:block" style={{ ['--i' as any]: 1 }} />
+      <div className="nf-skel hidden h-4 w-4/5 sm:block" style={{ ['--i' as any]: 2 }} />
+      <div className="flex gap-3 pt-2 max-sm:justify-center">
+        <div className="nf-skel h-[clamp(40px,3.4vw,60px)] w-[clamp(110px,9vw,170px)]" style={{ ['--i' as any]: 3 }} />
+        <div className="nf-skel h-[clamp(40px,3.4vw,60px)] w-[clamp(130px,11vw,210px)]" style={{ ['--i' as any]: 4 }} />
       </div>
     </div>
   </div>
 );
 
-/** Netflix-style billboard: full-bleed backdrop, title logo, Play / My List and a rotating feature. */
-const HeroBanner: React.FC<HeroBannerProps> = ({ items, onSelect, eyebrow }) => {
-  const { myList, toggleMyListItem } = useAppContext();
-  const slides = useMemo(() => (items || []).filter((i) => i.backdrop_path).slice(0, MAX_SLIDES), [items]);
+const BillboardLogo: React.FC<{ item: SearchResult }> = ({ item }) => {
+  const logo = useLogo(item);
+  const [loaded, setLoaded] = useState(false);
+  const title = getTitle(item);
+  if (logo === undefined) return <div className="h-[clamp(64px,9vw,170px)]" />;
+  if (!logo) {
+    return (
+      <h2 className="text-[clamp(2.2rem,4.6vw,5.5rem)] font-black leading-[0.95] tracking-[-0.03em] text-white text-shadow-netflix">
+        {title}
+      </h2>
+    );
+  }
+  const tall = logo.r > 0 && logo.r < 1.8;
+  return (
+    <img
+      src={tmdbImage(logo.p, 'w780') || ''}
+      alt={title}
+      onLoad={() => setLoaded(true)}
+      className={`max-w-full object-contain object-left drop-shadow-[0_4px_24px_rgba(0,0,0,0.5)] transition-opacity duration-500 max-sm:mx-auto max-sm:object-center ${
+        tall ? 'max-h-[clamp(90px,13vw,240px)]' : 'max-h-[clamp(64px,9vw,170px)]'
+      } ${loaded ? 'opacity-100' : 'opacity-0'}`}
+    />
+  );
+};
+
+const HeroBanner: React.FC<HeroBannerProps> = ({ items, eyebrow }) => {
+  const { openPlayer } = usePlayer();
+  const slides = useMemo(() => (items || []).filter((i) => i.backdrop_path && i.overview).slice(0, MAX_SLIDES), [items]);
   const [index, setIndex] = useState(0);
-  const [prevIndex, setPrevIndex] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState<Record<number, boolean>>({});
+  const [compact, setCompact] = useState(false);
   const [paused, setPaused] = useState(false);
-  const [logos, setLogos] = useState<Record<string, string | null>>({});
-
-  const current = slides[index] || slides[0];
-  const keyOf = (item: SearchResult) => `${item.media_type}-${item.id}`;
-
-  const goTo = (next: number) => {
-    if (!slides.length || next === index) return;
-    setPrevIndex(index);
-    setIndex(((next % slides.length) + slides.length) % slides.length);
-  };
 
   useEffect(() => {
-    if (index >= slides.length) {
-      setIndex(0);
-      setPrevIndex(null);
-    }
+    if (slides.length) prefetchLogos(slides);
+  }, [slides]);
+
+  useEffect(() => {
+    if (index >= slides.length) setIndex(0);
   }, [slides.length, index]);
 
-  // Fetch the title logo for the current slide (falls back to text).
+  // Netflix shrinks the logo and hides the synopsis after a few seconds.
   useEffect(() => {
-    if (!current) return;
-    const key = keyOf(current);
-    if (logoCache.has(key)) {
-      setLogos((l) => ({ ...l, [key]: logoCache.get(key) ?? null }));
-      return;
-    }
-    const controller = new AbortController();
-    getImages(current.id, current.media_type, controller.signal)
-      .then((images) => {
-        const logo = images.logos?.find((l) => l.iso_639_1 === 'en') || images.logos?.[0];
-        const path = logo ? logo.file_path : null;
-        logoCache.set(key, path);
-        setLogos((l) => ({ ...l, [key]: path }));
-      })
-      .catch(() => {
-        // Failed (not just aborted): remember "no logo" so the text title shows.
-        if (controller.signal.aborted) return;
-        logoCache.set(key, null);
-        setLogos((l) => ({ ...l, [key]: null }));
-      });
-    return () => controller.abort();
-  }, [current]);
+    setCompact(false);
+    const t = window.setTimeout(() => setCompact(true), COMPACT_AFTER_MS);
+    return () => window.clearTimeout(t);
+  }, [index]);
 
-  // Preload the next backdrop so the crossfade is smooth.
+  // Pause rotation when the tab is hidden.
   useEffect(() => {
-    if (slides.length < 2) return;
-    const next = slides[(index + 1) % slides.length];
-    const src = tmdbImage(next?.backdrop_path, 'w1280');
-    if (src) {
-      const img = new Image();
-      img.src = src;
-    }
-  }, [index, slides]);
+    const onVis = () => setPaused(document.hidden);
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, []);
 
+  const current = slides[index] || slides[0];
   if (!current) return null;
 
-  const key = keyOf(current);
-  const logo = logos[key];
-  const logoKnown = key in logos;
-  const title = getTitle(current);
+  const next = () => setIndex((i) => (i + 1) % slides.length);
   const year = getYear(current);
   const genres = getGenres(current, 3);
-  const match = typeof current.vote_average === 'number' && current.vote_average > 0 ? Math.round(current.vote_average * 10) : null;
-  const inList = myList.some((i) => i.media.id === current.id && i.media.media_type === current.media_type);
-  const visible = [prevIndex, index].filter((v, i, arr): v is number => v !== null && v < slides.length && arr.indexOf(v) === i);
+  const match = getMatch(current);
 
   return (
     <section
-      className="relative h-[80vw] max-h-[95vh] min-h-[440px] w-full select-none overflow-hidden bg-netflix-bg sm:h-[56.25vw]"
+      className={`nf-billboard ${compact ? 'is-compact' : ''}`}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
       aria-roledescription="carousel"
-      aria-label={eyebrow || 'Featured titles'}
+      aria-label={eyebrow || 'Featured'}
     >
-      {/* Backdrops: previous stays underneath while the new one fades in */}
-      {visible.map((i) => {
-        const slide = slides[i];
+      {slides.map((slide, i) => {
+        // Keep only the active, previous and next images in the DOM.
+        const near = i === index || i === (index + 1) % slides.length || i === (index - 1 + slides.length) % slides.length;
+        if (!near) return null;
         return (
           <img
-            key={keyOf(slide)}
+            key={`${slide.media_type}-${slide.id}`}
             src={tmdbImage(slide.backdrop_path, 'w1280') || ''}
+            srcSet={`${tmdbImage(slide.backdrop_path, 'w780')} 780w, ${tmdbImage(slide.backdrop_path, 'w1280')} 1280w, ${tmdbImage(slide.backdrop_path, 'original')} 1920w`}
+            sizes="100vw"
             alt=""
             aria-hidden="true"
-            className={`billboard-slide absolute inset-0 h-full w-full object-cover object-[center_20%] ${i === index ? 'z-[1]' : 'z-0'}`}
+            fetchPriority={i === index ? 'high' : 'low'}
+            onLoad={() => setLoaded((l) => ({ ...l, [i]: true }))}
+            className={`nf-billboard-img ${i === index ? 'is-active' : ''} ${loaded[i] ? 'is-loaded' : ''}`}
           />
         );
       })}
+      <div className="nf-billboard-vignette" />
 
-      <div className="billboard-vignette absolute inset-0 z-[2]" />
-
-      {/* Info */}
-      <div key={key} className="billboard-content absolute bottom-[30%] left-[4%] z-[3] w-[88%] sm:bottom-[32%] sm:w-[46%] lg:w-[38%]">
-        {eyebrow && (
-          <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.25em] text-white/90 text-shadow-netflix sm:text-sm">
-            <span className="text-lg font-bold leading-none tracking-tighter text-netflix-red">V</span>
-            {eyebrow}
-          </p>
-        )}
-
-        <div className="mb-3 flex min-h-[4.5rem] items-end sm:mb-5 sm:min-h-[7rem]">
-          {logo ? (
-            <img
-              src={tmdbImage(logo, 'w500') || ''}
-              alt={title}
-              className="max-h-[4.5rem] max-w-[80%] object-contain object-left drop-shadow-[0_4px_20px_rgba(0,0,0,0.55)] sm:max-h-[7rem] lg:max-h-[9rem] lg:max-w-[90%]"
-            />
-          ) : (
-            <h2
-              className={`text-4xl font-bold leading-[1.02] text-white text-shadow-netflix transition-opacity duration-300 sm:text-5xl lg:text-6xl ${
-                logoKnown ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
-              {title}
-            </h2>
+      <div className="nf-billboard-info">
+        <div key={`${current.media_type}-${current.id}`} className="nf-billboard-swap">
+          {eyebrow && (
+            <p className="mb-[1.2vw] flex items-center gap-2 text-[max(11px,0.95vw)] font-semibold uppercase tracking-[0.3em] text-white/85 text-shadow-netflix max-sm:justify-center">
+              <span className="text-[1.5em] font-black leading-none tracking-[-0.08em] text-netflix-red">V</span>
+              {eyebrow}
+            </p>
           )}
-        </div>
-
-        <div className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm text-white text-shadow-netflix sm:text-base">
-          {match !== null && <span className="font-bold text-netflix-green">{match}% Match</span>}
-          {year && <span>{year}</span>}
-          <span className="rounded-[3px] border border-white/50 px-1 text-[10px] font-bold leading-4">HD</span>
-          {genres.length > 0 && <span className="hidden text-white/80 sm:inline">{genres.join(' • ')}</span>}
-        </div>
-
-        <p className="mb-5 hidden text-base leading-snug text-white text-shadow-netflix line-clamp-3 sm:block lg:text-[1.2vw] lg:leading-[1.35]">
-          {current.overview}
-        </p>
-
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => onSelect(current)}
-            className="inline-flex items-center gap-2 rounded-[4px] bg-white px-5 py-2 text-base font-bold text-black transition-colors duration-200 hover:bg-white/75 active:scale-[0.97] sm:px-7 sm:py-2.5 sm:text-lg lg:text-xl"
-          >
-            <PlayIcon className="h-5 w-5 sm:h-7 sm:w-7" />
-            Play
-          </button>
-          <button
-            type="button"
-            onClick={() => toggleMyListItem(current)}
-            aria-pressed={inList}
-            className="inline-flex items-center gap-2 rounded-[4px] bg-[rgba(109,109,110,0.7)] px-5 py-2 text-base font-bold text-white transition-colors duration-200 hover:bg-[rgba(109,109,110,0.4)] active:scale-[0.97] sm:px-7 sm:py-2.5 sm:text-lg lg:text-xl"
-          >
-            {inList ? <CheckStaticIcon className="h-5 w-5 sm:h-7 sm:w-7" /> : <PlusIcon className="h-5 w-5 sm:h-7 sm:w-7" />}
-            My List
-          </button>
+          <div className="nf-billboard-logo mb-[1.2vw] max-sm:mb-4">
+            <BillboardLogo item={current} />
+          </div>
+          <div className="nf-billboard-collapse">
+            <div>
+              <div className="mb-[0.8vw] flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[max(13px,1.05vw)] font-medium text-white text-shadow-netflix max-sm:justify-center">
+                {match !== null && <span className="font-bold text-netflix-green">{match}% Match</span>}
+                {year && <span>{year}</span>}
+                <span className="rounded-[3px] border border-white/60 px-1 text-[0.72em] font-bold leading-[1.45]">HD</span>
+                {genres.length > 0 && <span className="text-white/80">{genres.join(' • ')}</span>}
+              </div>
+              <p className="mb-[1.5vw] hidden overflow-hidden text-[max(14px,1.2vw)] leading-[1.35] text-white text-shadow-netflix [-webkit-box-orient:vertical] [-webkit-line-clamp:3] sm:[display:-webkit-box]">
+                {current.overview}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-[0.7vw] max-sm:justify-center max-sm:gap-3">
+            <button type="button" className="nf-btn nf-btn-white" onClick={() => openPlayer(current, { tab: 'watch' })}>
+              <PlayIcon />
+              Play
+            </button>
+            <button type="button" className="nf-btn nf-btn-grey" onClick={() => navigate(titlePath(current))}>
+              <InfoIcon />
+              More Info
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Right side: slide timer + type badge (Netflix maturity-badge style) */}
-      <div className="absolute bottom-[30%] right-0 z-[3] flex items-center gap-4 sm:bottom-[35%]">
+      {/* Right edge: slide timer + type flag (where Netflix shows the maturity rating) */}
+      <div className="absolute bottom-[35%] right-0 z-[3] flex items-center gap-4 max-sm:hidden">
         {slides.length > 1 && (
-          <div className="hidden items-center gap-1.5 sm:flex">
+          <div className="flex items-center gap-1.5">
             {slides.map((slide, i) => (
               <button
-                key={keyOf(slide)}
+                key={`${slide.media_type}-${slide.id}`}
                 type="button"
-                onClick={() => goTo(i)}
+                onClick={() => setIndex(i)}
                 aria-label={`Show ${getTitle(slide)}`}
                 aria-current={i === index}
                 className="group py-2"
               >
-                <span className={`relative block h-[3px] overflow-hidden rounded-full bg-white/30 transition-all duration-300 ${i === index ? 'w-8' : 'w-3 group-hover:bg-white/60'}`}>
+                <span className={`relative block h-[3px] overflow-hidden rounded-full bg-white/30 transition-[width,background-color] duration-300 ${i === index ? 'w-8' : 'w-3 group-hover:bg-white/60'}`}>
                   {i === index && (
                     <span
-                      key={`${key}-progress`}
-                      className="billboard-progress absolute inset-y-0 left-0 bg-white"
-                      style={{ animationPlayState: paused ? 'paused' : 'running' }}
-                      onAnimationEnd={() => goTo(index + 1)}
+                      key={`t-${index}`}
+                      className="nf-billboard-timer absolute inset-0 origin-left bg-white"
+                      style={{ ['--dur' as any]: `${SLIDE_MS}ms`, animationPlayState: paused ? 'paused' : 'running' }}
+                      onAnimationEnd={next}
                     />
                   )}
                 </span>
@@ -214,7 +187,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, onSelect, eyebrow }) => 
             ))}
           </div>
         )}
-        <span className="flex items-center border-l-[3px] border-[#dcdcdc] bg-[rgba(51,51,51,0.6)] py-1.5 pl-3 pr-10 text-sm text-white sm:pr-14 sm:text-base">
+        <span className="flex items-center border-l-[3px] border-[#dcdcdc] bg-[rgba(51,51,51,0.6)] py-[0.45em] pl-[0.8em] pr-[3.5vw] text-[max(13px,1.05vw)] text-white">
           {current.media_type === 'movie' ? 'Movie' : 'Series'}
         </span>
       </div>

@@ -15,9 +15,10 @@ interface EmbedLinkModalProps {
   onClose: () => void;
   onUpdateFromLink: (url: string) => void;
   initialProgress?: WatchProgress;
+  initialTab?: 'episodes' | 'watch' | 'actions';
 }
 
-const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdateFromLink, initialProgress }) => {
+const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdateFromLink, initialProgress, initialTab }) => {
   const { saveItem, removeItem, playerTheme, continueWatchingList, myList, toggleMyListItem } = useAppContext();
 
   const [tvDetails, setTvDetails] = useState<TVDetails | null>(null);
@@ -31,7 +32,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
   const [selectedSeason, setSelectedSeason] = useState<number>(initialProgress?.season || 1);
   const [selectedEpisode, setSelectedEpisode] = useState<number>(initialProgress?.episode || 1);
   const [isCopied, setIsCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState<'episodes' | 'watch' | 'actions'>(item.media_type === 'tv' ? 'episodes' : 'actions');
+  const [activeTab, setActiveTab] = useState<'episodes' | 'watch' | 'actions'>(initialTab || (item.media_type === 'tv' ? 'episodes' : 'actions'));
   
   const episodeListRef = useRef<HTMLDivElement>(null);
   const episodeRefs = useRef<(HTMLDivElement | null)[]>([]);

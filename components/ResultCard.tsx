@@ -1,96 +1,116 @@
 import React, { useRef, useState } from 'react';
 import type { SearchResult } from '../types';
-import { getTitle, getYear, tmdbImage } from '../utils/media';
+import { getTitle, getYear, tmdbImage, titlePath } from '../utils/media';
+import { useLogo, isTop10 } from '../utils/artwork';
+import { Link } from '../utils/router';
 import { useHoverPreview } from './HoverPreview';
-import { FilmIcon, TvIcon, TrashIcon } from './Icons';
+import { TrashIcon } from './Icons';
 
 interface ResultCardProps {
   item: SearchResult;
-  onSelect: (item: SearchResult) => void;
   onRemove?: (item: SearchResult) => void;
-  /** landscape = Netflix row boxart (16:9), poster = tall 2:3 artwork (Top 10) */
+  /** landscape = Netflix boxart (backdrop + title logo), poster = tall key art (Top 10) */
   variant?: 'landscape' | 'poster';
+  /** Kept for backwards compatibility; cards now open the title page. */
+  onSelect?: (item: SearchResult) => void;
+  eager?: boolean;
 }
 
-const ResultCard: React.FC<ResultCardProps> = ({ item, onSelect, onRemove, variant = 'landscape' }) => {
+const LANDSCAPE_SIZES = '(min-width: 1400px) 16vw, (min-width: 1100px) 19vw, (min-width: 800px) 23vw, (min-width: 500px) 31vw, 46vw';
+
+/** Title logo (or bold text fallback) over textless artwork — what Netflix boxart looks like. */
+export const CardLogo: React.FC<{ item: SearchResult; className?: string; textClassName?: string; size?: 'w300' | 'w500' }> = ({
+  item,
+  className = 'nf-card-logo',
+  textClassName = 'nf-card-title',
+  size = 'w300',
+}) => {
+  const logo = useLogo(item);
+  const [loaded, setLoaded] = useState(false);
+  if (logo === undefined) return null;
+  if (logo === null) return <p className={textClassName}>{getTitle(item)}</p>;
+  return (
+    <img
+      src={tmdbImage(logo.p, size) || ''}
+      alt={getTitle(item)}
+      decoding="async"
+      onLoad={() => setLoaded(true)}
+      className={`${className} ${loaded ? 'is-loaded' : ''} ${logo.r && logo.r < 1.6 ? 'is-tall' : ''}`}
+    />
+  );
+};
+
+const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'landscape', eager }) => {
   const { show, cancel } = useHoverPreview();
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLAnchorElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   const title = getTitle(item);
   const year = getYear(item);
   const isLandscape = variant === 'landscape';
-  const src = isLandscape
-    ? tmdbImage(item.backdrop_path, 'w780') || tmdbImage(item.poster_path, 'w500')
-    : tmdbImage(item.poster_path, 'w342');
-  const posterInLandscape = isLandscape && !item.backdrop_path && !!item.poster_path;
+  const hasBackdrop = !!item.backdrop_path;
 
-  const open = () => {
-    cancel();
-    onSelect(item);
-  };
+  let src: string | null;
+  let srcSet: string | undefined;
+  if (isLandscape) {
+    src = hasBackdrop ? tmdbImage(item.backdrop_path, 'w780') : tmdbImage(item.poster_path, 'w500');
+    srcSet = hasBackdrop ? `${tmdbImage(item.backdrop_path, 'w300')} 300w, ${tmdbImage(item.backdrop_path, 'w780')} 780w` : undefined;
+  } else {
+    src = tmdbImage(item.poster_path, 'w342');
+    srcSet = item.poster_path ? `${tmdbImage(item.poster_path, 'w185')} 185w, ${tmdbImage(item.poster_path, 'w342')} 342w, ${tmdbImage(item.poster_path, 'w500')} 500w` : undefined;
+  }
 
   return (
-    <div
+    <Link
       ref={ref}
-      role="button"
-      tabIndex={0}
-      aria-label={`${title}${year ? `, ${year}` : ''}`}
-      onMouseEnter={() => ref.current && show({ item, el: ref.current, onSelect, onRemove })}
+      to={titlePath(item)}
+      aria-label={`${title}${year ? ` (${year})` : ''}`}
+      onMouseEnter={() => ref.current && show({ item, el: ref.current, onRemove, variant })}
       onMouseLeave={cancel}
-      onClick={open}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          open();
-        }
-      }}
-      className={`group/card relative block w-full cursor-pointer overflow-hidden rounded-[4px] bg-netflix-card transition-transform duration-300 ease-netflix focus-visible:scale-105 ${
-        isLandscape ? 'aspect-video' : 'aspect-[2/3]'
-      }`}
+      onClick={cancel}
+      draggable={false}
+      className={`nf-card group/card ${isLandscape ? '' : 'is-poster'}`}
     >
       {src && !failed ? (
-        <>
-          {!loaded && <div className="absolute inset-0 shimmer" />}
-          <img
-            src={src}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            onLoad={() => setLoaded(true)}
-            onError={() => setFailed(true)}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'} ${
-              posterInLandscape ? 'object-[center_25%]' : ''
-            }`}
-          />
-        </>
+        <img
+          src={src}
+          srcSet={srcSet}
+          sizes={isLandscape ? LANDSCAPE_SIZES : '(min-width: 1100px) 11vw, (min-width: 800px) 14vw, 26vw'}
+          alt=""
+          loading={eager ? 'eager' : 'lazy'}
+          decoding="async"
+          draggable={false}
+          onLoad={() => setLoaded(true)}
+          onError={() => setFailed(true)}
+          className={`nf-art ${loaded ? 'is-loaded' : ''} ${isLandscape && !hasBackdrop ? 'object-[center_20%]' : ''}`}
+        />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#2b2b2b] to-[#151515] p-3 text-center">
-          {item.media_type === 'movie' ? <FilmIcon className="h-7 w-7 text-[#555]" /> : <TvIcon className="h-7 w-7 text-[#555]" />}
-          {!isLandscape && <p className="text-xs font-bold text-netflix-muted line-clamp-3">{title}</p>}
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-br from-[#2b2b2b] to-[#161616]" />
       )}
 
       {isLandscape && (
         <>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-          <p className="pointer-events-none absolute bottom-1.5 left-2 right-2 text-[13px] font-bold leading-tight text-white text-shadow-netflix line-clamp-2 sm:bottom-2 sm:left-2.5 sm:text-sm lg:text-base">
-            {title}
-          </p>
+          <div className="nf-card-shade" />
+          <CardLogo item={item} />
+          {isTop10(item) && (
+            <span className="nf-top10-badge" aria-label="Top 10">
+              <small>TOP</small>
+              <b>10</b>
+            </span>
+          )}
         </>
       )}
+      {!isLandscape && (failed || !src) && <p className="nf-card-title">{title}</p>}
 
-      {/* subtle hover lift */}
-      <div className="pointer-events-none absolute inset-0 bg-white/0 transition-colors duration-300 group-hover/card:bg-white/[0.05]" />
+      <span className="nf-card-hover" />
 
-      {/* On touch screens there is no hover preview, so show remove directly */}
       {onRemove && (
         <button
           type="button"
           onClick={(e) => {
+            e.preventDefault();
             e.stopPropagation();
-            cancel();
             onRemove(item);
           }}
           className="absolute right-1.5 top-1.5 hidden h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white [@media(hover:none)]:flex"
@@ -99,7 +119,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onSelect, onRemove, varia
           <TrashIcon className="h-4 w-4" />
         </button>
       )}
-    </div>
+    </Link>
   );
 };
 
