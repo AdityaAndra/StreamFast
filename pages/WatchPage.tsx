@@ -3,7 +3,6 @@ import type { SearchResult, SeasonDetails, WatchProgress } from '../types';
 import { getTitleDetails, getSeasonDetails, TitleDetails } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
-import { VIDFAST_MOVIE_URL, VIDFAST_TV_URL } from '../constants';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate } from '../utils/router';
 import { CloseIcon, PlayIcon } from '../components/Icons';
@@ -12,6 +11,10 @@ const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
   'https://vidfast.pm', 'https://vidfast.xyz', 'https://vidfast.vc', 'https://vidfast.bz',
 ];
+// VidFast's documented embed domain; unlike vidfast.pro it reports play / pause / progress to us.
+const VF_MOVIE = 'https://vidfast.vc/movie/';
+const VF_TV = 'https://vidfast.vc/tv/';
+const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
 const IDLE_MS = 3500;
 /** VidFast's servers, as its own server menu lists them (badge + details). "Auto" lets the player pick. */
@@ -128,8 +131,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     }
     const t = resume ? `&startAt=${resume}` : '';
     return mediaType === 'movie'
-      ? `${VIDFAST_MOVIE_URL}${id}?autoPlay=true${theme}${t}`
-      : `${VIDFAST_TV_URL}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
+      ? `${VF_MOVIE}${id}?autoPlay=true${theme}${t}`
+      : `${VF_TV}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
     // Only rebuild when the episode changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt]);
@@ -138,7 +141,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
      The player is VidFast's page inside ours, so mouse moves over it never reach us.
      Our bottom bits (title, server, episodes) show while paused, for a few seconds after
      play / seek / opening, and while the pointer is over them. The back arrow always stays. */
-  const [chrome, setChrome] = useState(true);
+  const [chrome, setChrome] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [stuck, setStuck] = useState(false);
   const [paused, setPaused] = useState(false);
   const [panel, setPanel] = useState(false);
   const [serverMenu, setServerMenu] = useState(false);
@@ -150,10 +155,18 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, []);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
+  // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
-    wake();
-    return () => window.clearTimeout(idle.current);
-  }, [wake, src]);
+    setStarted(false);
+    setPaused(false);
+    setChrome(false);
+    setStuck(false);
+    const t = window.setTimeout(() => setStuck(true), STUCK_MS);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(idle.current);
+    };
+  }, [src]);
 
   /* ---------- progress saving (Continue Watching) ---------- */
   const lastSave = useRef(0);
@@ -177,9 +190,30 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      if (!VIDFAST_ORIGINS.includes(e.origin) || !e.data || e.data.type !== 'PLAYER_EVENT') return;
+      if (!VIDFAST_ORIGINS.includes(e.origin) || !e.data) return;
+      if (e.data.type === 'MEDIA_DATA') {
+        // VidFast's own saved progress for this title (sent every few seconds).
+        const entry = e.data.data?.[`${mediaType === 'movie' ? 'm' : 't'}${id}`];
+        const pr = entry?.progress;
+        if (!(pr?.watched > 0 && pr?.duration > 0)) return;
+        const { season: cs, episode: ce } = live.current;
+        if (mediaType === 'tv') {
+          const ls = Number(entry.last_season_watched);
+          const le = Number(entry.last_episode_watched);
+          if (!ls || !le || ls !== cs || le !== ce) return; // only trust progress for this exact episode
+        }
+        const now = Date.now();
+        if (now - lastSave.current < SAVE_EVERY_MS) return;
+        lastSave.current = now;
+        lastTime.current = pr.watched;
+        save(mediaType === 'tv' ? { season: cs, episode: ce, watched: pr.watched, duration: pr.duration } : { watched: pr.watched, duration: pr.duration });
+        return;
+      }
+      if (e.data.type !== 'PLAYER_EVENT') return;
       const { event: ev, currentTime, duration, season: s, episode: ep } = e.data.data || {};
       if (currentTime > 0) lastTime.current = currentTime;
+      if (['play', 'playing', 'timeupdate', 'pause', 'seeked'].includes(ev)) setStarted(true);
+      // VidFast shows its controls when you play, pause or seek: show ours with them.
       if (ev === 'play' || ev === 'playing') {
         setPaused(false);
         wakeRef.current();
@@ -289,7 +323,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       </button>
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
-      <div className={`vf-bottom ${chrome || paused || panel || serverMenu ? 'is-on' : ''}`}>
+      <div className={`vf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
         <p className="vf-title" title={title} onMouseEnter={wake}>
           {title}
           {mediaType === 'tv' && (

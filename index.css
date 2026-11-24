@@ -451,10 +451,11 @@ html.lenis, html.lenis body { height: auto; }
 .vf-back:hover, .vf-back:active { color: #fff; }
 
 /* Bottom control row: buttons are 5.2em, 3em apart, 3em above the bottom, 4.5em in from the right. */
-.vf-bottom { position: absolute; left: 0; right: 0; bottom: 3em; z-index: 3; height: 5.2em; pointer-events: none; opacity: 0; transition: opacity 250ms; }
-.vf-bottom.is-on { opacity: 1; }
-.vf-bottom .vf-right, .vf-bottom .vf-title { pointer-events: auto; }
-.vf-bottom:not(.is-on) button { pointer-events: none; }
+.vf-bottom { position: absolute; left: 0; right: 0; bottom: 3em; z-index: 3; height: 5.2em; pointer-events: none; }
+.vf-bottom > .vf-title, .vf-bottom > .vf-right { opacity: 0; transition: opacity 250ms; }
+.vf-bottom.is-on > .vf-title, .vf-bottom.is-on > .vf-right, .vf-bottom.is-stuck > .vf-right { opacity: 1; }
+.vf-bottom .vf-right { pointer-events: auto; }
+.vf-bottom:not(.is-on):not(.is-stuck) button { pointer-events: none; }
 .vf-title {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 34%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;
