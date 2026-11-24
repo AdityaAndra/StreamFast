@@ -141,13 +141,13 @@ img { -webkit-user-drag: none; }
 .nf-card:hover .nf-card-hover { background: rgba(255, 255, 255, 0.05); }
 
 .nf-top10-badge {
-  position: absolute; top: 0; right: 4%; width: 17%; max-width: 34px; aspect-ratio: 0.72;
+  position: absolute; top: 0; right: 4%; width: 13%; max-width: 27px; aspect-ratio: 0.72;
   background: #e50914; color: #fff; border-radius: 0 0 2px 2px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   font-weight: 800; line-height: 0.9; letter-spacing: -0.02em; box-shadow: 0 0 6px rgba(0,0,0,0.35);
 }
-.nf-top10-badge small { font-size: max(6px, 0.42vw); }
-.nf-top10-badge b { font-size: max(11px, 0.85vw); }
+.nf-top10-badge small { font-size: max(5px, 0.36vw); }
+.nf-top10-badge b { font-size: max(10px, 0.72vw); }
 
 /* ============ Top 10 row ============ */
 .nf-top10-item { position: relative; width: 100%; aspect-ratio: 1.33 / 1; }
@@ -164,9 +164,10 @@ img { -webkit-user-drag: none; }
 @keyframes nf-kenburns { from { transform: scale(1.06); } to { transform: scale(1); } }
 .nf-billboard-vignette {
   position: absolute; inset: 0; pointer-events: none;
+  /* bottom fade listed first so it paints on top (no seam where the page begins) */
   background:
-    linear-gradient(77deg, rgba(0,0,0,0.65) 0%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0) 85%),
-    linear-gradient(180deg, rgba(20,20,20,0) 60%, rgba(20,20,20,0.15) 70%, rgba(20,20,20,0.55) 82%, #141414 100%);
+    linear-gradient(180deg, rgba(20,20,20,0) 58%, rgba(20,20,20,0.18) 68%, rgba(20,20,20,0.6) 82%, #141414 99%),
+    linear-gradient(77deg, rgba(0,0,0,0.62) 0%, rgba(0,0,0,0.22) 42%, rgba(0,0,0,0) 85%);
 }
 @media (max-width: 640px) {
   .nf-billboard-vignette { background: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 30%, rgba(20,20,20,0.4) 65%, #141414 98%); }

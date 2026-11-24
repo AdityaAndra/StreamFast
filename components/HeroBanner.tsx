@@ -111,7 +111,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, eyebrow }) => {
           <img
             key={`${slide.media_type}-${slide.id}`}
             src={tmdbImage(slide.backdrop_path, 'w1280') || ''}
-            srcSet={`${tmdbImage(slide.backdrop_path, 'w780')} 780w, ${tmdbImage(slide.backdrop_path, 'w1280')} 1280w, ${tmdbImage(slide.backdrop_path, 'original')} 1920w`}
+            srcSet={`${tmdbImage(slide.backdrop_path, 'w780')} 780w, ${tmdbImage(slide.backdrop_path, 'w1280')} 1280w`}
             sizes="100vw"
             alt=""
             aria-hidden="true"

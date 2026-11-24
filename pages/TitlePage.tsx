@@ -171,7 +171,7 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
         {data.backdrop_path && (
           <img
             src={tmdbImage(data.backdrop_path, 'w1280') || ''}
-            srcSet={`${tmdbImage(data.backdrop_path, 'w780')} 780w, ${tmdbImage(data.backdrop_path, 'w1280')} 1280w, ${tmdbImage(data.backdrop_path, 'original')} 1920w`}
+            srcSet={`${tmdbImage(data.backdrop_path, 'w780')} 780w, ${tmdbImage(data.backdrop_path, 'w1280')} 1280w`}
             sizes="100vw"
             alt=""
             fetchPriority="high"

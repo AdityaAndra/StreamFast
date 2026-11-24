@@ -12,7 +12,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Netflix Sans"', '"Inter Variable"', '"Helvetica Neue"', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'],
+        sans: ['"Inter Variable"', 'Inter', '"Helvetica Neue"', '"Segoe UI"', 'Roboto', 'Arial', 'sans-serif'],
       },
       colors: {
         'netflix-red': '#E50914',
