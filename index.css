@@ -487,3 +487,9 @@ html.lenis, html.lenis body { height: auto; }
 
 .nf-watch:fullscreen { background: #000; }
 @media (max-width: 640px) { .vf-title { display: none; } }
+
+/* 4 buttons on the right when VidFast shows picture-in-picture: subtitles, PiP, settings, fullscreen. */
+.nf-watch.has-pip .vf-right { right: calc(4.5em + 4 * 8.2em); }
+/* Hover-sensing layer: the middle of the video only, never over VidFast's own buttons. */
+.vf-sense { position: absolute; left: 0; right: 0; top: 14em; bottom: 14em; z-index: 2; cursor: default; }
+.nf-watch.is-idle .vf-sense { cursor: none; }
