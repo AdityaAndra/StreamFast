@@ -145,14 +145,18 @@ img { -webkit-user-drag: none; }
 .nf-top10-badge small { font-size: max(5px, 0.36vw); }
 .nf-top10-badge b { font-size: max(10px, 0.72vw); }
 
-/* ============ Top 10 row (matches Netflix's tile structure) ============ */
-/* tile: 1.374:1, clipped to 12px corners; left half = number box, right half = poster (cover, 4px corners) */
-.nf-top10-item { position: relative; width: 100%; aspect-ratio: 1.374 / 1; border-radius: 12px; overflow: hidden; }
-.nf-top10-numbox { position: absolute; top: 0; bottom: 0; left: 0; width: 50%; display: flex; align-items: center; justify-content: center; pointer-events: none; }
-.nf-top10-num { display: block; width: 100%; height: 100%; overflow: hidden; }
-.nf-top10-poster { position: absolute; top: 0; bottom: 0; left: 50%; width: 50%; }
-.nf-top10-poster .nf-card { height: 100%; aspect-ratio: auto; border-radius: 4px; }
-.nf-top10-poster .nf-recent-badge { font-size: max(10px, 0.72vw); padding: 0.28em 0.65em; }
+/* ============ Top 10 row (approved version, 3a963f7) ============ */
+.nf-top10-item { position: relative; width: 100%; aspect-ratio: 1.42 / 1; }
+.nf-top10-num { position: absolute; left: 1%; bottom: 0; height: 100%; width: 60%; overflow: visible; pointer-events: none; }
+.nf-top10-num text { font-family: "Inter Variable", Inter, "Arial Black", sans-serif; font-weight: 800; letter-spacing: -0.04em; }
+.nf-top10-fill { fill: rgba(20, 20, 20, 0.35); stroke: none; transition: fill 0.35s ease; }
+/* drawn 2x wide but masked to the outside of the glyph, so the visible outline stays 2.4px */
+.nf-top10-stroke { fill: none; stroke: #6b6b6b; stroke-width: 4.8px; vector-effect: non-scaling-stroke; stroke-linejoin: round; transition: stroke 0.35s ease; }
+.nf-item:hover .nf-top10-stroke { stroke: #a8a8a8; }
+.nf-item:hover .nf-top10-fill { fill: rgba(255, 255, 255, 0.03); }
+.nf-top10-poster { position: absolute; right: 0; top: 0; width: 48.5%; z-index: 1; }
+.nf-top10-poster .nf-card { border-radius: 8px; box-shadow: -10px 0 22px -6px rgba(0, 0, 0, 0.65); }
+.nf-top10-poster .nf-recent-badge { font-size: max(10px, 0.78vw); padding: 0.3em 0.7em; }
 
 /* ============ Billboard ============ */
 .nf-billboard { position: relative; width: 100%; height: 56.25vw; min-height: 460px; max-height: 100vh; overflow: hidden; background: #000; }
