@@ -6,14 +6,25 @@ import { useAppContext } from '../contexts/AppContext';
 import { VIDFAST_MOVIE_URL, VIDFAST_TV_URL } from '../constants';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate } from '../utils/router';
-import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, PlayIcon } from '../components/Icons';
+import { ChevronLeftIcon, CloseIcon, PlayIcon } from '../components/Icons';
 
 const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
   'https://vidfast.pm', 'https://vidfast.xyz', 'https://vidfast.vc', 'https://vidfast.bz',
 ];
 const SAVE_EVERY_MS = 5000;
-const IDLE_MS = 3000;
+const IDLE_MS = 3500;
+/** VidFast's servers (its own cloud menu). "Auto" lets the player pick. */
+const SERVERS = ['vRapid', 'vBlaze', 'Cobra', 'Bravo', 'Delta'];
+const SERVER_KEY = 'vf_server';
+const loadServer = () => {
+  try {
+    const v = localStorage.getItem(SERVER_KEY);
+    return v && SERVERS.includes(v) ? v : '';
+  } catch {
+    return '';
+  }
+};
 
 const toSearchResult = (d: TitleDetails): SearchResult => {
   const base = {
@@ -56,9 +67,15 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, [mediaType, season, episode, episodes, seasons]);
 
   /* ---------- player src (resume where you left off) ---------- */
+  const [server, setServer] = useState<string>(loadServer);
+  const [switchAt, setSwitchAt] = useState<number | undefined>(undefined);
+  const lastTime = useRef(0);
+  useEffect(() => setSwitchAt(undefined), [season, episode]);
+
   const src = useMemo(() => {
-    const theme = `&theme=${playerTheme.hex.replace('#', '')}`;
-    let resume = startAt;
+    // Our page shows the title and server picker itself (Netflix layout), so hide VidFast's.
+    const theme = `&theme=${playerTheme.hex.replace('#', '')}&title=false&hideServer=true${server ? `&server=${server}` : ''}`;
+    let resume = switchAt ?? startAt;
     if (resume === undefined && saved?.progress.watched && saved.progress.duration) {
       const same = mediaType === 'movie' || (saved.progress.season === season && saved.progress.episode === episode);
       const nearEnd = saved.progress.watched > saved.progress.duration - 90;
@@ -70,7 +87,28 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       : `${VIDFAST_TV_URL}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
     // Only rebuild when the episode changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaType, id, season, episode, playerTheme.hex]);
+  }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt]);
+
+  /* ---------- overlay chrome ----------
+     The player is VidFast's page inside ours, so mouse moves over it never reach us.
+     Our bottom bits (title, server, episodes) show while paused, for a few seconds after
+     play / seek / opening, and while the pointer is over them. The back arrow always stays. */
+  const [chrome, setChrome] = useState(true);
+  const [paused, setPaused] = useState(false);
+  const [panel, setPanel] = useState(false);
+  const [serverMenu, setServerMenu] = useState(false);
+  const idle = useRef<number | undefined>(undefined);
+  const wake = useCallback(() => {
+    setChrome(true);
+    window.clearTimeout(idle.current);
+    idle.current = window.setTimeout(() => setChrome(false), IDLE_MS);
+  }, []);
+  const wakeRef = useRef(wake);
+  wakeRef.current = wake;
+  useEffect(() => {
+    wake();
+    return () => window.clearTimeout(idle.current);
+  }, [wake, src]);
 
   /* ---------- progress saving (Continue Watching) ---------- */
   const lastSave = useRef(0);
@@ -96,6 +134,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     const onMessage = (e: MessageEvent) => {
       if (!VIDFAST_ORIGINS.includes(e.origin) || !e.data || e.data.type !== 'PLAYER_EVENT') return;
       const { event: ev, currentTime, duration, season: s, episode: ep } = e.data.data || {};
+      if (currentTime > 0) lastTime.current = currentTime;
+      if (ev === 'play' || ev === 'playing') {
+        setPaused(false);
+        wakeRef.current();
+      } else if (ev === 'pause' || ev === 'ended') setPaused(true);
+      else if (ev === 'seeked') wakeRef.current();
       if (!['timeupdate', 'pause', 'ended', 'seeked'].includes(ev) || !(currentTime > 0)) return;
       const now = Date.now();
       if (ev === 'timeupdate' && now - lastSave.current < SAVE_EVERY_MS) return;
@@ -114,26 +158,13 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     return () => window.removeEventListener('message', onMessage);
   }, [mediaType, id, save]);
 
-  /* ---------- overlay chrome (auto-hide like Netflix) ---------- */
-  const [chrome, setChrome] = useState(true);
-  const [panel, setPanel] = useState(false);
-  const idle = useRef<number | undefined>(undefined);
-  const wake = useCallback(() => {
-    setChrome(true);
-    window.clearTimeout(idle.current);
-    idle.current = window.setTimeout(() => setChrome(false), IDLE_MS);
-  }, []);
-  useEffect(() => {
-    wake();
-    return () => window.clearTimeout(idle.current);
-  }, [wake, src]);
-
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (panel) setPanel(false);
+        if (serverMenu) setServerMenu(false);
+        else if (panel) setPanel(false);
         else if (!document.fullscreenElement) goBack(titlePath({ id, media_type: mediaType } as any));
       }
     };
@@ -142,11 +173,45 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [panel, id, mediaType]);
+  }, [panel, serverMenu, id, mediaType]);
 
   useEffect(() => {
     if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — VidFast`;
   }, [item, mediaType, season, episode]);
+
+
+  /* ---------- fullscreen: the whole watch page, so our back / title / server stay on screen ---------- */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    let wasOurs = false;
+    const onFs = () => {
+      const el = document.fullscreenElement;
+      const box = rootRef.current;
+      if (box && el && el === iframeRef.current) {
+        // The player's fullscreen button: enter ours instead, or leave if we were already in.
+        if (wasOurs) document.exitFullscreen().catch(() => undefined);
+        else box.requestFullscreen().catch(() => undefined);
+        return;
+      }
+      wasOurs = !!box && el === box;
+    };
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  const chooseServer = (name: string) => {
+    setServerMenu(false);
+    if (name === server) return;
+    try {
+      if (name) localStorage.setItem(SERVER_KEY, name);
+      else localStorage.removeItem(SERVER_KEY);
+    } catch {
+      /* ignore */
+    }
+    if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
+    setServer(name);
+  };
 
   const back = () => goBack(item ? titlePath(item) : '/');
   const goEpisode = (s: number, e: number) => {
@@ -161,8 +226,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const title = item ? getTitle(item) : '';
 
   return (
-    <div className="nf-watch" onMouseMove={wake} onTouchStart={wake}>
+    <div ref={rootRef} className="nf-watch">
       <iframe
+        ref={iframeRef}
         key={src}
         src={src}
         title={title ? `${title} player` : 'Player'}
@@ -172,33 +238,66 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         referrerPolicy="origin"
       />
 
-      {/* top chrome: back + title (pointer-events only on the controls, so the player stays usable) */}
-      <div className={`nf-watch-top ${chrome || panel ? 'is-on' : ''}`}>
-        <button type="button" onClick={back} className="nf-watch-btn" aria-label="Back to browse" title="Back">
-          <ChevronLeftIcon className="h-7 w-7" />
-        </button>
-        <div className="min-w-0 flex-1 text-shadow-netflix">
-          <p className="truncate text-[max(16px,1.3vw)] font-bold text-white">{title}</p>
+      {/* always-on back arrow, where VidFast's server button used to be */}
+      <button type="button" onClick={back} onMouseMove={wake} className="nf-watch-back" aria-label="Back to browse" title="Back">
+        <ChevronLeftIcon className="h-[70%] w-[70%]" />
+      </button>
+
+      {/* bottom row, lined up with the player's own controls */}
+      <div className={`nf-watch-bottom ${chrome || paused || panel || serverMenu ? 'is-on' : ''}`} onMouseMove={wake}>
+        <p className="nf-watch-title" title={title}>
+          <span className="font-bold">{title}</span>
           {mediaType === 'tv' && (
-            <p className="truncate text-[max(13px,0.95vw)] text-[#d2d2d2]">
-              S{season}:E{episode}
-              {current?.name ? ` “${current.name}”` : ''}
-            </p>
+            <span className="ml-[0.6em] font-normal text-[#d2d2d2]">
+              E{episode}
+              {current?.name ? ` ${current.name}` : ''}
+            </span>
           )}
-        </div>
-        {mediaType === 'tv' && (
-          <div className="flex items-center gap-2">
-            {next && (
-              <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="nf-watch-pill" title="Next episode">
-                Next Episode
-                <ChevronRightIcon className="h-4 w-4" />
-              </button>
-            )}
-            <button type="button" onClick={() => setPanel((p) => !p)} className={`nf-watch-pill ${panel ? 'is-active' : ''}`} aria-expanded={panel}>
-              Episodes
+        </p>
+
+        <div className="nf-watch-right">
+          {mediaType === 'tv' && next && (
+            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="nf-watch-icon" aria-label="Next episode" title="Next episode">
+              <svg viewBox="0 0 24 24" fill="currentColor" className="h-[62%] w-[62%]" aria-hidden="true"><path d="M5 4.5v15l11-7.5L5 4.5z" /><rect x="17" y="4.5" width="2.6" height="15" rx="0.6" /></svg>
             </button>
+          )}
+          {mediaType === 'tv' && (
+            <button type="button" onClick={() => setPanel((v) => !v)} className={`nf-watch-icon ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" className="h-[62%] w-[62%]" aria-hidden="true"><rect x="3" y="7" width="14" height="13" rx="1.5" /><path d="M7 4h13a1 1 0 0 1 1 1v12" /></svg>
+            </button>
+          )}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setServerMenu((v) => !v)}
+              className={`nf-watch-icon ${serverMenu ? 'is-active' : ''}`}
+              aria-expanded={serverMenu}
+              aria-haspopup="menu"
+              aria-label={`Server: ${server || 'Auto'}`}
+              title="Server"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-[70%] w-[70%]" aria-hidden="true"><path d="M7 18.5h10.5a4.5 4.5 0 0 0 .6-8.96A6 6 0 0 0 6.6 8.2 5.2 5.2 0 0 0 7 18.5z" /></svg>
+            </button>
+            {serverMenu && (
+              <div role="menu" className="nf-server-menu" aria-label="Choose server">
+                <p className="px-4 pb-1.5 pt-3 text-[12px] font-semibold uppercase tracking-wider text-[#8c8c8c]">Server</p>
+                {['', ...SERVERS].map((name) => (
+                  <button
+                    key={name || 'auto'}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={server === name}
+                    onClick={() => chooseServer(name)}
+                    className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-[15px] transition-colors hover:bg-white/10 ${server === name ? 'font-bold text-white' : 'text-[#d2d2d2]'}`}
+                  >
+                    <span className="w-4 text-netflix-red">{server === name ? '✓' : ''}</span>
+                    {name || 'Auto (best available)'}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* episodes drawer */}
