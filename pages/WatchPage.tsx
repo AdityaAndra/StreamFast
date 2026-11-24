@@ -46,6 +46,11 @@ const VfCloud = () => (
     <path d="M17.4776 10.0001C17.485 10 17.4925 10 17.5 10C19.9853 10 22 12.0147 22 14.5C22 16.9853 19.9853 19 17.5 19H7C4.23858 19 2 16.7614 2 14C2 11.4003 3.98398 9.26407 6.52042 9.0227M17.4776 10.0001C17.4924 9.83536 17.5 9.66856 17.5 9.5C17.5 6.46243 15.0376 4 12 4C9.12324 4 6.76233 6.20862 6.52042 9.0227M17.4776 10.0001C17.3753 11.1345 16.9286 12.1696 16.2428 13M6.52042 9.0227C6.67826 9.00768 6.83823 9 7 9C8.12582 9 9.16474 9.37209 10.0005 10" />
   </svg>
 );
+const VfStar = ({ filled }: { filled?: boolean }) => (
+  <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+    <path d="M11.109 3.74829C11.48 3.02037 12.52 3.02037 12.891 3.74829L15.0785 8.0407C15.2237 8.32561 15.4964 8.5239 15.8122 8.5742L20.5671 9.33147C21.373 9.45983 21.6941 10.4474 21.1178 11.0252L17.7138 14.4383C17.4883 14.6644 17.3844 14.9846 17.4341 15.3001L18.1843 20.0635C18.3114 20.8702 17.4703 21.4808 16.7426 21.1102L12.4539 18.9254C12.1687 18.7801 11.8313 18.7801 11.5461 18.9254L7.25739 21.1102C6.52973 21.4808 5.68859 20.8702 5.81565 20.0635L6.56594 15.3001C6.61562 14.9846 6.51167 14.6644 6.28617 14.4383L2.88217 11.0252C2.3059 10.4474 2.62703 9.45983 3.43294 9.33147L8.18782 8.5742C8.50362 8.5239 8.77632 8.32561 8.92151 8.0407L11.109 3.74829Z" />
+  </svg>
+);
 const VfChevron = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M9.00005 6C9.00005 6 15 10.4189 15 12C15 13.5812 9 18 9 18" />
@@ -120,6 +125,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, [mediaType, season, episode, episodes, seasons]);
 
   /* ---------- player src (resume where you left off) ---------- */
+  const [defaultServer, setDefaultServer] = useState<string>(loadServer);
   const [server, setServer] = useState<string>(loadServer);
   const [switchAt, setSwitchAt] = useState<number | undefined>(undefined);
   const lastTime = useRef(0);
@@ -160,6 +166,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, []);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
+  const reclaimRef = useRef<() => void>(() => undefined);
   // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
     setStarted(false);
@@ -219,6 +226,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (currentTime > 0) lastTime.current = currentTime;
       if (['play', 'playing', 'timeupdate', 'pause', 'seeked'].includes(ev)) setStarted(true);
       // VidFast shows its controls when you play, pause or seek: show ours with them.
+      if (ev === 'play' || ev === 'playing' || ev === 'pause' || ev === 'seeked') reclaimRef.current();
       if (ev === 'play' || ev === 'playing') {
         setPaused(false);
         wakeRef.current();
@@ -284,17 +292,22 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
+  // Picking a server switches this video only; the star makes it your default (like VidFast's menu).
   const chooseServer = (name: string) => {
     setServerMenu(false);
     if (name === server) return;
+    if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
+    setServer(name);
+  };
+  const toggleDefault = (name: string) => {
+    const next = defaultServer === name ? '' : name;
+    setDefaultServer(next);
     try {
-      if (name) localStorage.setItem(SERVER_KEY, name);
+      if (next) localStorage.setItem(SERVER_KEY, next);
       else localStorage.removeItem(SERVER_KEY);
     } catch {
       /* ignore */
     }
-    if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
-    setServer(name);
   };
 
   /* ---------- hover sync ----------
@@ -305,12 +318,17 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const [sense, setSense] = useState(true);
   const senseT = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(senseT.current), []);
+  const reclaimFocus = useCallback(() => {
+    if (document.activeElement === iframeRef.current) rootRef.current?.focus({ preventScroll: true });
+  }, []);
   const onSense = useCallback(() => {
+    reclaimFocus();
     wake();
     setSense(false);
     window.clearTimeout(senseT.current);
     senseT.current = window.setTimeout(() => setSense(true), SENSE_GAP_MS);
-  }, [wake]);
+  }, [wake, reclaimFocus]);
+  reclaimRef.current = reclaimFocus;
   const command = useCallback((msg: Record<string, unknown>) => {
     iframeRef.current?.contentWindow?.postMessage(msg, '*');
   }, []);
@@ -325,10 +343,17 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === ' ' || e.key.toLowerCase() === 'k') {
+        // Like Netflix: Space always plays / pauses, even if one of our buttons has focus.
         e.preventDefault();
+        if (t && t.tagName === 'BUTTON') t.blur();
+        setServerMenu(false);
+        setPanel(false);
         togglePlay();
+      } else if (t && t.tagName === 'BUTTON' && (e.key === 'Enter')) {
+        return; // Enter still presses the focused button
       } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault();
         const to = Math.max(0, lastTime.current + (e.key === 'ArrowRight' ? 10 : -10));
@@ -354,7 +379,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const title = item ? getTitle(item) : '';
 
   return (
-    <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
+    <div ref={rootRef} tabIndex={-1} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
       <iframe
         ref={iframeRef}
         key={src}
@@ -415,12 +440,18 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                 {[{ name: '', badge: '', details: 'Picks the best server for you' }, ...SERVER_INFO].map((x) => {
                   const on = server === x.name;
                   return (
-                    <button
+                    <div
                       key={x.name || 'auto'}
-                      type="button"
                       role="menuitemradio"
+                      tabIndex={0}
                       aria-checked={on}
                       onClick={() => chooseServer(x.name)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          chooseServer(x.name);
+                        }
+                      }}
                       className="vf-menu-row"
                     >
                       <span className="vf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
@@ -430,8 +461,22 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                         </span>
                         <span className="vf-menu-details">{x.details}</span>
                       </span>
+                      <button
+                        type="button"
+                        className={`vf-menu-star ${defaultServer === x.name ? 'is-default' : ''}`}
+                        style={{ color: playerTheme.hex }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDefault(x.name);
+                        }}
+                        aria-pressed={defaultServer === x.name}
+                        aria-label={defaultServer === x.name ? `${x.name || 'Auto'} is your default server` : `Make ${x.name || 'Auto'} your default server`}
+                        title={defaultServer === x.name ? 'Default server' : 'Make default'}
+                      >
+                        <VfStar filled={defaultServer === x.name} />
+                      </button>
                       <span className="vf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
