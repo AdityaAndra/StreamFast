@@ -190,7 +190,7 @@ export const CompanyPage: React.FC<{ brandKey: string; search: string }> = ({ br
   const name = brand?.name || info?.name || '';
 
   useEffect(() => {
-    if (name) document.title = `${name} — VidFast`;
+    if (name) document.title = `${name} — StreamFast`;
   }, [name]);
 
   if (!brand) return <NotFoundPage />;
@@ -211,7 +211,7 @@ export const ProviderPage: React.FC<{ id: number; search: string }> = ({ id, sea
   const base = useMemo(() => ({ provider: String(id), region }), [id, region]);
 
   useEffect(() => {
-    if (provider) document.title = `${provider.name} — VidFast`;
+    if (provider) document.title = `${provider.name} — StreamFast`;
   }, [provider]);
 
   return (

@@ -15,7 +15,7 @@ if ('scrollRestoration' in window.history) {
 }
 
 // When saved lists are arriving from the old address, wait until they're in place.
-const ready: Promise<unknown> = (window as any).__vfReady || Promise.resolve();
+const ready: Promise<unknown> = (window as any).__sfReady || Promise.resolve();
 
 ready
   .catch(() => undefined)

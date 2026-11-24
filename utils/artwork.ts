@@ -8,12 +8,13 @@ export type Logo = { p: string; r: number } | null;
 export type Meta = { p: string | null; r: number; imdb?: string | null; ir?: number | null; iv?: number | null } | null;
 export type Imdb = { rating: number; votes: number | null; id: string | null } | null;
 
-const LS_KEY = 'vf_meta_v2';
+const LS_KEY = 'sf_meta_v2';
 const MAX_STORED = 1500;
 const mem = new Map<string, Meta>();
 
 try {
   localStorage.removeItem('vf_logos_v1');
+    localStorage.removeItem('vf_meta_v2');
 } catch {
   /* ignore */
 }

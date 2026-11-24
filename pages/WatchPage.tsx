@@ -12,13 +12,14 @@ const VIDFAST_ORIGINS = [
   'https://vidfast.pm', 'https://vidfast.xyz', 'https://vidfast.vc', 'https://vidfast.bz',
 ];
 // VidFast's documented embed domain; unlike vidfast.pro it reports play / pause / progress to us.
-const VF_MOVIE = 'https://vidfast.vc/movie/';
-const VF_TV = 'https://vidfast.vc/tv/';
+const VIDFAST_EMBED_MOVIE = 'https://vidfast.vc/movie/';
+const VIDFAST_EMBED_TV = 'https://vidfast.vc/tv/';
 const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
-const IDLE_MS = 3500;
+// VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
+const IDLE_MS = 3000;
 /** Mouse-move sensing: how long the player gets the mouse to itself after each detected move. */
-const SENSE_GAP_MS = 900;
+const SENSE_GAP_MS = 150;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -74,7 +75,7 @@ const VfNext = () => (
     <path d="M20.5 4.5V19.5" />
   </svg>
 );
-const SERVER_KEY = 'vf_server';
+const SERVER_KEY = 'sf_server';
 const loadServer = () => {
   try {
     const v = localStorage.getItem(SERVER_KEY);
@@ -142,8 +143,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     }
     const t = resume ? `&startAt=${resume}` : '';
     return mediaType === 'movie'
-      ? `${VF_MOVIE}${id}?autoPlay=true${theme}${t}`
-      : `${VF_TV}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
+      ? `${VIDFAST_EMBED_MOVIE}${id}?autoPlay=true${theme}${t}`
+      : `${VIDFAST_EMBED_TV}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
     // Only rebuild when the episode changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt]);
@@ -229,6 +230,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (ev === 'play' || ev === 'playing' || ev === 'pause' || ev === 'seeked') reclaimRef.current();
       if (ev === 'play' || ev === 'playing') {
         setPaused(false);
+        setServerMenu(false);
         wakeRef.current();
       } else if (ev === 'pause' || ev === 'ended') setPaused(true);
       else if (ev === 'seeked') wakeRef.current();
@@ -268,7 +270,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, [panel, serverMenu, id, mediaType]);
 
   useEffect(() => {
-    if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — VidFast`;
+    if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — StreamFast`;
   }, [item, mediaType, season, episode]);
 
 
@@ -339,6 +341,27 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     onSense();
   }, [started, paused, command, onSense]);
 
+  // Clicking anywhere inside VidFast's player moves focus into it: close our server list / episodes then.
+  useEffect(() => {
+    const onBlur = () =>
+      window.setTimeout(() => {
+        if (document.activeElement === iframeRef.current) {
+          setServerMenu(false);
+          setPanel(false);
+        }
+      }, 0);
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+  }, []);
+
+  // Pointer leaves the window from our layer: VidFast's controls go too.
+  const onSenseLeave = useCallback((e: React.MouseEvent) => {
+    if (!e.relatedTarget && started && !paused) {
+      window.clearTimeout(idle.current);
+      setChrome(false);
+    }
+  }, [started, paused]);
+
   // Keyboard while our page has focus (after clicking our layer): Space/K play-pause, arrows seek 10s.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -391,35 +414,52 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         referrerPolicy="origin"
       />
 
-      {FINE_POINTER && sense && !serverMenu && !panel && (
-        <div className="vf-sense" onMouseMove={onSense} onClick={togglePlay} aria-hidden="true" />
+      {FINE_POINTER && (
+        <div
+          className={`sf-sense ${sense && !serverMenu && !panel ? '' : 'is-off'}`}
+          onMouseMove={onSense}
+          onMouseLeave={onSenseLeave}
+          onClick={togglePlay}
+          onDoubleClick={() => {
+            const p = document.fullscreenElement ? document.exitFullscreen() : rootRef.current?.requestFullscreen();
+            p?.catch(() => undefined);
+          }}
+          aria-hidden="true"
+        />
       )}
 
-      {/* always-on back arrow, in VidFast's own server-button spot and style */}
-      <button type="button" onClick={back} className="vf-back" aria-label="Back to browse" title="Back">
+      {/* back arrow, in VidFast's own server-button spot and style; shows and hides with the controls */}
+      <button
+        type="button"
+        onClick={back}
+        onMouseMove={wake}
+        className={`sf-back ${!started || panel || serverMenu || chrome || paused ? '' : 'is-hidden'}`}
+        aria-label="Back to browse"
+        title="Back"
+      >
         <VfBack />
       </button>
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
-      <div className={`vf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
-        <p className="vf-title" title={title} onMouseEnter={wake}>
+      <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
+        <p className="sf-title" title={title} onMouseEnter={wake}>
           {title}
           {mediaType === 'tv' && (
-            <span className="vf-title-ep">
+            <span className="sf-title-ep">
               E{episode}
               {current?.name ? ` ${current.name}` : ''}
             </span>
           )}
         </p>
 
-        <div className="vf-right" onMouseEnter={wake} onMouseMove={wake}>
+        <div className="sf-right" onMouseEnter={wake} onMouseMove={wake}>
           {mediaType === 'tv' && next && (
-            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="vf-btn" aria-label="Next episode" title="Next episode">
+            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="sf-btn" aria-label="Next episode" title="Next episode">
               <VfNext />
             </button>
           )}
           {mediaType === 'tv' && (
-            <button type="button" onClick={() => setPanel((v) => !v)} className={`vf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
+            <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
               <VfEpisodes />
             </button>
           )}
@@ -427,7 +467,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
             <button
               type="button"
               onClick={() => setServerMenu((v) => !v)}
-              className={`vf-btn ${serverMenu ? 'is-active' : ''}`}
+              className={`sf-btn ${serverMenu ? 'is-active' : ''}`}
               aria-expanded={serverMenu}
               aria-haspopup="menu"
               aria-label={`Server: ${server || 'Auto'}`}
@@ -436,7 +476,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
               <VfCloud />
             </button>
             {serverMenu && (
-              <div role="menu" className="vf-menu" aria-label="Choose server">
+              <div role="menu" className="sf-menu" aria-label="Choose server">
                 {[{ name: '', badge: '', details: 'Best available server' }, ...SERVER_INFO].map((x) => {
                   const on = server === x.name;
                   return (
@@ -452,18 +492,18 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                           chooseServer(x.name);
                         }
                       }}
-                      className="vf-menu-row"
+                      className="sf-menu-row"
                     >
-                      <span className="vf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
+                      <span className="sf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
                       <span className="min-w-0 flex-1 text-left">
-                        <span className="vf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
+                        <span className="sf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
                           {x.name || 'Auto'}
                         </span>
-                        <span className="vf-menu-details">{x.details}</span>
+                        <span className="sf-menu-details">{x.details}</span>
                       </span>
                       <button
                         type="button"
-                        className={`vf-menu-star ${defaultServer === x.name ? 'is-default' : ''}`}
+                        className={`sf-menu-star ${defaultServer === x.name ? 'is-default' : ''}`}
                         style={{ color: playerTheme.hex }}
                         onClick={(e) => {
                           e.stopPropagation();
@@ -475,7 +515,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                       >
                         <VfStar filled={defaultServer === x.name} />
                       </button>
-                      <span className="vf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
+                      <span className="sf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
                     </div>
                   );
                 })}

@@ -91,7 +91,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                         </div>
                     </div>
                     <ul className="border-t border-white/10 pt-1.5">
-                        {onOpenGuide && <MenuItem onClick={run(onOpenGuide)} icon={<BookOpenIcon className="h-4 w-4" />}>How to use VidFast</MenuItem>}
+                        {onOpenGuide && <MenuItem onClick={run(onOpenGuide)} icon={<BookOpenIcon className="h-4 w-4" />}>How to use StreamFast</MenuItem>}
                         <MenuItem onClick={run(onThemeSelect)} icon={<PaletteIcon className="h-4 w-4" />}>Player theme</MenuItem>
                         <MenuItem onClick={() => fileInputRef.current?.click()} icon={<UploadIcon className="h-4 w-4" />}>Import history</MenuItem>
                         <MenuItem onClick={run(onExport)} icon={<DownloadIcon className="h-4 w-4" />}>Export history</MenuItem>
