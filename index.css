@@ -353,3 +353,16 @@ html.lenis, html.lenis body { height: auto; }
 .nf-imdb-sm { font-size: 13px; }
 .nf-imdb-md { font-size: inherit; }
 .nf-imdb-lg { font-size: 1.04em; }
+
+/* ============ People ============ */
+.nf-person { display: block; text-align: center; padding: 0 6%; }
+.nf-person-img {
+  position: relative; display: block; width: 100%; aspect-ratio: 1; border-radius: 9999px; overflow: hidden; background: #2a2a2a;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06); transition: transform 0.35s var(--nf-out), box-shadow 0.35s ease;
+}
+.nf-person-img img { width: 100%; height: 100%; object-fit: cover; object-position: center 22%; }
+.nf-person:hover .nf-person-img { transform: scale(1.05); box-shadow: 0 0 0 2px #fff, 0 10px 24px rgba(0, 0, 0, 0.5); }
+.nf-person-initials { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: max(18px, 1.6vw); color: #8c8c8c; }
+.nf-person-name { display: block; margin-top: 0.6em; font-size: max(13px, 0.95vw); font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-person:hover .nf-person-name { text-decoration: underline; text-underline-offset: 2px; }
+.nf-person-sub { display: block; font-size: max(12px, 0.82vw); color: #a3a3a3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
