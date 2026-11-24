@@ -16,7 +16,7 @@ const SkeletonCarousel: React.FC<{ variant?: 'landscape' | 'top10' }> = ({ varia
             <div key={i} className="nf-item">
               {variant === 'top10' ? (
                 <div className="nf-top10-item">
-                  <div className="nf-skel absolute right-0 top-0 aspect-[2/3] w-1/2" style={{ ['--i' as any]: i }} />
+                  <div className="nf-skel absolute bottom-0 right-0 top-0 w-1/2 !rounded-[4px]" style={{ ['--i' as any]: i }} />
                 </div>
               ) : (
                 <div className="nf-skel aspect-video w-full" style={{ ['--i' as any]: i }} />
