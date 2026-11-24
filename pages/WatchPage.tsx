@@ -17,6 +17,11 @@ const VF_TV = 'https://vidfast.vc/tv/';
 const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
 const IDLE_MS = 3500;
+/** Mouse-move sensing: how long the player gets the mouse to itself after each detected move. */
+const SENSE_GAP_MS = 900;
+const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+/** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
+const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
 /** VidFast's servers, as its own server menu lists them (badge + details). "Auto" lets the player pick. */
 const BADGE_4K = 'https://vidfast.vc/4k.png';
 const FLAG_US = 'https://flagsapi.com/US/flat/24.png';
@@ -292,6 +297,50 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setServer(name);
   };
 
+  /* ---------- hover sync ----------
+     Mouse moves over the player never reach our page. A transparent layer over the middle of the
+     video (not over any of VidFast's buttons) notices a move, shows our title + cloud, then steps
+     aside for a moment so VidFast gets the mouse too and shows its own controls. A click that
+     lands on the layer does what VidFast does on a click: play / pause. */
+  const [sense, setSense] = useState(true);
+  const senseT = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(senseT.current), []);
+  const onSense = useCallback(() => {
+    wake();
+    setSense(false);
+    window.clearTimeout(senseT.current);
+    senseT.current = window.setTimeout(() => setSense(true), SENSE_GAP_MS);
+  }, [wake]);
+  const command = useCallback((msg: Record<string, unknown>) => {
+    iframeRef.current?.contentWindow?.postMessage(msg, '*');
+  }, []);
+  const togglePlay = useCallback(() => {
+    const play = !started || paused;
+    command({ command: play ? 'play' : 'pause' });
+    setPaused(!play);
+    onSense();
+  }, [started, paused, command, onSense]);
+
+  // Keyboard while our page has focus (after clicking our layer): Space/K play-pause, arrows seek 10s.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return;
+      if (e.key === ' ' || e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const to = Math.max(0, lastTime.current + (e.key === 'ArrowRight' ? 10 : -10));
+        command({ command: 'seek', time: to });
+        lastTime.current = to;
+        onSense();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [togglePlay, command, onSense]);
+
   const back = () => goBack(item ? titlePath(item) : '/');
   const goEpisode = (s: number, e: number) => {
     setPanel(false);
@@ -305,7 +354,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const title = item ? getTitle(item) : '';
 
   return (
-    <div ref={rootRef} className="nf-watch">
+    <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
       <iframe
         ref={iframeRef}
         key={src}
@@ -316,6 +365,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         allowFullScreen
         referrerPolicy="origin"
       />
+
+      {FINE_POINTER && sense && !serverMenu && !panel && (
+        <div className="vf-sense" onMouseMove={onSense} onClick={togglePlay} aria-hidden="true" />
+      )}
 
       {/* always-on back arrow, in VidFast's own server-button spot and style */}
       <button type="button" onClick={back} className="vf-back" aria-label="Back to browse" title="Back">
