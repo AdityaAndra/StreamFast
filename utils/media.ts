@@ -25,3 +25,16 @@ export const tmdbImage = (path: string | null | undefined, size: ImageSize = 'w5
 
 export const isSameMedia = (a: SearchResult, b: SearchResult) =>
   a.id === b.id && a.media_type === b.media_type;
+
+const slugify = (s: string) =>
+  s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+
+/** Shareable page URL for a title, e.g. /movie/603-the-matrix */
+export const titlePath = (item: Pick<SearchResult, 'id' | 'media_type'> & { title?: string; name?: string }) => {
+  const name = (item as any).title || (item as any).name || '';
+  const slug = slugify(name);
+  return `/${item.media_type}/${item.id}${slug ? `-${slug}` : ''}`;
+};
+
+export const getMatch = (item: SearchResult): number | null =>
+  typeof item.vote_average === 'number' && item.vote_average > 0 ? Math.min(99, Math.round(item.vote_average * 10 + 2)) : null;

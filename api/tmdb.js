@@ -8,7 +8,7 @@ const TMDB_BASE = 'https://api.themoviedb.org/3';
 
 // Only allow the endpoints the app actually uses.
 const ALLOWED_PATH =
-  /^\/(search\/multi|trending\/(all|movie|tv)\/(day|week)|movie\/(popular|top_rated|upcoming|now_playing|\d+(\/images)?)|tv\/(popular|top_rated|on_the_air|airing_today|\d+(\/images|\/season\/\d+)?))$/;
+  /^\/(search\/multi|trending\/(all|movie|tv)\/(day|week)|discover\/(movie|tv)|genre\/(movie|tv)\/list|movie\/(popular|top_rated|upcoming|now_playing|\d+(\/(images|recommendations|similar|videos|credits|release_dates))?)|tv\/(popular|top_rated|on_the_air|airing_today|\d+(\/(images|recommendations|similar|videos|credits|aggregate_credits|content_ratings)|\/season\/\d+)?))$/;
 
 export default async function handler(req, res) {
   const apiKey = process.env.TMDB_API_KEY;

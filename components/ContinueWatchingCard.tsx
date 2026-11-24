@@ -1,7 +1,10 @@
 import React from 'react';
 import { VIDFAST_MOVIE_URL, VIDFAST_TV_URL } from '../constants';
 import type { WatchProgressItem } from '../types';
-import { CloseIcon, PlayIcon } from './Icons';
+import { CloseIcon, PlayIcon, InfoIcon } from './Icons';
+import { CardLogo } from './ResultCard';
+import { Link } from '../utils/router';
+import { titlePath } from '../utils/media';
 import { useAppContext } from '../contexts/AppContext';
 import { tmdbImage } from '../utils/media';
 
@@ -78,7 +81,7 @@ const ContinueWatchingCard: React.FC<ContinueWatchingCardProps> = ({ item, onSel
               alt=""
               loading="lazy"
               onLoad={() => setLoaded(true)}
-              className={`absolute inset-0 h-full w-full object-cover transition-[opacity,transform] duration-500 ease-netflix group-hover/cw:scale-105 ${
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
                 loaded ? 'opacity-100' : 'opacity-0'
               } ${usingPoster ? 'object-[center_25%]' : ''}`}
             />
@@ -90,10 +93,8 @@ const ContinueWatchingCard: React.FC<ContinueWatchingCardProps> = ({ item, onSel
         <div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors duration-300 group-hover/cw:bg-black/35" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
-        <div className="pointer-events-none absolute bottom-1.5 left-2 right-2 sm:bottom-2 sm:left-2.5">
-          <p className="truncate text-[13px] font-bold leading-tight text-white text-shadow-netflix sm:text-sm lg:text-base">{title}</p>
-          <p className="mt-0.5 text-[11px] font-medium text-netflix-muted sm:text-xs">{progressText}</p>
-        </div>
+        <CardLogo item={media} />
+        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-[3px] bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">{progressText}</span>
 
         <button
           type="button"
@@ -103,6 +104,16 @@ const ContinueWatchingCard: React.FC<ContinueWatchingCardProps> = ({ item, onSel
         >
           <PlayIcon className="ml-1 h-5 w-5 sm:h-6 sm:w-6" />
         </button>
+
+        <Link
+          to={titlePath(media)}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-white/60 bg-black/50 text-white opacity-0 transition-opacity duration-200 hover:border-white group-hover/cw:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          aria-label={`More info about ${title}`}
+          title="More info"
+        >
+          <InfoIcon className="h-4 w-4" />
+        </Link>
 
         <button
           type="button"

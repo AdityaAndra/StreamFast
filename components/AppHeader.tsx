@@ -3,13 +3,14 @@ import ProfileMenu from './ProfileMenu';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
 import { loadRecentSearches, clearRecentSearches } from '../utils/recentSearches';
 
-export type AppView = 'home' | 'movies' | 'tv-shows' | 'my-list' | 'how-to-use';
-type NavView = 'home' | 'tv-shows' | 'movies' | 'my-list';
+export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'my-list' | 'how-to-use' | 'title' | 'other';
+type NavView = 'home' | 'tv-shows' | 'movies' | 'latest' | 'my-list';
 
 const NAV_ITEMS: { id: NavView; label: string }[] = [
     { id: 'home', label: 'Home' },
     { id: 'tv-shows', label: 'TV Shows' },
     { id: 'movies', label: 'Movies' },
+    { id: 'latest', label: 'New & Popular' },
     { id: 'my-list', label: 'My List' },
 ];
 
@@ -215,22 +216,28 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     const [scrolled, setScrolled] = useState(false);
 
     useEffect(() => {
-        const onScroll = () => setScrolled(window.scrollY > 10);
+        let ticking = false;
+        const onScroll = () => {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                setScrolled(window.scrollY > 10);
+                ticking = false;
+            });
+        };
         onScroll();
         window.addEventListener('scroll', onScroll, { passive: true });
         return () => window.removeEventListener('scroll', onScroll);
     }, []);
 
-    const active: NavView | null = isSearching || view === 'how-to-use' ? null : (view as NavView);
-    const solid = scrolled || isSearching || view === 'my-list' || view === 'how-to-use';
+    const active: NavView | null = !isSearching && NAV_ITEMS.some((n) => n.id === view) ? (view as NavView) : null;
+    const solid = scrolled || isSearching || ['my-list', 'how-to-use', 'other'].includes(view);
 
     return (
-        <header
-            className={`fixed inset-x-0 top-0 z-40 transition-colors duration-500 ${
-                solid ? 'bg-netflix-bg' : 'bg-gradient-to-b from-black/75 via-black/30 to-transparent'
-            }`}
-        >
-            <div className="flex h-[4.25rem] items-center gap-5 px-[4%] sm:h-[4.9rem] lg:gap-10">
+        <header className="fixed inset-x-0 top-0 z-40">
+            <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/70 via-black/25 to-transparent" />
+            <div aria-hidden="true" className={`pointer-events-none absolute inset-0 bg-netflix-bg transition-opacity duration-500 ${solid ? 'opacity-100' : 'opacity-0'}`} />
+            <div className="relative flex h-[4.25rem] items-center gap-5 px-[4%] sm:h-[4.9rem] lg:gap-10">
                 <button
                     type="button"
                     onClick={() => onNavigate('home')}
@@ -242,7 +249,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 </button>
 
                 <nav aria-label="Primary" className="flex-1">
-                    <ul className="hidden items-center gap-5 md:flex lg:gap-6">
+                    <ul className="hidden items-center gap-5 md:flex lg:gap-[1.3rem]">
                         {NAV_ITEMS.map((item) => (
                             <li key={item.id}>
                                 <button
