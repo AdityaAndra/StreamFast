@@ -5,7 +5,8 @@ import SkeletonGrid from '../components/SkeletonGrid';
 import ErrorState from '../components/ErrorState';
 import { searchMulti } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
-import { getTitle } from '../utils/media';
+import { Link } from '../utils/router';
+import { rankSearch, fetchSearchRelated, personExplore, SearchRelated, ExploreLink } from '../utils/searchRelated';
 import { saveRecentSearch } from '../utils/recentSearches';
 import { searchPeople, PersonSummary, deptLabel } from '../utils/person';
 import PeopleRow, { PeopleGrid, PersonTileData } from '../components/PeopleRow';
@@ -43,13 +44,40 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   }, [data]);
   useEffect(() => setFilter('all'), [q]);
 
-  const results = data || last;
+  const raw = data || last;
+  // Best matches first, then titles related to the top match, then obscure matches.
+  const ranked = useMemo(() => rankSearch(raw, q), [raw, q]);
+  const top = ranked.strong[0];
+  const topPerson = peopleRes.data?.[0];
+  // A person search ("hans zimmer") explores the person instead of a weak title match.
+  const personFirst = !!topPerson && (!top || (topPerson.popularity || 0) > (top.popularity || 0) * 2);
+  const rel = useCachedData<SearchRelated>(top && !personFirst ? `searchrel:${top.media_type}:${top.id}` : null, () => fetchSearchRelated(top!));
+  const results = useMemo(() => {
+    const seen = new Set<string>();
+    const out: SearchResult[] = [];
+    const push = (list: SearchResult[]) =>
+      list.forEach((r) => {
+        const k = `${r.media_type}:${r.id}`;
+        if (!seen.has(k)) {
+          seen.add(k);
+          out.push(r);
+        }
+      });
+    push(ranked.strong);
+    if (!personFirst && rel.data) push(rel.data.titles);
+    push(ranked.medium);
+    push(ranked.weak);
+    return out;
+  }, [ranked, rel.data, personFirst]);
+  const explore: ExploreLink[] = useMemo(
+    () => (personFirst && topPerson ? personExplore(topPerson) : rel.data?.explore || []),
+    [personFirst, topPerson, rel.data]
+  );
   const counts = useMemo(
     () => ({ all: results.length, movie: results.filter((r) => r.media_type === 'movie').length, tv: results.filter((r) => r.media_type === 'tv').length, person: people.length }),
     [results, people]
   );
   const filtered = useMemo(() => (filter === 'all' ? results : results.filter((r) => r.media_type === filter)), [results, filter]);
-  const related = useMemo(() => results.slice(0, 6).map(getTitle), [results]);
   const stale = loading || q !== query.trim();
 
   const tabs: { id: Filter; label: string }[] = [
@@ -61,13 +89,15 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
 
   return (
     <div className="px-[4%] pt-24 sm:pt-32" onClickCapture={() => q && saveRecentSearch(q)}>
-      {related.length > 0 && !error && (
-        <p className="mb-[1.5vw] flex flex-wrap items-center gap-x-1 text-[max(14px,1.05vw)] text-[#808080]">
+      {explore.length > 0 && !error && (
+        <p className="mb-[1.5vw] flex flex-wrap items-center gap-x-1 gap-y-1 text-[max(14px,1.05vw)] text-[#808080]">
           <span className="mr-1">Explore titles related to:</span>
-          {related.map((t, i) => (
-            <React.Fragment key={`${t}-${i}`}>
+          {explore.map((t, i) => (
+            <React.Fragment key={`${t.to}-${i}`}>
               {i > 0 && <span className="text-[#4d4d4d]">|</span>}
-              <span className="px-1 text-netflix-text">{t}</span>
+              <Link to={t.to} className="px-1 text-netflix-text transition-colors hover:text-white hover:underline">
+                {t.label}
+              </Link>
             </React.Fragment>
           ))}
         </p>

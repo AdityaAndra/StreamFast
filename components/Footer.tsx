@@ -34,7 +34,7 @@ const Footer: React.FC<FooterProps> = ({ onOpenGuide, onThemeSelect, onExport, o
     <p className="mb-2 text-[11px] leading-relaxed">
       This product uses the TMDB API but is not endorsed or certified by TMDB. IMDb ratings: information courtesy of IMDb (imdb.com), used with permission. Streams are provided by VidFast.
     </p>
-    <p className="text-[11px]">© {new Date().getFullYear()} VidFast Link Generator</p>
+    <p className="text-[11px]">© {new Date().getFullYear()} VidFast</p>
   </footer>
 );
 

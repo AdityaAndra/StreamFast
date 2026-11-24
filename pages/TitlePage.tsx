@@ -1,20 +1,24 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import type { SearchResult } from '../types';
-import { getTitleDetails, TitleDetails } from '../services/tmdb';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SearchResult, SeasonDetails, WatchProgress } from '../types';
+import { getTitleDetails, getSeasonDetails, TitleDetails } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
 import { usePlayer } from '../contexts/PlayerContext';
-import { getTitle, getYear, tmdbImage, titlePath } from '../utils/media';
+import { getTitle, getYear, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { ImdbRating } from '../components/Imdb';
-import { prefetchLogos } from '../utils/artwork';
-import { goBack, navigate } from '../utils/router';
-import EpisodeList from '../components/EpisodeList';
-import ResultCard from '../components/ResultCard';
+import { CardLogo } from '../components/ResultCard';
 import ErrorState from '../components/ErrorState';
-import PeopleRow, { PersonTileData } from '../components/PeopleRow';
-import { Link as RouteLink } from '../utils/router';
-import { personPath, KEY_CREW_JOBS } from '../utils/person';
-import { PlayIcon, PlusIcon, CheckStaticIcon, LinkIcon, ChevronLeftIcon, CloseIcon, FilmIcon } from '../components/Icons';
+import { prefetchLogos } from '../utils/artwork';
+import { Link, navigate } from '../utils/router';
+import { personPath } from '../utils/person';
+import { PlayIcon, PlusIcon, CheckStaticIcon, LinkIcon, CloseIcon, ChevronDownIcon } from '../components/Icons';
+
+/**
+ * Netflix-style title window ("jbv" modal): opens over the page you were browsing.
+ * Hero + Play/Resume, details, Episodes, More Like This, Trailers & More, About (with photos).
+ */
+
+/* ---------------------------------------------------------------- helpers */
 
 const toSearchResult = (d: TitleDetails): SearchResult => {
   const base = {
@@ -43,37 +47,41 @@ const certification = (d: TitleDetails): string | undefined =>
     ? d.content_ratings?.results?.find((r) => r.iso_3166_1 === 'US')?.rating || undefined
     : d.release_dates?.results?.find((r) => r.iso_3166_1 === 'US')?.release_dates?.find((x) => x.certification)?.certification || undefined;
 
+const hm = (m?: number) => (m ? (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`) : '');
+
 const lengthText = (d: TitleDetails) => {
-  if (d.media_type === 'movie') return d.runtime ? `${Math.floor(d.runtime / 60) ? `${Math.floor(d.runtime / 60)}h ` : ''}${d.runtime % 60}m` : '';
-  const n = d.number_of_seasons || 0;
-  return n ? `${n} Season${n > 1 ? 's' : ''}` : d.number_of_episodes ? `${d.number_of_episodes} Episodes` : '';
+  if (d.media_type === 'movie') return hm(d.runtime);
+  if (d.number_of_seasons && d.number_of_seasons > 1) return `${d.number_of_seasons} Seasons`;
+  return d.number_of_episodes ? `${d.number_of_episodes} Episodes` : '';
 };
 
-const TitleSkeleton: React.FC = () => (
-  <div aria-hidden="true">
-    <div className="relative h-[min(56.25vw,92vh)] min-h-[520px] w-full max-sm:h-[118vw] max-sm:min-h-0">
-      <div className="nf-skel absolute inset-0 rounded-none opacity-60" />
-      <div className="nf-billboard-vignette" />
-      <div className="absolute bottom-[12%] left-[4%] w-[min(46%,720px)] space-y-4 max-sm:left-[6%] max-sm:right-[6%] max-sm:w-auto">
-        <div className="nf-skel h-[clamp(60px,8vw,150px)] w-3/4" />
-        <div className="nf-skel h-4 w-1/2" style={{ ['--i' as any]: 1 }} />
-        <div className="flex gap-3">
-          <div className="nf-skel h-12 w-36" style={{ ['--i' as any]: 2 }} />
-          <div className="nf-skel h-12 w-12 rounded-full" style={{ ['--i' as any]: 3 }} />
-        </div>
-      </div>
-    </div>
-    <div className="space-y-3 px-[4%] pt-6">
-      <div className="nf-skel h-4 w-2/3" />
-      <div className="nf-skel h-4 w-1/2" style={{ ['--i' as any]: 1 }} />
-    </div>
-  </div>
-);
+const mins = (s?: number) => Math.max(1, Math.round((s || 0) / 60));
+const progressText = (p?: WatchProgress) => (p?.watched && p.duration ? `${mins(p.watched)} of ${mins(p.duration)}m` : '');
+const progressPct = (p?: WatchProgress) => (p?.watched && p.duration ? Math.min(100, Math.max(2, (p.watched / p.duration) * 100)) : null);
 
-type Named = string | { id: number; name: string };
-const Credits: React.FC<{ label: string; items: Named[] }> = ({ label, items }) =>
+const uniqPeople = <T extends { id: number }>(list: T[]) => {
+  const seen = new Set<number>();
+  return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
+};
+
+const initials = (name: string) =>
+  name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+
+interface Person {
+  id: number;
+  name: string;
+  profile_path?: string | null;
+  sub?: string;
+  /** Custom link (genres); people link to their person page. */
+  to?: string;
+}
+
+/* ---------------------------------------------------------------- small pieces */
+
+/** "Cast: A, B, C, more" — Netflix's plain-text credit line. */
+const TextCredits: React.FC<{ label: string; items: (string | Person)[]; onMore?: () => void }> = ({ label, items, onMore }) =>
   items.length ? (
-    <p className="leading-relaxed">
+    <p className="leading-[1.45]">
       <span className="text-[#777]">{label}: </span>
       {items.map((it, i) => (
         <React.Fragment key={typeof it === 'string' ? it : it.id}>
@@ -81,37 +89,79 @@ const Credits: React.FC<{ label: string; items: Named[] }> = ({ label, items }) 
           {typeof it === 'string' ? (
             <span className="text-[#ddd]">{it}</span>
           ) : (
-            <RouteLink to={personPath(it)} className="text-[#ddd] underline-offset-2 transition-colors hover:text-white hover:underline">
+            <Link to={it.to || personPath(it)} className="text-[#ddd] transition-colors hover:text-white hover:underline">
               {it.name}
-            </RouteLink>
+            </Link>
           )}
         </React.Fragment>
       ))}
+      {onMore && (
+        <>
+          <span className="text-[#ddd]">, </span>
+          <button type="button" onClick={onMore} className="italic text-[#ddd] hover:text-white hover:underline">
+            more
+          </button>
+        </>
+      )}
     </p>
   ) : null;
 
-const uniqPeople = <T extends { id: number }>(list: T[]) => {
-  const seen = new Set<number>();
-  return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
-};
+/** About section line with a small round photo beside every name. */
+const PeopleCredits: React.FC<{ label: string; people: Person[] }> = ({ label, people }) =>
+  people.length ? (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+      <span className="flex-shrink-0 pt-[7px] text-[#777] sm:w-[7.5rem]">{label}:</span>
+      <div className="flex flex-wrap gap-2">
+        {people.map((p) => (
+          <Link key={`${p.id}-${p.sub || ''}`} to={personPath(p)} className="nf-chip" title={p.sub ? `${p.name} — ${p.sub}` : p.name}>
+            <span className="nf-chip-img">
+              {p.profile_path ? <img src={tmdbImage(p.profile_path, 'w185') || ''} alt="" loading="lazy" decoding="async" /> : initials(p.name)}
+            </span>
+            <span className="truncate">{p.name}</span>
+          </Link>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
+const ExpandToggle: React.FC<{ open: boolean; onToggle: () => void; label: string }> = ({ open, onToggle, label }) => (
+  <div className="relative mt-2 flex h-[2px] items-center justify-center bg-[#404040]">
+    <span className="absolute top-1/2 -translate-y-1/2">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-label={open ? `Show fewer ${label}` : `Show more ${label}`}
+        className="nf-circle !bg-[#2a2a2a] text-[15px]"
+      >
+        <ChevronDownIcon className={`h-[1.2em] w-[1.2em] transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+    </span>
+  </div>
+);
 
 const TrailerOverlay: React.FC<{ videoKey: string; title: string; onClose: () => void }> = ({ videoKey, title, onClose }) => {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-label={`${title} trailer`}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-label={`${title} video`}>
       <div className="relative aspect-video w-full max-w-5xl overflow-hidden rounded-md bg-black shadow-2xl animate-zoom-in" onClick={(e) => e.stopPropagation()}>
         <iframe
           className="absolute inset-0 h-full w-full"
           src={`https://www.youtube-nocookie.com/embed/${videoKey}?autoplay=1&rel=0&modestbranding=1`}
-          title={`${title} trailer`}
+          title={`${title} video`}
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowFullScreen
         />
-        <button type="button" onClick={onClose} className="nf-circle absolute right-3 top-3 z-10 text-base" aria-label="Close trailer">
+        <button type="button" onClick={onClose} className="nf-circle absolute right-3 top-3 z-10 text-base" aria-label="Close video">
           <CloseIcon className="h-5 w-5" />
         </button>
       </div>
@@ -119,20 +169,172 @@ const TrailerOverlay: React.FC<{ videoKey: string; title: string; onClose: () =>
   );
 };
 
-interface TitlePageProps {
-  mediaType: 'movie' | 'tv';
-  id: number;
-  autoPlay?: boolean;
-}
+/* ---------------------------------------------------------------- episodes */
 
-const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
+const Episodes: React.FC<{ item: SearchResult; seasons: TitleDetails['seasons']; saved?: WatchProgress; showTitle: string }> = ({ item, seasons, saved, showTitle }) => {
+  const { openPlayer } = usePlayer();
+  const options = useMemo(() => {
+    const all = seasons || [];
+    const regular = all.filter((s) => s.season_number > 0 && s.episode_count > 0);
+    return regular.length ? regular : all;
+  }, [seasons]);
+  const [season, setSeason] = useState<number>(() =>
+    saved?.season && options.some((s) => s.season_number === saved.season) ? saved.season : options[0]?.season_number ?? 1
+  );
+  const [open, setOpen] = useState(false);
+  const { data, error, reload } = useCachedData<SeasonDetails>(`season:${item.id}:${season}`, () => getSeasonDetails(item.id, season));
+  const episodes = data?.episodes || [];
+  const shown = open ? episodes : episodes.slice(0, 10);
+  if (!options.length) return null;
+
+  return (
+    <section className="px-[5%] pt-8" aria-labelledby="nf-episodes">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h3 id="nf-episodes" className="text-[24px] font-bold text-white">Episodes</h3>
+        {options.length > 1 ? (
+          <select value={season} onChange={(e) => { setSeason(Number(e.target.value)); setOpen(false); }} aria-label="Season" className="nf-season-select">
+            {options.map((s) => (
+              <option key={s.season_number} value={s.season_number}>
+                {s.name} ({s.episode_count} Episodes)
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-[18px] text-white">{showTitle}</span>
+        )}
+      </div>
+
+      {error ? (
+        <button type="button" onClick={reload} className="py-6 text-[#bcbcbc] underline">Couldn't load episodes. Tap to retry.</button>
+      ) : !data ? (
+        <div className="space-y-2" aria-hidden="true">
+          {[0, 1, 2, 3].map((i) => <div key={i} className="nf-skel h-[104px] w-full" style={{ ['--i' as any]: i }} />)}
+        </div>
+      ) : (
+        <ol>
+          {shown.map((ep) => {
+            const isCur = saved?.season === season && saved?.episode === ep.episode_number;
+            const pct = isCur ? progressPct(saved) : null;
+            const still = tmdbImage(ep.still_path, 'w300');
+            const runtime = (ep as any).runtime as number | undefined;
+            return (
+              <li key={ep.id} className="border-b border-[#404040] last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => openPlayer(item, { tab: 'watch', progress: isCur ? saved : { season, episode: ep.episode_number } })}
+                  className={`group/ep grid w-full grid-cols-[8rem_1fr] items-center gap-4 rounded-[4px] px-3 py-5 text-left transition-colors hover:bg-white/[0.05] sm:grid-cols-[2.5rem_9.5rem_1fr] sm:px-5 ${isCur ? '!bg-[#333]' : ''}`}
+                  aria-label={`Play episode ${ep.episode_number}: ${ep.name}`}
+                >
+                  <span className="hidden text-center text-[24px] text-[#d2d2d2] sm:block">{ep.episode_number}</span>
+                  <span className="relative block aspect-video overflow-hidden rounded-[4px] bg-[#232323]">
+                    {still && <img src={still} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />}
+                    <span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover/ep:opacity-100">
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white bg-black/50">
+                        <PlayIcon className="ml-0.5 h-4 w-4 text-white" />
+                      </span>
+                    </span>
+                    {pct !== null && (
+                      <span className="absolute inset-x-[6%] bottom-[8%] h-[3px] bg-[#4d4d4d]">
+                        <span className="block h-full bg-netflix-red" style={{ width: `${pct}%` }} />
+                      </span>
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="flex items-baseline justify-between gap-3">
+                      <span className="truncate text-[16px] font-bold text-white">
+                        <span className="sm:hidden">{ep.episode_number}. </span>
+                        {ep.name}
+                      </span>
+                      {runtime ? <span className="flex-shrink-0 text-[15px] text-white">{hm(runtime)}</span> : null}
+                    </span>
+                    <span className="mt-1.5 overflow-hidden text-[14px] leading-[1.45] text-[#d2d2d2] [-webkit-box-orient:vertical] [-webkit-line-clamp:3] [display:-webkit-box]">
+                      {ep.overview || 'No description available.'}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      {episodes.length > 10 && <ExpandToggle open={open} onToggle={() => setOpen((o) => !o)} label="episodes" />}
+    </section>
+  );
+};
+
+/* ---------------------------------------------------------------- more like this */
+
+const MoreCard: React.FC<{ r: SearchResult }> = ({ r }) => {
+  const { myList, toggleMyListItem } = useAppContext();
+  const inList = myList.some((i) => i.media.id === r.id && i.media.media_type === r.media_type);
+  const img = tmdbImage(r.backdrop_path, 'w500') || tmdbImage(r.poster_path, 'w500');
+  const title = getTitle(r);
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={() => navigate(titlePath(r))}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(titlePath(r))}
+      className="group/mc cursor-pointer overflow-hidden rounded-[4px] bg-[#2f2f2f] outline-none transition-colors hover:bg-[#383838] focus-visible:ring-2 focus-visible:ring-white"
+      aria-label={title}
+    >
+      <div className="relative aspect-video overflow-hidden bg-[#232323]">
+        {img && <img src={img} alt="" loading="lazy" decoding="async" className={`absolute inset-0 h-full w-full object-cover ${r.backdrop_path ? '' : 'object-[center_25%]'}`} />}
+        <span className="nf-card-shade" />
+        <CardLogo item={r} />
+      </div>
+      <div className="p-[0.9rem]">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-[#bcbcbc]">
+              <ImdbRating item={r} size="sm" />
+              <span className="border border-white/40 px-1 leading-[1.5]">{r.media_type === 'movie' ? 'Movie' : 'Series'}</span>
+              <span className="rounded-[3px] border border-white/40 px-1 text-[10px] font-bold leading-[1.6]">HD</span>
+            </div>
+            {getYear(r) && <p className="mt-1 text-[15px] text-white">{getYear(r)}</p>}
+          </div>
+          <button
+            type="button"
+            className="nf-circle flex-shrink-0 text-[14px]"
+            onClick={(e) => { e.stopPropagation(); toggleMyListItem(r); }}
+            aria-pressed={inList}
+            aria-label={inList ? `Remove ${title} from My List` : `Add ${title} to My List`}
+            title={inList ? 'Remove from My List' : 'Add to My List'}
+          >
+            {inList ? <CheckStaticIcon className="h-[1em] w-[1em]" /> : <PlusIcon className="h-[1.1em] w-[1.1em]" />}
+          </button>
+        </div>
+        <p className="mt-3 overflow-hidden text-[13px] leading-[1.45] text-[#d2d2d2] [-webkit-box-orient:vertical] [-webkit-line-clamp:5] [display:-webkit-box]">
+          {r.overview || 'No description available.'}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+/* ---------------------------------------------------------------- content */
+
+const TitleSkeleton: React.FC = () => (
+  <div aria-hidden="true">
+    <div className="nf-skel aspect-video w-full rounded-none opacity-60" />
+    <div className="space-y-3 px-[5%] py-6">
+      <div className="nf-skel h-4 w-1/3" />
+      <div className="nf-skel h-4 w-2/3" style={{ ['--i' as any]: 1 }} />
+      <div className="nf-skel h-4 w-1/2" style={{ ['--i' as any]: 2 }} />
+    </div>
+  </div>
+);
+
+const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?: boolean; scrollTo: (elId: string) => void }> = ({ mediaType, id, autoPlay, scrollTo }) => {
   const { data, error, reload } = useCachedData<TitleDetails>(`title:${mediaType}:${id}`, () => getTitleDetails(mediaType, id));
   const { myList, toggleMyListItem, continueWatchingList } = useAppContext();
   const { openPlayer } = usePlayer();
   const [heroLoaded, setHeroLoaded] = useState(false);
-  const [trailerOpen, setTrailerOpen] = useState(false);
+  const [video, setVideo] = useState<string | null>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const item = useMemo(() => (data ? toSearchResult(data) : null), [data]);
+  const saved = continueWatchingList.find((cw) => cw.media.id === id && cw.media.media_type === mediaType);
   const recs = useMemo(() => {
     const raw = data?.recommendations?.results?.length ? data.recommendations.results : data?.similar?.results || [];
     return raw
@@ -141,25 +343,25 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
       .map((r: any) => ({ ...r, media_type: r.media_type === 'tv' || r.media_type === 'movie' ? r.media_type : mediaType })) as SearchResult[];
   }, [data, mediaType]);
 
+  // Current episode name + synopsis for a show you're part-way through.
+  const curSeason = mediaType === 'tv' && saved?.progress.season ? saved.progress.season : undefined;
+  const seasonData = useCachedData<SeasonDetails>(curSeason ? `season:${id}:${curSeason}` : null, () => getSeasonDetails(id, curSeason!));
+  const curEpisode = curSeason ? seasonData.data?.episodes?.find((e) => e.episode_number === saved?.progress.episode) : undefined;
+
   useEffect(() => {
     if (item) document.title = `${getTitle(item)} — VidFast`;
   }, [item]);
-
   useEffect(() => {
     if (recs.length) prefetchLogos(recs);
   }, [recs]);
-
   useEffect(() => {
-    if (item && autoPlay) {
-      openPlayer(item, { tab: 'watch' });
-      navigate(titlePath(item), { replace: true, keepScroll: true });
-    }
+    if (item && autoPlay) navigate(watchPath(item, saved?.progress), { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, autoPlay]);
 
   if (error) {
     return (
-      <div className="pt-28">
+      <div className="px-[5%] py-16">
         <ErrorState title="Title unavailable" message="We couldn't load this title. It may have been removed, or the connection dropped." onRetry={reload} />
       </div>
     );
@@ -172,101 +374,71 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
   const length = lengthText(data);
   const logo = pickLogo(data);
   const inList = myList.some((i) => i.media.id === item.id && i.media.media_type === item.media_type);
-  const saved = continueWatchingList.find((cw) => cw.media.id === item.id && cw.media.media_type === item.media_type);
-  const resumeLabel =
-    saved && item.media_type === 'tv' && saved.progress.season && saved.progress.episode ? `Resume S${saved.progress.season}:E${saved.progress.episode}` : saved ? 'Resume' : 'Play';
-  const genres = (data.genres || []).map((g) => g.name);
-  const crewAll = data.credits?.crew || [];
-  const byJobs = (jobs: string[]) => uniqPeople(crewAll.filter((c) => jobs.includes(c.job))).map((c) => ({ id: c.id, name: c.name }));
-  const cast = (data.credits?.cast || []).slice(0, 6).map((c) => ({ id: c.id, name: c.name }));
+  const pct = progressPct(saved?.progress);
+  const pText = progressText(saved?.progress);
+  const genres: Person[] = (data.genres || []).map((g) => ({ id: g.id, name: g.name, to: `/browse?type=${mediaType}&genre=${g.id}` }));
+
+  const crew = data.credits?.crew || [];
+  const byJobs = (jobs: string[], n = 6): Person[] =>
+    uniqPeople(crew.filter((c) => jobs.includes(c.job))).slice(0, n).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, sub: c.job }));
+  const cast: Person[] = uniqPeople(data.credits?.cast || []).slice(0, 15).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, sub: c.character ? `as ${c.character}` : undefined }));
   const directors = byJobs(['Director']);
-  const creators = (data.created_by || []).map((c) => ({ id: c.id, name: c.name }));
-  const writers = byJobs(['Screenplay', 'Writer', 'Novel', 'Story']).slice(0, 4);
-  const composers = byJobs(['Original Music Composer', 'Music', 'Composer']).slice(0, 3);
-  const cinematographers = byJobs(['Director of Photography', 'Cinematography']).slice(0, 3);
-  const castTiles: PersonTileData[] = uniqPeople(data.credits?.cast || []).slice(0, 24).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path || null, sub: c.character || undefined }));
-  const crewTiles: PersonTileData[] = (() => {
-    const order = Object.keys(KEY_CREW_JOBS);
-    const picked = new Map<number, PersonTileData & { rank: number }>();
-    (data.created_by || []).forEach((c) => picked.set(c.id, { id: c.id, name: c.name, profile_path: c.profile_path || null, sub: 'Creator', rank: -1 }));
-    crewAll.forEach((c) => {
-      const label = KEY_CREW_JOBS[c.job];
-      if (!label) return;
-      const rank = order.indexOf(c.job);
-      const prev = picked.get(c.id);
-      if (prev) {
-        if (!prev.sub!.split(', ').includes(label)) prev.sub = `${prev.sub}, ${label}`;
-        prev.rank = Math.min(prev.rank, rank);
-      } else picked.set(c.id, { id: c.id, name: c.name, profile_path: c.profile_path || null, sub: label, rank });
-    });
-    return [...picked.values()].sort((a, b) => a.rank - b.rank).slice(0, 20).map(({ rank, ...t }) => t);
-  })();
-  const trailer =
-    data.videos?.results?.find((v) => v.site === 'YouTube' && v.type === 'Trailer' && v.official) ||
-    data.videos?.results?.find((v) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
+  const creators: Person[] = (data.created_by || []).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, sub: 'Creator' }));
+  const writers = byJobs(['Screenplay', 'Writer', 'Novel', 'Story', 'Teleplay'], 5);
+  const producers = byJobs(['Producer', 'Executive Producer'], 5);
+  const composers = byJobs(['Original Music Composer', 'Music', 'Composer'], 3);
+  const dop = byJobs(['Director of Photography', 'Cinematography'], 3);
+
+  const videos = (data.videos?.results || [])
+    .filter((v) => v.site === 'YouTube')
+    .sort((a, b) => Number(b.type === 'Trailer') - Number(a.type === 'Trailer') || Number(!!b.official) - Number(!!a.official))
+    .slice(0, 6);
+
+  const playLabel = saved ? 'Resume' : 'Play';
+  const shownRecs = moreOpen ? recs : recs.slice(0, 9);
 
   return (
-    <div>
-      {/* Hero */}
-      <section className="relative h-[min(56.25vw,92vh)] min-h-[520px] w-full overflow-hidden bg-black max-sm:h-[118vw] max-sm:min-h-0">
+    <>
+      {/* ---- hero ---- */}
+      <div className="relative aspect-video w-full overflow-hidden bg-black">
         {data.backdrop_path && (
           <img
             src={tmdbImage(data.backdrop_path, 'w1280') || ''}
-            srcSet={`${tmdbImage(data.backdrop_path, 'w780')} 780w, ${tmdbImage(data.backdrop_path, 'w1280')} 1280w`}
-            sizes="100vw"
             alt=""
             fetchPriority="high"
             onLoad={() => setHeroLoaded(true)}
-            className={`absolute inset-0 h-full w-full object-cover object-[center_20%] transition-opacity duration-700 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
           />
         )}
-        <div className="nf-billboard-vignette" />
-
-        <button
-          type="button"
-          onClick={() => goBack('/')}
-          aria-label="Back"
-          className="nf-circle absolute left-[4%] top-[5.4rem] z-[4] text-base max-sm:top-[4.8rem]"
-        >
-          <ChevronLeftIcon className="h-5 w-5" />
-        </button>
-
-        <div className="absolute bottom-[12%] left-[4%] z-[3] w-[min(46%,720px)] animate-fade-in-up max-sm:bottom-[7%] max-sm:left-[6%] max-sm:right-[6%] max-sm:w-auto max-sm:text-center">
-          <div className="mb-[1.4vw] max-sm:mb-4">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(0deg,#181818_0%,rgba(24,24,24,0.55)_22%,rgba(24,24,24,0)_50%)]" />
+        <div className="absolute inset-x-[5%] bottom-[7%] z-[2]">
+          <div className="mb-[4%] w-[min(42%,380px)] max-sm:w-[60%]">
             {logo ? (
               <img
-                src={tmdbImage(logo.file_path, 'w780') || ''}
+                src={tmdbImage(logo.file_path, 'w500') || ''}
                 alt={title}
-                className={`max-w-[85%] object-contain object-left drop-shadow-[0_4px_24px_rgba(0,0,0,0.5)] max-sm:mx-auto max-sm:object-center ${
-                  logo.aspect_ratio < 1.8 ? 'max-h-[clamp(100px,14vw,260px)]' : 'max-h-[clamp(70px,9.5vw,180px)]'
-                }`}
+                className={`w-full object-contain object-left drop-shadow-[0_2px_14px_rgba(0,0,0,0.55)] ${logo.aspect_ratio < 1.8 ? 'max-h-[clamp(70px,12vw,170px)]' : 'max-h-[clamp(52px,8vw,120px)]'}`}
               />
             ) : (
-              <h1 className="text-[clamp(2.2rem,4.8vw,5.5rem)] font-black leading-[0.95] tracking-[-0.03em] text-white text-shadow-netflix">{title}</h1>
+              <h2 className="text-[clamp(1.6rem,4vw,2.8rem)] font-black leading-[1] tracking-[-0.02em] text-white text-shadow-netflix">{title}</h2>
             )}
-            {logo && <h1 className="sr-only">{title}</h1>}
           </div>
-
-          <div className="mb-[1.4vw] flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[max(14px,1.1vw)] font-medium text-white text-shadow-netflix max-sm:mb-4 max-sm:justify-center">
-            <ImdbRating item={item} size="lg" showVotes />
-            {year && <span>{year}</span>}
-            {rating && <span className="border border-white/50 px-[0.4em] text-[0.85em] leading-[1.5]">{rating}</span>}
-            {length && <span>{length}</span>}
-            <span className="rounded-[3px] border border-white/60 px-1 text-[0.7em] font-bold leading-[1.5]">HD</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-[0.7vw] max-sm:justify-center max-sm:gap-2.5">
-            <button type="button" className="nf-btn nf-btn-white" onClick={() => openPlayer(item, { progress: saved?.progress, tab: 'watch' })}>
+          {pct !== null && (
+            <div className="mb-3 flex w-[min(100%,360px)] items-center gap-3">
+              <div className="h-[3px] flex-1 bg-[#4d4d4d]" aria-hidden="true">
+                <div className="h-full bg-netflix-red" style={{ width: `${pct}%` }} />
+              </div>
+              <span className="flex-shrink-0 text-[13px] text-[#ddd]">{pText}</span>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" className="nf-btn nf-btn-white !h-[2.6rem] !px-6 !text-[16px]" onClick={() => openPlayer(item, { tab: 'watch', progress: saved?.progress })}>
               <PlayIcon />
-              {resumeLabel}
-            </button>
-            <button type="button" className="nf-btn nf-btn-grey" onClick={() => openPlayer(item, { progress: saved?.progress, tab: item.media_type === 'tv' ? 'episodes' : 'actions' })}>
-              <LinkIcon />
-              Get Link
+              {playLabel}
             </button>
             <button
               type="button"
-              className="nf-circle text-[max(15px,1.2vw)]"
+              className="nf-circle text-[16px]"
               onClick={() => toggleMyListItem(item)}
               aria-pressed={inList}
               aria-label={inList ? 'Remove from My List' : 'Add to My List'}
@@ -274,73 +446,190 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
             >
               {inList ? <CheckStaticIcon className="h-[1.1em] w-[1.1em]" /> : <PlusIcon className="h-[1.2em] w-[1.2em]" />}
             </button>
-            {trailer && (
-              <button type="button" className="nf-circle text-[max(15px,1.2vw)]" onClick={() => setTrailerOpen(true)} aria-label="Watch trailer" title="Trailer">
-                <FilmIcon className="h-[1.05em] w-[1.05em]" />
-              </button>
-            )}
+            <button
+              type="button"
+              className="nf-circle text-[16px]"
+              onClick={() => openPlayer(item, { progress: saved?.progress, tab: item.media_type === 'tv' ? 'episodes' : 'actions' })}
+              aria-label="Get Link"
+              title="Get Link"
+            >
+              <LinkIcon className="h-[1.05em] w-[1.05em]" />
+            </button>
           </div>
         </div>
-      </section>
-
-      {/* Synopsis + credits */}
-      <section className="relative z-[3] grid gap-[3vw] px-[4%] pb-[1vw] pt-[1.5vw] md:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
-        <div>
-          {data.tagline && <p className="mb-2 text-[max(15px,1.1vw)] italic text-netflix-muted">{data.tagline}</p>}
-          <p className="text-[max(15px,1.15vw)] leading-[1.5] text-white">{data.overview}</p>
-        </div>
-        <div className="space-y-2 text-[max(14px,0.95vw)]">
-          <Credits label="Cast" items={cast.slice(0, 4)} />
-          <Credits label="Genres" items={genres} />
-          <Credits label={item.media_type === 'tv' ? 'Creators' : 'Director'} items={item.media_type === 'tv' ? creators : directors} />
-        </div>
-      </section>
-
-      {item.media_type === 'tv' && <EpisodeList item={item} seasons={data.seasons} savedProgress={saved?.progress} />}
-
-      <div className="pt-[3vw]">
-        <PeopleRow title="Cast" people={castTiles} />
-        <PeopleRow title="Directors, Writers & Crew" people={crewTiles} />
       </div>
 
+      {/* ---- details ---- */}
+      <div className="grid gap-x-8 gap-y-5 px-[5%] pb-2 pt-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#bcbcbc]">
+            <ImdbRating item={item} size="sm" />
+            {year && <span>{year}</span>}
+            {length && <span>{length}</span>}
+            <span className="rounded-[3px] border border-white/40 px-1 text-[11px] font-bold leading-[1.5]">HD</span>
+          </div>
+          {rating && (
+            <div className="mt-1.5 text-[14px]">
+              <span className="border border-white/40 px-1.5 py-px text-[12px] text-white">{rating}</span>
+            </div>
+          )}
+          {curEpisode ? (
+            <>
+              <p className="mt-5 text-[17px] font-bold text-white">
+                S{saved!.progress.season}:E{saved!.progress.episode} “{curEpisode.name}”
+              </p>
+              <p className="mt-2 text-[15px] leading-[1.55] text-white">{curEpisode.overview || data.overview}</p>
+            </>
+          ) : (
+            <p className="mt-5 text-[15px] leading-[1.55] text-white">{data.overview}</p>
+          )}
+        </div>
+        <div className="space-y-3 text-[14px]">
+          <TextCredits label="Cast" items={cast.slice(0, 3)} onMore={cast.length > 3 ? () => scrollTo('nf-about') : undefined} />
+          <TextCredits label="Genres" items={genres.slice(0, 3)} />
+          <TextCredits label={item.media_type === 'tv' ? 'Creators' : 'Director'} items={item.media_type === 'tv' ? creators.slice(0, 2) : directors.slice(0, 2)} />
+        </div>
+      </div>
+
+      {/* ---- episodes ---- */}
+      {item.media_type === 'tv' && <Episodes item={item} seasons={data.seasons} saved={saved?.progress} showTitle={title} />}
+
+      {/* ---- more like this ---- */}
       {recs.length > 0 && (
-        <section className="px-[4%] pb-[1vw] pt-[3vw]" aria-labelledby="more-like-this">
-          <h2 id="more-like-this" className="mb-[1.2vw] text-[clamp(1.3rem,1.8vw,1.9rem)] font-bold tracking-[-0.01em] text-white">
-            More Like This
-          </h2>
-          <div className="grid grid-cols-2 gap-x-[0.4vw] gap-y-[2.2vw] sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 max-sm:gap-x-1.5 max-sm:gap-y-4">
-            {recs.map((r) => (
-              <div key={`${r.media_type}-${r.id}`}>
-                <ResultCard item={r} />
-                <p className="mt-1.5 flex items-center gap-2 text-[12px] text-netflix-muted">
-                  <ImdbRating item={r} size="sm" />
-                  <span>{getYear(r)}</span>
-                  <span className="border border-white/30 px-1 text-[10px] leading-4">{r.media_type === 'movie' ? 'Movie' : 'Series'}</span>
-                </p>
-              </div>
+        <section className="px-[5%] pt-10" aria-labelledby="nf-more">
+          <h3 id="nf-more" className="mb-5 text-[24px] font-bold text-white">More Like This</h3>
+          <div className="grid grid-cols-2 gap-[1em] sm:grid-cols-3">
+            {shownRecs.map((r) => <MoreCard key={`${r.media_type}-${r.id}`} r={r} />)}
+          </div>
+          {recs.length > 9 && <ExpandToggle open={moreOpen} onToggle={() => setMoreOpen((o) => !o)} label="titles" />}
+        </section>
+      )}
+
+      {/* ---- trailers & more ---- */}
+      {videos.length > 0 && (
+        <section className="px-[5%] pt-10" aria-labelledby="nf-videos">
+          <h3 id="nf-videos" className="mb-5 text-[24px] font-bold text-white">Trailers &amp; More</h3>
+          <div className="grid grid-cols-2 gap-[1em] sm:grid-cols-3">
+            {videos.map((v) => (
+              <button key={v.key} type="button" onClick={() => setVideo(v.key)} className="group/v text-left" aria-label={`Play ${v.name}`}>
+                <span className="relative block aspect-video overflow-hidden rounded-[4px] bg-[#232323]">
+                  <img src={`https://i.ytimg.com/vi/${v.key}/hqdefault.jpg`} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full scale-[1.34] object-cover" />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition duration-200 group-hover/v:bg-black/25 group-hover/v:opacity-100">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white bg-black/50">
+                      <PlayIcon className="ml-0.5 h-4 w-4 text-white" />
+                    </span>
+                  </span>
+                </span>
+                <span className="mt-2 block truncate text-[14px] font-medium text-white">{v.name}</span>
+                <span className="block text-[12px] text-[#a3a3a3]">{v.type}</span>
+              </button>
             ))}
           </div>
         </section>
       )}
 
-      {/* About */}
-      <section className="mx-[4%] mt-[2vw] border-t border-white/10 pt-[2vw] text-[max(14px,0.95vw)]">
-        <h2 className="mb-3 text-[clamp(1.2rem,1.6vw,1.7rem)] text-white">
-          <span className="font-light">About </span>
+      {/* ---- about ---- */}
+      <section id="nf-about" className="px-[5%] pb-10 pt-10" aria-labelledby="nf-about-h">
+        <h3 id="nf-about-h" className="mb-5 text-[24px] text-white">
+          <span className="font-normal">About </span>
           <span className="font-bold">{title}</span>
-        </h2>
-        <div className="space-y-2">
-          <Credits label={item.media_type === 'tv' ? 'Creators' : 'Director'} items={item.media_type === 'tv' ? creators : directors} />
-          <Credits label="Cast" items={cast} />
-          <Credits label="Writer" items={writers} />
-          <Credits label="Music" items={composers} />
-          <Credits label="Cinematography" items={cinematographers} />
-          <Credits label="Genres" items={genres} />
-          {rating && <Credits label="Maturity rating" items={[rating]} />}
+        </h3>
+        <div className="space-y-4 text-[14px]">
+          {item.media_type === 'tv' ? <PeopleCredits label="Creators" people={creators} /> : <PeopleCredits label="Director" people={directors} />}
+          <PeopleCredits label="Cast" people={cast} />
+          <PeopleCredits label="Writer" people={writers} />
+          <PeopleCredits label="Producers" people={producers} />
+          <PeopleCredits label="Music" people={composers} />
+          <PeopleCredits label="Cinematography" people={dop} />
+          <div className="flex flex-col gap-1 sm:flex-row sm:gap-3">
+            <span className="flex-shrink-0 text-[#777] sm:w-[7.5rem]">Genres:</span>
+            <span className="text-[#ddd]">
+              {genres.length
+                ? genres.map((g, i) => (
+                    <React.Fragment key={g.id}>
+                      {i > 0 && ', '}
+                      <Link to={g.to!} className="transition-colors hover:text-white hover:underline">{g.name}</Link>
+                    </React.Fragment>
+                  ))
+                : '—'}
+            </span>
+          </div>
+          {rating && (
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+              <span className="flex-shrink-0 text-[#777] sm:w-[7.5rem]">Maturity Rating:</span>
+              <span><span className="border border-white/40 px-1.5 py-px text-[12px] text-white">{rating}</span></span>
+            </div>
+          )}
         </div>
       </section>
 
-      {trailerOpen && trailer && <TrailerOverlay videoKey={trailer.key} title={title} onClose={() => setTrailerOpen(false)} />}
+      {video && <TrailerOverlay videoKey={video} title={title} onClose={() => setVideo(null)} />}
+    </>
+  );
+};
+
+/* ---------------------------------------------------------------- modal shell */
+
+interface TitlePageProps {
+  mediaType: 'movie' | 'tv';
+  id: number;
+  autoPlay?: boolean;
+  onClose: () => void;
+}
+
+const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose }) => {
+  const scroller = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  const close = useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    window.setTimeout(onClose, 200);
+  }, [closing, onClose]);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setOpen(true));
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = 'hidden';
+    return () => {
+      cancelAnimationFrame(raf);
+      html.style.overflow = prev;
+    };
+  }, []);
+
+  // Opening another title from inside the window starts it at the top.
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: 0 });
+    setClosing(false);
+  }, [mediaType, id]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [close]);
+
+  const scrollTo = useCallback((elId: string) => {
+    const box = scroller.current;
+    const el = document.getElementById(elId);
+    if (box && el) box.scrollTo({ top: el.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 16, behavior: 'smooth' });
+  }, []);
+
+  return (
+    <div
+      ref={scroller}
+      className={`nf-title-overlay ${open && !closing ? 'is-open' : ''}`}
+      data-lenis-prevent
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
+      <div role="dialog" aria-modal="true" aria-label="Title details" className="nf-title-modal">
+        <button type="button" onClick={close} className="nf-title-close" aria-label="Close" title="Close">
+          <CloseIcon className="h-5 w-5" />
+        </button>
+        <TitleContent key={`${mediaType}-${id}`} mediaType={mediaType} id={id} autoPlay={autoPlay} scrollTo={scrollTo} />
+      </div>
     </div>
   );
 };
