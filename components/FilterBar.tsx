@@ -82,7 +82,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ params, onChange, onReset, locked
     (!isLocked('type') && params.type !== 'all') ||
     (!isLocked('list') && !!params.list) ||
     params.sort !== 'popular' ||
-    !!params.genre || !!params.year || !!params.lang || !!params.rating || !!params.q ||
+    (!isLocked('genre') && !!params.genre) || !!params.year || (!isLocked('lang') && !!params.lang) || !!params.rating || !!params.q ||
     (!isLocked('provider') && !!params.provider);
 
   return (

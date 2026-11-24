@@ -5,7 +5,7 @@
 /* ============ Base ============ */
 :root {
   --nf-gutter: 4%;
-  --nf-gap: 0.2vw;
+  --nf-gap: 0.3vw;
   --nf-ease: cubic-bezier(0.5, 0, 0.1, 1);
   --nf-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -67,15 +67,15 @@ img { -webkit-user-drag: none; }
 /* ============ Rows / slider ============ */
 .nf-row {
   position: relative;
-  margin: 0 0 3vw;
+  margin: 0 0 3.3vw;
 }
 .nf-row-header {
   display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem;
-  padding: 0 var(--nf-gutter); margin-bottom: 0.6em;
+  padding: 0 var(--nf-gutter); margin-bottom: max(10px, 0.95vw);
 }
 .nf-row-title {
-  font-size: max(15px, 1.4vw); font-weight: 600; line-height: 1.25;
-  color: #e5e5e5; letter-spacing: -0.01em;
+  font-size: max(16px, 1.5vw); font-weight: 600; line-height: 1.2;
+  color: #fff; letter-spacing: -0.012em;
 }
 .nf-row-title a { color: inherit; }
 
@@ -112,7 +112,7 @@ img { -webkit-user-drag: none; }
 /* ============ Cards ============ */
 .nf-card {
   position: relative; display: block; width: 100%; aspect-ratio: 16 / 9;
-  border-radius: 4px; overflow: hidden; background: #232323; cursor: pointer;
+  border-radius: 6px; overflow: hidden; background: #232323; cursor: pointer;
 }
 .nf-card.is-poster { aspect-ratio: 2 / 3; }
 .nf-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.4s ease; }
@@ -137,7 +137,7 @@ img { -webkit-user-drag: none; }
 .nf-card:hover .nf-card-hover { background: rgba(255, 255, 255, 0.05); }
 
 .nf-top10-badge {
-  position: absolute; top: 0; right: 4%; width: 13%; max-width: 27px; aspect-ratio: 0.72;
+  position: absolute; top: 0; left: 3%; width: 13%; max-width: 27px; aspect-ratio: 0.72;
   background: #e50914; color: #fff; border-radius: 0 0 2px 2px;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   font-weight: 800; line-height: 0.9; letter-spacing: -0.02em; box-shadow: 0 0 6px rgba(0,0,0,0.35);
@@ -202,17 +202,17 @@ img { -webkit-user-drag: none; }
 
 /* ============ Buttons ============ */
 .nf-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.55em;
-  border-radius: 4px; font-weight: 700; line-height: 1; white-space: nowrap;
-  padding: 0.7em 1.6em 0.7em 1.3em; font-size: max(15px, 1.2vw);
-  transition: background-color 0.15s ease, transform 0.12s ease;
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
+  height: max(42px, 3.3vw); padding: 0 1.5em; border-radius: 9999px;
+  font-weight: 600; line-height: 1; white-space: nowrap; font-size: max(15px, 1.15vw); letter-spacing: -0.005em;
+  transition: background-color 0.2s ease, transform 0.15s ease;
 }
 .nf-btn:active { transform: scale(0.97); }
-.nf-btn svg { width: 1.45em; height: 1.45em; }
+.nf-btn svg { width: 1.3em; height: 1.3em; margin-left: -0.2em; }
 .nf-btn-white { background: #fff; color: #000; }
-.nf-btn-white:hover { background: rgba(255, 255, 255, 0.75); }
-.nf-btn-grey { background: rgba(109, 109, 110, 0.7); color: #fff; }
-.nf-btn-grey:hover { background: rgba(109, 109, 110, 0.4); }
+.nf-btn-white:hover { background: rgba(255, 255, 255, 0.82); }
+.nf-btn-grey { background: rgba(255, 255, 255, 0.2); color: #fff; -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); }
+.nf-btn-grey:hover { background: rgba(255, 255, 255, 0.3); }
 
 /* Motion is intentionally kept on even when the OS asks to reduce it (user preference). */
 
@@ -229,9 +229,12 @@ html.lenis, html.lenis body { height: auto; }
 .nf-viewall svg { width: 1.15em; height: 1.15em; transition: transform 0.3s var(--nf-out); }
 .nf-row-link:hover .nf-viewall svg { transform: translate3d(3px, 0, 0); }
 @media (hover: hover) and (pointer: fine) {
-  .nf-viewall-text { display: inline-block; opacity: 0; transform: translate3d(-0.6em, 0, 0); transition: opacity 0.25s ease, transform 0.4s var(--nf-out); }
-  .nf-row:hover .nf-viewall-text { opacity: 1; transform: none; }
+  .nf-viewall { opacity: 0; transform: translate3d(-0.4em, 0, 0); transition: opacity 0.25s ease, transform 0.45s var(--nf-out); }
+  .nf-row:hover .nf-viewall, .nf-row:focus-within .nf-viewall { opacity: 1; transform: none; }
+  .nf-viewall-text { display: inline-block; max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; transition: max-width 0.45s var(--nf-out), opacity 0.25s ease; }
+  .nf-row-link:hover .nf-viewall-text, .nf-row-link:focus-visible .nf-viewall-text { max-width: 8em; opacity: 1; }
 }
+@media (hover: none) { .nf-viewall-text { display: none; } }
 
 /* ============ Brand tiles (studios / production houses / streaming / franchises) ============ */
 .nf-brand {
@@ -273,3 +276,59 @@ html.lenis, html.lenis body { height: auto; }
 .nf-nav-item:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
 .nf-nav-item.is-active { background: rgba(255, 255, 255, 0.16); color: #fff; font-weight: 700; }
 @media (max-width: 1279px) { .nf-nav-item { font-size: 14px; padding: 0.4em 0.7em; } }
+
+/* ============ Netflix 2026 billboard: inset rounded card + ambient tint ============ */
+.nf-hero { position: relative; padding: calc(4.9rem + 0.5vw) var(--nf-gutter) 0; }
+@media (max-width: 639px) { .nf-hero { padding-top: calc(4.25rem + 6px); } }
+.nf-ambient {
+  position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 24vw); z-index: 0; pointer-events: none;
+  transition: background-color 1.4s ease;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,0.85) 40%, rgba(0,0,0,0.35) 72%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,0.85) 40%, rgba(0,0,0,0.35) 72%, transparent 100%);
+}
+.nf-hero-top { position: relative; z-index: 3; margin: 0.4vw 0 1.4vw; }
+.nf-hero-card {
+  position: relative; z-index: 1; isolation: isolate; overflow: hidden; background: #0d0d0d;
+  height: min(45vw, calc(100vh - 7.5rem)); min-height: 420px;
+  border-radius: clamp(12px, 1.6vw, 26px);
+  box-shadow: 0 22px 60px -18px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+@media (max-width: 639px) { .nf-hero-card { height: 128vw; max-height: 76vh; min-height: 0; border-radius: 14px; } }
+.nf-hero-shade {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(0,0,0,0.74) 0%, rgba(0,0,0,0.45) 30%, rgba(0,0,0,0.08) 58%, rgba(0,0,0,0) 70%),
+    linear-gradient(0deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0) 38%);
+}
+@media (max-width: 639px) { .nf-hero-shade { background: linear-gradient(0deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.05) 75%); } }
+.nf-hero-info { position: absolute; left: 4.4%; bottom: 7.5%; z-index: 2; width: min(42%, 700px); }
+@media (max-width: 1024px) { .nf-hero-info { width: 58%; } }
+@media (max-width: 639px) { .nf-hero-info { left: 6%; right: 6%; bottom: 6%; width: auto; text-align: center; } }
+.nf-hero-logo { display: block; max-width: min(100%, 30vw); max-height: clamp(64px, 9.5vw, 180px); object-fit: contain; object-position: left bottom; filter: drop-shadow(0 4px 22px rgba(0,0,0,0.45)); opacity: 0; transition: opacity 0.5s ease; }
+.nf-hero-logo.is-tall { max-height: clamp(90px, 12.5vw, 230px); max-width: min(100%, 22vw); }
+.nf-hero-logo.is-loaded { opacity: 1; }
+@media (max-width: 639px) { .nf-hero-logo { margin: 0 auto; object-position: center bottom; max-width: 72vw; } .nf-hero-logo.is-tall { max-width: 52vw; } }
+.nf-hero-title { font-size: clamp(2.2rem, 4.4vw, 5.2rem); font-weight: 900; line-height: 0.95; letter-spacing: -0.03em; color: #fff; text-shadow: 0 2px 14px rgba(0,0,0,0.5); }
+.nf-hero-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.55em; margin: max(12px, 1.3vw) 0 max(8px, 0.8vw); font-size: max(13px, 1.05vw); font-weight: 600; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+@media (max-width: 639px) { .nf-hero-meta { justify-content: center; } }
+.nf-dot { width: 3px; height: 3px; border-radius: 9999px; background: rgba(255,255,255,0.6); }
+.nf-hero-desc {
+  margin-bottom: max(14px, 1.6vw); max-width: 36em; font-size: max(14px, 1.2vw); line-height: 1.45; color: rgba(255,255,255,0.94);
+  text-shadow: 0 1px 6px rgba(0,0,0,0.45);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+@media (max-width: 639px) { .nf-hero-desc { display: none; } }
+.nf-hero-dots { position: absolute; right: 3.2%; bottom: 7.5%; z-index: 2; display: flex; align-items: center; gap: 6px; }
+@media (max-width: 639px) { .nf-hero-dots { display: none; } }
+
+/* ============ Badges ============ */
+.nf-recent-badge {
+  position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); z-index: 2;
+  background: #e50914; color: #fff; font-weight: 700; font-size: max(9px, 0.68vw); line-height: 1.25;
+  padding: 0.25em 0.65em; border-radius: 2px 2px 0 0; white-space: nowrap; letter-spacing: 0.01em;
+}
+.nf-card.has-badge .nf-card-logo, .nf-card.has-badge .nf-card-title { bottom: 18%; }
+
+/* ============ Logo ============ */
+.vf-logo { display: block; height: clamp(22px, 1.85vw, 31px); width: auto; overflow: visible; filter: drop-shadow(0 2px 10px rgba(229, 9, 20, 0.28)); transition: transform 0.35s var(--nf-out), filter 0.35s ease; }
+.vf-logo-btn:hover .vf-logo { transform: scale(1.04); filter: drop-shadow(0 2px 14px rgba(229, 9, 20, 0.5)) brightness(1.08); }

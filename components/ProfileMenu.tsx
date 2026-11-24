@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { UserIcon, DownloadIcon, UploadIcon, TrashIcon, PaletteIcon, ChevronDownIcon, BookOpenIcon } from './Icons';
+import { DownloadIcon, UploadIcon, TrashIcon, PaletteIcon, ChevronDownIcon, BookOpenIcon } from './Icons';
 import { useAppContext } from '../contexts/AppContext';
+import { Avatar } from './Brand';
 
 interface ProfileMenuProps {
     onImport: (file: File) => void;
@@ -71,9 +72,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                 aria-haspopup="true"
                 aria-expanded={isOpen}
             >
-                <span className="flex h-8 w-8 items-center justify-center rounded-[4px] bg-gradient-to-br from-[#e50914] via-[#b20710] to-[#5c0409] text-white shadow-inner">
-                    <UserIcon className="h-[18px] w-[18px]" />
-                </span>
+                <Avatar />
                 <ChevronDownIcon className={`hidden h-4 w-4 text-white transition-transform duration-300 sm:block ${isOpen ? 'rotate-180' : ''}`} />
             </button>
 
@@ -85,9 +84,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                 >
                     <span className="absolute -top-[7px] right-4 h-0 w-0 border-x-[7px] border-b-[7px] border-x-transparent border-b-white/80 sm:right-7" aria-hidden="true" />
                     <div className="flex items-center gap-3 px-4 pb-3 pt-1">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-[4px] bg-gradient-to-br from-[#e50914] via-[#b20710] to-[#5c0409] text-white">
-                            <UserIcon className="h-[18px] w-[18px]" />
-                        </span>
+                        <Avatar />
                         <div className="text-[12px] leading-tight text-netflix-muted">
                             <p><span className="font-bold text-white">{continueWatchingList.length}</span> in Continue Watching</p>
                             <p><span className="font-bold text-white">{myList.length}</span> in My List</p>

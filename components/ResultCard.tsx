@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import type { SearchResult } from '../types';
-import { getTitle, getYear, tmdbImage, titlePath } from '../utils/media';
+import { getTitle, getYear, tmdbImage, titlePath, isRecent } from '../utils/media';
 import { useLogo, isTop10 } from '../utils/artwork';
 import { Link } from '../utils/router';
 import { useHoverPreview } from './HoverPreview';
@@ -70,7 +70,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
       onMouseLeave={cancel}
       onClick={cancel}
       draggable={false}
-      className={`nf-card group/card ${isLandscape ? '' : 'is-poster'}`}
+      className={`nf-card group/card ${isLandscape ? '' : 'is-poster'} ${isLandscape && isRecent(item) ? 'has-badge' : ''}`}
     >
       {src && !failed ? (
         <img
@@ -93,6 +93,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
         <>
           <div className="nf-card-shade" />
           <CardLogo item={item} />
+          {isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
           {isTop10(item) && (
             <span className="nf-top10-badge" aria-label="Top 10">
               <small>TOP</small>

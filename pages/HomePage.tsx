@@ -15,7 +15,7 @@ interface HomePageProps {
 }
 
 /** Rows rise into the bottom of the billboard, like Netflix. */
-export const ROWS_OVERLAP = 'relative z-10 -mt-[18vw] sm:-mt-[10vw] lg:-mt-[8vw]';
+export const ROWS_OVERLAP = 'relative z-[1] mt-[max(22px,2.6vw)]';
 
 const HomePage: React.FC<HomePageProps> = ({ linkProps }) => {
   const { myList, toggleMyListItem } = useAppContext();
