@@ -20,6 +20,7 @@ import TitlePage from './pages/TitlePage';
 import NotFoundPage from './pages/NotFoundPage';
 import ExplorePage from './pages/ExplorePage';
 import FranchisePage from './pages/FranchisePage';
+import PersonPage from './pages/PersonPage';
 import { BrowsePage, CompanyPage, ProviderPage } from './pages/BrowsePage';
 import { BrandGridPage } from './components/BrandRow';
 import { initSmoothScroll, pauseScroll, resumeScroll, scrollToY } from './utils/smoothScroll';
@@ -105,7 +106,7 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!['title', 'company', 'provider', 'franchise'].includes(route.name)) {
+    if (!['title', 'company', 'provider', 'franchise', 'person'].includes(route.name)) {
       const titles: Partial<Record<Route['name'], string>> = {
         home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse',
       };
@@ -183,6 +184,8 @@ const App: React.FC = () => {
         return <ProviderPage id={route.id} search={route.search} />;
       case 'franchise':
         return <FranchisePage id={route.id} />;
+      case 'person':
+        return <PersonPage key={route.id} id={route.id} />;
       case 'guide':
         return (
           <div className="px-[4%] pt-24 sm:pt-28">
@@ -201,8 +204,8 @@ const App: React.FC = () => {
         ? `company-${route.key}`
         : route.name === 'provider'
           ? `provider-${route.id}`
-          : route.name === 'franchise'
-            ? `franchise-${route.id}`
+          : route.name === 'franchise' || route.name === 'person'
+            ? `${route.name}-${route.id}`
             : route.name === 'brands'
               ? `brands-${route.kind}`
               : route.name;

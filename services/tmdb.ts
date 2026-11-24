@@ -138,8 +138,9 @@ export interface TitleDetails {
   popularity: number;
   genres?: { id: number; name: string }[];
   seasons?: { id: number; name: string; season_number: number; episode_count: number; air_date: string; poster_path: string | null; overview: string }[];
-  created_by?: { id: number; name: string }[];
-  credits?: { cast: { id: number; name: string; character?: string }[]; crew: { id: number; name: string; job: string }[] };
+  created_by?: { id: number; name: string; profile_path?: string | null }[];
+  credits?: { cast: { id: number; name: string; character?: string; profile_path?: string | null }[]; crew: { id: number; name: string; job: string; department?: string; profile_path?: string | null }[] };
+  created_by_full?: never;
   recommendations?: { results: any[] };
   similar?: { results: any[] };
   videos?: { results: { key: string; site: string; type: string; official?: boolean; name: string }[] };

@@ -11,6 +11,9 @@ import { goBack, navigate } from '../utils/router';
 import EpisodeList from '../components/EpisodeList';
 import ResultCard from '../components/ResultCard';
 import ErrorState from '../components/ErrorState';
+import PeopleRow, { PersonTileData } from '../components/PeopleRow';
+import { Link as RouteLink } from '../utils/router';
+import { personPath, KEY_CREW_JOBS } from '../utils/person';
 import { PlayIcon, PlusIcon, CheckStaticIcon, LinkIcon, ChevronLeftIcon, CloseIcon, FilmIcon } from '../components/Icons';
 
 const toSearchResult = (d: TitleDetails): SearchResult => {
@@ -67,13 +70,30 @@ const TitleSkeleton: React.FC = () => (
   </div>
 );
 
-const Credits: React.FC<{ label: string; items: string[] }> = ({ label, items }) =>
+type Named = string | { id: number; name: string };
+const Credits: React.FC<{ label: string; items: Named[] }> = ({ label, items }) =>
   items.length ? (
     <p className="leading-relaxed">
       <span className="text-[#777]">{label}: </span>
-      <span className="text-[#ddd]">{items.join(', ')}</span>
+      {items.map((it, i) => (
+        <React.Fragment key={typeof it === 'string' ? it : it.id}>
+          {i > 0 && <span className="text-[#ddd]">, </span>}
+          {typeof it === 'string' ? (
+            <span className="text-[#ddd]">{it}</span>
+          ) : (
+            <RouteLink to={personPath(it)} className="text-[#ddd] underline-offset-2 transition-colors hover:text-white hover:underline">
+              {it.name}
+            </RouteLink>
+          )}
+        </React.Fragment>
+      ))}
     </p>
   ) : null;
+
+const uniqPeople = <T extends { id: number }>(list: T[]) => {
+  const seen = new Set<number>();
+  return list.filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)));
+};
 
 const TrailerOverlay: React.FC<{ videoKey: string; title: string; onClose: () => void }> = ({ videoKey, title, onClose }) => {
   useEffect(() => {
@@ -155,11 +175,32 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
   const saved = continueWatchingList.find((cw) => cw.media.id === item.id && cw.media.media_type === item.media_type);
   const resumeLabel =
     saved && item.media_type === 'tv' && saved.progress.season && saved.progress.episode ? `Resume S${saved.progress.season}:E${saved.progress.episode}` : saved ? 'Resume' : 'Play';
-  const cast = (data.credits?.cast || []).slice(0, 6).map((c) => c.name);
   const genres = (data.genres || []).map((g) => g.name);
-  const directors = (data.credits?.crew || []).filter((c) => c.job === 'Director').map((c) => c.name);
-  const creators = (data.created_by || []).map((c) => c.name);
-  const writers = [...new Set((data.credits?.crew || []).filter((c) => ['Screenplay', 'Writer'].includes(c.job)).map((c) => c.name))].slice(0, 4);
+  const crewAll = data.credits?.crew || [];
+  const byJobs = (jobs: string[]) => uniqPeople(crewAll.filter((c) => jobs.includes(c.job))).map((c) => ({ id: c.id, name: c.name }));
+  const cast = (data.credits?.cast || []).slice(0, 6).map((c) => ({ id: c.id, name: c.name }));
+  const directors = byJobs(['Director']);
+  const creators = (data.created_by || []).map((c) => ({ id: c.id, name: c.name }));
+  const writers = byJobs(['Screenplay', 'Writer', 'Novel', 'Story']).slice(0, 4);
+  const composers = byJobs(['Original Music Composer', 'Music', 'Composer']).slice(0, 3);
+  const cinematographers = byJobs(['Director of Photography', 'Cinematography']).slice(0, 3);
+  const castTiles: PersonTileData[] = uniqPeople(data.credits?.cast || []).slice(0, 24).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path || null, sub: c.character || undefined }));
+  const crewTiles: PersonTileData[] = (() => {
+    const order = Object.keys(KEY_CREW_JOBS);
+    const picked = new Map<number, PersonTileData & { rank: number }>();
+    (data.created_by || []).forEach((c) => picked.set(c.id, { id: c.id, name: c.name, profile_path: c.profile_path || null, sub: 'Creator', rank: -1 }));
+    crewAll.forEach((c) => {
+      const label = KEY_CREW_JOBS[c.job];
+      if (!label) return;
+      const rank = order.indexOf(c.job);
+      const prev = picked.get(c.id);
+      if (prev) {
+        if (!prev.sub!.split(', ').includes(label)) prev.sub = `${prev.sub}, ${label}`;
+        prev.rank = Math.min(prev.rank, rank);
+      } else picked.set(c.id, { id: c.id, name: c.name, profile_path: c.profile_path || null, sub: label, rank });
+    });
+    return [...picked.values()].sort((a, b) => a.rank - b.rank).slice(0, 20).map(({ rank, ...t }) => t);
+  })();
   const trailer =
     data.videos?.results?.find((v) => v.site === 'YouTube' && v.type === 'Trailer' && v.official) ||
     data.videos?.results?.find((v) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser'));
@@ -257,6 +298,11 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
 
       {item.media_type === 'tv' && <EpisodeList item={item} seasons={data.seasons} savedProgress={saved?.progress} />}
 
+      <div className="pt-[3vw]">
+        <PeopleRow title="Cast" people={castTiles} />
+        <PeopleRow title="Directors, Writers & Crew" people={crewTiles} />
+      </div>
+
       {recs.length > 0 && (
         <section className="px-[4%] pb-[1vw] pt-[3vw]" aria-labelledby="more-like-this">
           <h2 id="more-like-this" className="mb-[1.2vw] text-[clamp(1.3rem,1.8vw,1.9rem)] font-bold tracking-[-0.01em] text-white">
@@ -287,6 +333,8 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay }) => {
           <Credits label={item.media_type === 'tv' ? 'Creators' : 'Director'} items={item.media_type === 'tv' ? creators : directors} />
           <Credits label="Cast" items={cast} />
           <Credits label="Writer" items={writers} />
+          <Credits label="Music" items={composers} />
+          <Credits label="Cinematography" items={cinematographers} />
           <Credits label="Genres" items={genres} />
           {rating && <Credits label="Maturity rating" items={[rating]} />}
         </div>

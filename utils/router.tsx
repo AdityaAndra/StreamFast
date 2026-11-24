@@ -22,6 +22,7 @@ export type Route =
   | { name: 'company'; key: string; search: string }
   | { name: 'provider'; id: number; search: string }
   | { name: 'franchise'; id: number }
+  | { name: 'person'; id: number }
   | { name: 'not-found' };
 
 export type BrandKind = 'studios' | 'production' | 'providers' | 'franchises';
@@ -94,6 +95,8 @@ export const parseRoute = (loc: string): Route => {
   if (b) return { name: 'company', key: b[1], search: url.search };
   b = path.match(/^\/provider\/(\d+)/);
   if (b) return { name: 'provider', id: Number(b[1]), search: url.search };
+  b = path.match(/^\/(?:person|name)\/(\d+)/);
+  if (b) return { name: 'person', id: Number(b[1]) };
   b = path.match(/^\/franchise\/(\d+)/);
   if (b) return { name: 'franchise', id: Number(b[1]) };
   const m = path.match(/^\/(?:title\/)?(movie|tv)\/(\d+)/);

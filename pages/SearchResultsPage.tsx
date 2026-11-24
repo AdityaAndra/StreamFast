@@ -7,8 +7,10 @@ import { searchMulti } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
 import { getTitle } from '../utils/media';
 import { saveRecentSearch } from '../utils/recentSearches';
+import { searchPeople, PersonSummary, deptLabel } from '../utils/person';
+import PeopleRow, { PeopleGrid, PersonTileData } from '../components/PeopleRow';
 
-type Filter = 'all' | 'movie' | 'tv';
+type Filter = 'all' | 'movie' | 'tv' | 'person';
 
 const useDebounced = <T,>(value: T, ms: number) => {
   const [v, setV] = useState(value);
@@ -24,6 +26,17 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   const [filter, setFilter] = useState<Filter>('all');
   const { data, error, loading, reload } = useCachedData<SearchResult[]>(q ? `search:${q.toLowerCase()}` : null, () => searchMulti(q));
   const [last, setLast] = useState<SearchResult[]>([]);
+  const peopleRes = useCachedData<PersonSummary[]>(q ? `people:${q.toLowerCase()}` : null, () => searchPeople(q));
+  const people: PersonTileData[] = useMemo(
+    () =>
+      (peopleRes.data || []).slice(0, 40).map((p) => ({
+        id: p.id,
+        name: p.name,
+        profile_path: p.profile_path,
+        sub: [p.known_for_department ? deptLabel(p.known_for_department) : '', (p.known_for || [])[0]?.title || (p.known_for || [])[0]?.name || ''].filter(Boolean).join(' · '),
+      })),
+    [peopleRes.data]
+  );
 
   useEffect(() => {
     if (data) setLast(data);
@@ -32,8 +45,8 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
 
   const results = data || last;
   const counts = useMemo(
-    () => ({ all: results.length, movie: results.filter((r) => r.media_type === 'movie').length, tv: results.filter((r) => r.media_type === 'tv').length }),
-    [results]
+    () => ({ all: results.length, movie: results.filter((r) => r.media_type === 'movie').length, tv: results.filter((r) => r.media_type === 'tv').length, person: people.length }),
+    [results, people]
   );
   const filtered = useMemo(() => (filter === 'all' ? results : results.filter((r) => r.media_type === filter)), [results, filter]);
   const related = useMemo(() => results.slice(0, 6).map(getTitle), [results]);
@@ -43,6 +56,7 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
     { id: 'all', label: 'All' },
     { id: 'movie', label: 'Movies' },
     { id: 'tv', label: 'TV Shows' },
+    { id: 'person', label: 'People' },
   ];
 
   return (
@@ -76,24 +90,35 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
         ))}
       </div>
 
-      {error ? (
-        <ErrorState title="Search failed" message={error} onRetry={reload} />
-      ) : results.length === 0 && stale ? (
-        <SkeletonGrid />
-      ) : filtered.length > 0 ? (
-        <div className={`transition-opacity duration-200 ${stale ? 'opacity-60' : 'opacity-100'}`}>
-          <ResultsGrid results={filtered} />
-        </div>
+      {filter === 'person' ? (
+        people.length ? <PeopleGrid people={people} /> : <p className="py-16 text-center text-netflix-muted">No people match "{query.trim()}".</p>
       ) : (
-        <div className="py-16 text-center animate-fade-in">
-          <p className="mb-2 text-lg text-white">Your search for "{query.trim()}" did not have any matches.</p>
-          <p className="text-netflix-muted">Suggestions:</p>
-          <ul className="mt-1 inline-block list-disc pl-5 text-left text-netflix-muted">
-            <li>Try different keywords</li>
-            <li>Looking for a movie or TV show?</li>
-            <li>Try using a movie or TV show title</li>
-          </ul>
-        </div>
+        <>
+          {filter === 'all' && people.length > 0 && (
+            <div className="-mx-[4.17%] mb-[2vw]">
+              <PeopleRow title="People" people={people.slice(0, 20)} />
+            </div>
+          )}
+          {error ? (
+            <ErrorState title="Search failed" message={error} onRetry={reload} />
+          ) : results.length === 0 && stale ? (
+            <SkeletonGrid />
+          ) : filtered.length > 0 ? (
+            <div className={`transition-opacity duration-200 ${stale ? 'opacity-60' : 'opacity-100'}`}>
+              <ResultsGrid results={filtered} />
+            </div>
+          ) : people.length > 0 ? null : (
+            <div className="py-16 text-center animate-fade-in">
+              <p className="mb-2 text-lg text-white">Your search for "{query.trim()}" did not have any matches.</p>
+              <p className="text-netflix-muted">Suggestions:</p>
+              <ul className="mt-1 inline-block list-disc pl-5 text-left text-netflix-muted">
+                <li>Try different keywords</li>
+                <li>Looking for a movie or TV show?</li>
+                <li>Try using a movie or TV show title</li>
+              </ul>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
