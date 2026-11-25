@@ -460,7 +460,7 @@ html.lenis, html.lenis body { height: auto; }
 .sf-bottom > .sf-title, .sf-bottom > .sf-right { opacity: 0; transition: opacity 250ms ease; }
 .sf-bottom.is-on > .sf-title, .sf-bottom.is-on > .sf-right, .sf-bottom.is-stuck > .sf-right { opacity: 1; }
 .sf-bottom .sf-right { pointer-events: auto; }
-.sf-bottom:not(.is-on):not(.is-stuck) button { pointer-events: none; }
+.sf-bottom:not(.is-on):not(.is-stuck) button, .sf-bottom:not(.is-on):not(.is-stuck) .sf-right { pointer-events: none; }
 .sf-title {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max-content; max-width: 30%;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.35em;
@@ -523,7 +523,7 @@ html.lenis, html.lenis body { height: auto; }
 /* Hover-sync tiles over the video (above the control bar). Each tile steps aside the moment the
    pointer reaches it, so clicks and drags always go to VidFast's player underneath. */
 .sf-grid {
-  position: absolute; left: 0; right: 0; top: 0; height: calc(100% - 12em); z-index: 2; overflow: hidden;
+  position: absolute; left: 0; right: 0; top: 0; height: 100%; z-index: 2; overflow: hidden;
   display: grid; pointer-events: none;
 }
 .sf-grid > i { display: block; pointer-events: auto; }
