@@ -508,3 +508,11 @@ html.lenis, html.lenis body { height: auto; }
 .sf-back { color: rgba(255, 255, 255, 0.92); transition: opacity 250ms, transform 0.2s ease, color 0.15s; }
 .sf-back:hover { color: #fff; transform: scale(1.12); }
 .sf-back:active { transform: scale(0.96); }
+
+/* Hover-sync tiles over the video (above the control bar). Each tile steps aside the moment the
+   pointer reaches it, so clicks and drags always go to VidFast's player underneath. */
+.sf-grid {
+  position: absolute; left: 0; right: 0; top: 0; height: calc(100% - 12em); z-index: 2; overflow: hidden;
+  display: grid; pointer-events: none;
+}
+.sf-grid > i { display: block; pointer-events: auto; }
