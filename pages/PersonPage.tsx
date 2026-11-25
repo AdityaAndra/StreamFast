@@ -77,7 +77,7 @@ const CreditItem: React.FC<{ row: CreditRow }> = ({ row }) => {
     <li className="border-b border-white/[0.07]">
       <Link to={titlePath(c as any)} className="group grid grid-cols-[3.4rem_2.9rem_1fr] items-center gap-x-[max(12px,1vw)] rounded-md px-2 py-2.5 transition-colors duration-150 hover:bg-white/[0.05] sm:grid-cols-[4rem_3.2rem_1fr_auto]">
         <span className={`text-[max(13px,0.95vw)] tabular-nums ${upcoming ? 'font-semibold text-netflix-red' : 'text-[#bcbcbc]'}`}>
-          {upcoming ? (creditYear(c) ? creditYear(c) : 'TBA') : creditYear(c)}
+          {creditYear(c) || '—'}
         </span>
         <span className="aspect-[2/3] overflow-hidden rounded-[4px] bg-[#232323]">
           {c.poster_path && <img src={tmdbImage(c.poster_path, 'w92') || ''} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover" />}
