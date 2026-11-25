@@ -18,8 +18,9 @@ const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
 // VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
 const IDLE_MS = 3000;
-/** Hover-sync tile size (px): smaller = finer mouse tracking. */
-const CELL_PX = 44;
+/** Hover-sync tile size (px): smaller = finer mouse tracking, so even small moves keep our
+ *  controls up exactly as long as VidFast's (it restarts its 3s timer on every move). */
+const CELL_PX = 24;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -335,14 +336,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const gridRef = useRef<HTMLDivElement>(null);
   const lastCell = useRef<HTMLElement | null>(null);
   const lastRow = useRef(-1);
-  const [grid, setGrid] = useState({ cols: 0, rows: 0 });
+  const [grid, setGrid] = useState({ cols: 0, rows: 0, size: CELL_PX });
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
     const measure = () => {
       lastCell.current = null;
       lastRow.current = -1;
-      setGrid({ cols: Math.ceil(el.clientWidth / CELL_PX), rows: Math.ceil(el.clientHeight / CELL_PX) });
+      // 24px tiles, a little bigger on very large screens so there are never more than ~4,500.
+      const size = Math.max(CELL_PX, Math.ceil(Math.sqrt((el.clientWidth * el.clientHeight) / 4500)));
+      setGrid({ cols: Math.ceil(el.clientWidth / size), rows: Math.ceil(el.clientHeight / size), size });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -379,7 +382,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         lastRow.current = -1;
       }
       over = now;
-    }, 100);
+    }, 40);
     return () => window.clearInterval(t);
   }, [grid.rows]);
 
@@ -455,7 +458,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       />
 
       {FINE_POINTER && (
-        <div ref={gridRef} className="sf-grid" style={{ gridTemplateColumns: `repeat(${grid.cols}, ${CELL_PX}px)`, gridAutoRows: `${CELL_PX}px` }} onMouseOver={onCell} aria-hidden="true">
+        <div ref={gridRef} className="sf-grid" style={{ gridTemplateColumns: `repeat(${grid.cols}, ${grid.size}px)`, gridAutoRows: `${grid.size}px` }} onMouseOver={onCell} aria-hidden="true">
           {Array.from({ length: grid.cols * grid.rows }, (_, k) => (
             <i key={k} data-r={Math.floor(k / Math.max(1, grid.cols))} />
           ))}
