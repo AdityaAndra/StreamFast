@@ -5,16 +5,17 @@ import type { SearchResult } from '../types';
 
 export type Logo = { p: string; r: number } | null;
 /** Per-title metadata from /api/logos: logo + IMDb rating. */
-export type Meta = { p: string | null; r: number; imdb?: string | null; ir?: number | null; iv?: number | null } | null;
+export type Meta = { p: string | null; r: number; b?: string | null; imdb?: string | null; ir?: number | null; iv?: number | null } | null;
 export type Imdb = { rating: number; votes: number | null; id: string | null } | null;
 
-const LS_KEY = 'sf_meta_v2';
+const LS_KEY = 'sf_meta_v3';
 const MAX_STORED = 1500;
 const mem = new Map<string, Meta>();
 
 try {
   localStorage.removeItem('vf_logos_v1');
     localStorage.removeItem('vf_meta_v2');
+  localStorage.removeItem('sf_meta_v2');
 } catch {
   /* ignore */
 }
@@ -102,6 +103,13 @@ export function useLogo(item: Pick<SearchResult, 'id' | 'media_type'> | null | u
   const m = useMeta(item);
   if (m === undefined) return undefined;
   return m && m.p ? { p: m.p, r: m.r } : null;
+}
+
+/** Card art: undefined = still loading; titled = artwork with the title printed on it (or null). */
+export function useCardArt(item: Pick<SearchResult, 'id' | 'media_type'> | null | undefined): { titled: string | null } | undefined {
+  const m = useMeta(item);
+  if (m === undefined) return undefined;
+  return { titled: (m && m.b) || null };
 }
 
 /** undefined = still loading, null = no IMDb rating available */

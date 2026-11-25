@@ -447,7 +447,7 @@ html.lenis, html.lenis body { height: auto; }
   position: absolute; left: 0; top: 0; z-index: 4; margin: 2em; padding: 1em; line-height: 0;
   color: rgba(255, 255, 255, 0.8); transition: opacity 250ms;
 }
-.sf-back svg { width: min(5.8em, 52px); height: min(5.8em, 52px); }
+.sf-back svg { width: min(5.6em, 50px); height: min(5.6em, 50px); filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55)); }
 .sf-back:hover, .sf-back:active { color: #fff; }
 
 /* Bottom control row: buttons are 5.2em, 3em apart, 3em above the bottom, 4.5em in from the right. */
@@ -490,9 +490,6 @@ html.lenis, html.lenis body { height: auto; }
 
 /* 4 buttons on the right when VidFast shows picture-in-picture: subtitles, PiP, settings, fullscreen. */
 .nf-watch.has-pip .sf-right { right: calc(4.5em + 4 * 8.2em); }
-/* Hover-sensing layer: the middle of the video only, never over VidFast's own buttons. */
-.sf-sense { position: absolute; left: 0; right: 0; top: 14em; bottom: 14em; z-index: 2; cursor: default; }
-.nf-watch.is-idle .sf-sense { cursor: none; }
 
 /* Server list: star = default server (VidFast's 14px outline star, filled when it's yours). */
 .sf-menu-row { cursor: pointer; outline: none; }
@@ -506,5 +503,8 @@ html.lenis, html.lenis body { height: auto; }
 /* Back arrow fades with the controls (like Netflix); 250ms, same as VidFast. */
 .sf-back { transition: opacity 250ms; }
 .sf-back.is-hidden { opacity: 0; pointer-events: none; }
-.sf-sense.is-off { pointer-events: none; }
-.nf-watch.is-idle, .nf-watch.is-idle .sf-sense { cursor: none; }
+.nf-watch.is-idle, 
+/* Bold back arrow: full white on hover with a slight lift, like Netflix's. */
+.sf-back { color: rgba(255, 255, 255, 0.92); transition: opacity 250ms, transform 0.2s ease, color 0.15s; }
+.sf-back:hover { color: #fff; transform: scale(1.12); }
+.sf-back:active { transform: scale(0.96); }
