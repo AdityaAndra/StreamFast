@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ProfileMenu from './ProfileMenu';
-import { VidFastLogo, NotificationsBell } from './Brand';
+import { StreamFastLogo, NotificationsBell } from './Brand';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
 import { loadRecentSearches, clearRecentSearches } from '../utils/recentSearches';
 
@@ -241,8 +241,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-transparent" />
             <div aria-hidden="true" className={`pointer-events-none absolute inset-0 bg-netflix-bg transition-opacity duration-500 ${solid ? 'opacity-100' : 'opacity-0'}`} />
             <div className="relative flex h-[4.25rem] items-center gap-5 px-[4%] sm:h-[4.9rem] lg:gap-6 xl:gap-9">
-                <button type="button" onClick={() => onNavigate('home')} className="vf-logo-btn flex-shrink-0 py-1" aria-label="VidFast home">
-                    <VidFastLogo />
+                <button type="button" onClick={() => onNavigate('home')} className="sf-logo-btn flex-shrink-0 py-1" aria-label="StreamFast home">
+                    <StreamFastLogo />
                 </button>
 
                 <nav aria-label="Primary" className="flex-1">

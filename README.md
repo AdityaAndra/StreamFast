@@ -1,8 +1,8 @@
-# VidFast Link Generator
+# StreamFast
 
-A Netflix-style web app for browsing movies and TV shows (data from [TMDB](https://www.themoviedb.org/)) and instantly generating embeddable [VidFast](https://vidfast.pro) streaming links.
+A Netflix-style web app for browsing and watching movies and TV shows. Title data comes from [TMDB](https://www.themoviedb.org/); videos play through the [VidFast](https://vidfast.vc) embed player.
 
-Live site: https://vidfast-link-generator.vercel.app
+Live site: https://streamfast.vercel.app (the old vidfast-link-generator.vercel.app address redirects here and carries saved lists over)
 
 ## Features
 
@@ -10,7 +10,8 @@ Live site: https://vidfast-link-generator.vercel.app
 - **Netflix-style rows** with edge arrows, page indicators and hover preview cards (match %, genres, quick actions)
 - **Top 10** rows with outlined rank numbers
 - **Live search** in the top bar (`/` or `Ctrl + K`), with recent searches and Movie / TV filters
-- **Continue Watching** with progress bars, **My List**, and paste-a-link to add or update progress
+- **In-site player** (VidFast embed) with Netflix-style title, back arrow, server picker and episodes panel
+- **Continue Watching** with progress bars and resume, plus **My List**
 - Player theme picker, import / export of your history, all stored locally in your browser
 
 ## Tech

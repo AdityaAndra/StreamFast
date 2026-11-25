@@ -393,7 +393,7 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
   const backdrop = useMemo(() => (person ? knownFor(person, 'all', 4).find((t) => t.backdrop_path)?.backdrop_path : null), [person]);
 
   useEffect(() => {
-    if (person) document.title = `${person.name} — VidFast`;
+    if (person) document.title = `${person.name} — StreamFast`;
   }, [person]);
 
   const go = (t: Tab) => {

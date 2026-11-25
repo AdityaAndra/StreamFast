@@ -4,7 +4,7 @@ import type { SearchResult, WatchProgress } from '../types';
 export type PlayerTab = 'episodes' | 'watch' | 'actions';
 
 export interface PlayerApi {
-  /** Opens the VidFast player / link panel over the current page. */
+  /** Opens StreamFast's player page (VidFast embed) or the link panel. */
   openPlayer: (item: SearchResult, opts?: { progress?: WatchProgress; tab?: PlayerTab }) => void;
 }
 

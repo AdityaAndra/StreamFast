@@ -45,6 +45,7 @@ window.addEventListener('popstate', (e) => {
 });
 
 const isTitleLoc = (loc: string) => /^\/(movie|tv)\/\d+/.test(new URL(loc, window.location.origin).pathname);
+const isWatchLoc = (loc: string) => /^\/watch\//.test(new URL(loc, window.location.origin).pathname);
 
 export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boolean } = {}) => {
   if (to === currentLocation()) {
@@ -64,12 +65,31 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
     extra = isTitleLoc(currentLocation())
       ? { bg: typeof st.bg === 'string' ? st.bg : '/', tStart: typeof st.tStart === 'number' ? st.tStart : idx }
       : { bg: currentLocation(), tStart: nextIdx };
+  } else if (isWatchLoc(to)) {
+    // Remember the page behind the player (and the title window it came from, if any).
+    const cur = currentLocation();
+    extra = isWatchLoc(cur)
+      ? { from: st.from, fromT: st.fromT }
+      : isTitleLoc(cur)
+        ? { from: typeof st.bg === 'string' ? st.bg : '/', fromT: typeof st.tStart === 'number' ? st.tStart : idx }
+        : { from: cur, fromT: nextIdx };
   }
   if (opts.replace) window.history.replaceState({ scrollY: 0, idx, ...extra }, '', to);
   else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
   pendingRestoreY = null;
   emit();
   if (!keepScroll) scrollToY(0);
+};
+
+/** Leave the player for the title's window, shown over the page you were browsing before (Netflix's back). */
+export const openTitleFromWatch = (titleLoc: string) => {
+  const st = window.history.state || {};
+  const idx = Number(st.idx || 0);
+  const from = typeof st.from === 'string' && !isWatchLoc(st.from) && !isTitleLoc(st.from) ? st.from : '/';
+  const tStart = typeof st.fromT === 'number' ? st.fromT : idx;
+  window.history.replaceState({ scrollY: 0, idx, bg: from, tStart }, '', titleLoc);
+  pendingRestoreY = null;
+  emit();
 };
 
 /** The page shown behind the title window (defaults to Home on a direct visit). */

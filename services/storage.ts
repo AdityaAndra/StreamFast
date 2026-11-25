@@ -3,9 +3,9 @@
 import type { WatchProgressItem, SearchResult, WatchProgress, ColorInfo, MyListItem } from '../types';
 import { DEFAULT_THEME } from '../constants';
 
-const STORAGE_KEY = 'vidfast_continue_watching';
-const MY_LIST_STORAGE_KEY = 'vidfast_my_list';
-const THEME_STORAGE_KEY = 'vidfast_player_theme';
+const STORAGE_KEY = 'streamfast_continue_watching';
+const MY_LIST_STORAGE_KEY = 'streamfast_my_list';
+const THEME_STORAGE_KEY = 'streamfast_player_theme';
 
 
 export const getContinueWatchingList = (): WatchProgressItem[] => {
@@ -92,7 +92,7 @@ export const exportContinueWatchingList = () => {
     const link = document.createElement('a');
     link.href = url;
     const date = new Date().toISOString().slice(0, 10);
-    link.download = `vidfast-history-${date}.json`;
+    link.download = `streamfast-history-${date}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

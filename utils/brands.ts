@@ -91,7 +91,7 @@ export const REGIONS: [string, string][] = [
   ['AE', 'United Arab Emirates'], ['ZA', 'South Africa'], ['TR', 'Turkey'],
 ];
 
-const REGION_KEY = 'vf_region';
+const REGION_KEY = 'sf_region';
 
 export const getRegion = (): string => {
   try {
