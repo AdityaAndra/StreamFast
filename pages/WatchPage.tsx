@@ -525,11 +525,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         </div>
 
         <div className="sf-right" onMouseEnter={wake} onMouseMove={wake} onMouseDown={keepPlayerFocus}>
-          {mediaType === 'tv' && next && (
-            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="sf-btn" aria-label="Next episode" title="Next episode">
-              <VfNext />
-            </button>
-          )}
           {mediaType === 'tv' && (
             <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
               <VfEpisodes />
