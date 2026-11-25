@@ -125,9 +125,11 @@ export const consumeScrollRestore = () => {
     const y = Math.min(target, Math.max(0, max));
     jumpToY(y);
     const done = max >= target && Math.abs(window.scrollY - target) < 2;
-    if (!done && tries++ < 60) requestAnimationFrame(attempt);
+    // Timers (not animation frames) so this also finishes in a background tab.
+    if (!done && tries++ < 60) window.setTimeout(attempt, 16);
   };
-  requestAnimationFrame(attempt);
+  attempt();
+  window.setTimeout(attempt, 0);
 };
 
 export const parseRoute = (loc: string): Route => {
