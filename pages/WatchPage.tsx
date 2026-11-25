@@ -23,6 +23,8 @@ const PAUSE_SCREEN_MS = 2000;
 /** Hover-sync tile size (px): smaller = finer mouse tracking, so even small moves keep our
  *  controls up exactly as long as VidFast's (it restarts its 3s timer on every move). */
 const CELL_PX = 16;
+/** Tiles on each side of the pointer that step aside together (7x7 = ~112px block). */
+const BLOCK = 3;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -150,6 +152,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const [server, setServer] = useState<string>(loadServer);
   const [switchAt, setSwitchAt] = useState<number | undefined>(undefined);
   const lastTime = useRef(0);
+  const volKey = useRef('');
   useEffect(() => setSwitchAt(undefined), [season, episode]);
 
   const src = useMemo(() => {
@@ -265,6 +268,13 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (e.data.type !== 'PLAYER_EVENT') return;
       const { event: ev, currentTime, duration, season: s, episode: ep, playing } = e.data.data || {};
       if (currentTime > 0) lastTime.current = currentTime;
+      // Volume / mute keys show VidFast's controls without play / pause / seek: follow those too.
+      const { volume: vol, muted: mu } = e.data.data || {};
+      if (typeof vol === 'number' || typeof mu === 'boolean') {
+        const key = `${vol}|${mu}`;
+        if (volKey.current && volKey.current !== key) wakeRef.current();
+        volKey.current = key;
+      }
       if (typeof playing === 'boolean') {
         if (playing || currentTime > 0) setStarted(true);
         if (pausedRef.current !== !playing) {
@@ -329,6 +339,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   useEffect(() => {
     let wasOurs = false;
     const onFs = () => {
+      wakeRef.current(); // VidFast shows its controls when fullscreen changes
       const el = document.fullscreenElement;
       const box = rootRef.current;
       if (box && el && el === iframeRef.current) {
@@ -373,10 +384,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const lastCell = useRef<HTMLElement | null>(null);
   const lastRow = useRef(-1);
   const [grid, setGrid] = useState({ cols: 0, rows: 0, size: CELL_PX });
+  const gridColsRef = useRef(1);
+  gridColsRef.current = Math.max(1, grid.cols);
+  // Tiles that have stepped aside around the pointer (a block, not just one tile): every move inside
+  // the block goes straight to VidFast, so its controls never miss a move because a tile caught it.
+  const blockRef = useRef<HTMLElement[]>([]);
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
     const measure = () => {
+      blockRef.current = [];
       lastCell.current = null;
       lastRow.current = -1;
       // 16px tiles (VidFast restarts its timer on every tiny move), a little bigger on very large
@@ -391,11 +408,32 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, []);
   const onCell = useCallback((e: React.MouseEvent) => {
     const c = e.target as HTMLElement;
-    if (c.tagName !== 'I') return;
-    c.style.pointerEvents = 'none'; // step aside before the next event (a click can never land here)
-    if (lastCell.current && lastCell.current !== c) lastCell.current.style.pointerEvents = '';
+    const box = gridRef.current;
+    if (c.tagName !== 'I' || !box) return;
+    // The pointer reached a tile outside the current block: that one move is ours (wake), then the
+    // 7x7 block of tiles around it steps aside so the following moves all reach VidFast.
+    const cols = gridColsRef.current;
+    const i = Number(c.dataset.i);
+    const r = Math.floor(i / cols);
+    const k = i % cols;
+    const kids = box.children;
+    const next: HTMLElement[] = [];
+    for (let y = r - BLOCK; y <= r + BLOCK; y++) {
+      if (y < 0) continue;
+      for (let x = k - BLOCK; x <= k + BLOCK; x++) {
+        if (x < 0 || x >= cols) continue;
+        const el = kids[y * cols + x] as HTMLElement | undefined;
+        if (el) next.push(el);
+      }
+    }
+    const keep = new Set(next);
+    blockRef.current.forEach((el) => {
+      if (!keep.has(el)) el.style.pointerEvents = '';
+    });
+    next.forEach((el) => (el.style.pointerEvents = 'none'));
+    blockRef.current = next;
     lastCell.current = c;
-    lastRow.current = Number(c.dataset.r);
+    lastRow.current = r;
     wakeRef.current();
   }, []);
 
@@ -412,7 +450,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (now !== over) {
         wakeRef.current(); // arriving, or leaving (VidFast's 3s runs from that last move too)
         if (!now) {
-          if (lastCell.current) lastCell.current.style.pointerEvents = '';
+          blockRef.current.forEach((el) => (el.style.pointerEvents = ''));
+          blockRef.current = [];
           lastCell.current = null;
           lastRow.current = -1;
         }
@@ -424,7 +463,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   // Play / pause state straight from the player (its status reply), checked every second.
   useEffect(() => {
-    const t = window.setInterval(() => iframeRef.current?.contentWindow?.postMessage({ command: 'getStatus' }, '*'), 1000);
+    const t = window.setInterval(() => iframeRef.current?.contentWindow?.postMessage({ command: 'getStatus' }, '*'), 250);
     return () => window.clearInterval(t);
   }, []);
 
@@ -522,7 +561,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       {FINE_POINTER && (
         <div ref={gridRef} className="sf-grid" style={{ gridTemplateColumns: `repeat(${grid.cols}, ${grid.size}px)`, gridAutoRows: `${grid.size}px` }} onMouseOver={onCell} aria-hidden="true">
           {Array.from({ length: grid.cols * grid.rows }, (_, k) => (
-            <i key={k} data-r={Math.floor(k / Math.max(1, grid.cols))} />
+            <i key={k} data-i={k} />
           ))}
         </div>
       )}
