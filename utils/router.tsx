@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
-import { scrollToY } from './smoothScroll';
+import { jumpToY, scrollToY } from './smoothScroll';
 
 /**
  * Tiny History-API router: real URLs (/movie/603-the-matrix, /tv/1399, /search?q=dune, …),
@@ -118,10 +118,14 @@ export const consumeScrollRestore = () => {
   const target = pendingRestoreY;
   pendingRestoreY = null;
   let tries = 0;
+  // Keep trying for ~1s: rows may still be streaming in, and a closing title window may still be
+  // releasing the page lock. Stop once we're really there.
   const attempt = () => {
     const max = document.documentElement.scrollHeight - window.innerHeight;
-    scrollToY(Math.min(target, Math.max(0, max)));
-    if (max < target && tries++ < 40) requestAnimationFrame(attempt);
+    const y = Math.min(target, Math.max(0, max));
+    jumpToY(y);
+    const done = max >= target && Math.abs(window.scrollY - target) < 2;
+    if (!done && tries++ < 60) requestAnimationFrame(attempt);
   };
   requestAnimationFrame(attempt);
 };
