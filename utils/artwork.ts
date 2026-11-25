@@ -27,7 +27,10 @@ let persistTimer: number | undefined;
 
 try {
   const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
-  Object.keys(raw).forEach((k) => mem.set(k, raw[k]));
+  // Skip null entries: those are earlier failed lookups, so they get fetched again.
+  Object.keys(raw).forEach((k) => {
+    if (raw[k]) mem.set(k, raw[k]);
+  });
 } catch {
   /* ignore */
 }
@@ -36,7 +39,8 @@ const persist = () => {
   window.clearTimeout(persistTimer);
   persistTimer = window.setTimeout(() => {
     try {
-      const entries = [...mem.entries()].slice(-MAX_STORED);
+      // Never store failed lookups (null), or those titles would stay without a logo / rating forever.
+      const entries = [...mem.entries()].filter(([, v]) => v !== null).slice(-MAX_STORED);
       localStorage.setItem(LS_KEY, JSON.stringify(Object.fromEntries(entries)));
     } catch {
       /* storage full: ignore */
