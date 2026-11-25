@@ -27,7 +27,7 @@ const useTop10PerRow = () => {
  * overlapping shapes (e.g. the "4") never show stray lines inside the number.
  */
 const RankNumber: React.FC<{ n: number }> = ({ n }) => {
-  const maskId = `vf-rank-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
+  const maskId = `sf-rank-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`;
   const glyph =
     n === 10
       ? { x: 0, y: 147, fontSize: 186, letterSpacing: -14 }

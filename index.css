@@ -337,8 +337,8 @@ html.lenis, html.lenis body { height: auto; }
 .nf-card.has-badge .nf-card-logo, .nf-card.has-badge .nf-card-title { bottom: 18%; }
 
 /* ============ Logo ============ */
-.vf-logo { display: block; height: clamp(22px, 1.85vw, 31px); width: auto; overflow: visible; filter: drop-shadow(0 2px 10px rgba(229, 9, 20, 0.28)); transition: transform 0.35s var(--nf-out), filter 0.35s ease; }
-.vf-logo-btn:hover .vf-logo { transform: scale(1.04); filter: drop-shadow(0 2px 14px rgba(229, 9, 20, 0.5)) brightness(1.08); }
+.sf-logo { display: block; height: clamp(22px, 1.75vw, 31px); width: auto; overflow: visible; filter: drop-shadow(0 2px 10px rgba(229, 9, 20, 0.28)); transition: transform 0.35s var(--nf-out), filter 0.35s ease; }
+.sf-logo-btn:hover .sf-logo { transform: scale(1.04); filter: drop-shadow(0 2px 14px rgba(229, 9, 20, 0.5)) brightness(1.08); }
 
 /* ============ IMDb badge ============ */
 .nf-imdb { display: inline-flex; align-items: center; gap: 0.42em; line-height: 1; white-space: nowrap; vertical-align: middle; font-weight: 700; color: #fff; }
@@ -443,53 +443,68 @@ html.lenis, html.lenis body { height: auto; }
 @media (max-width: 426px), (max-height: 240px) { .nf-watch { font-size: 4.8px; } }
 
 /* Back arrow: exactly where (and how) VidFast drew its server button. */
-.vf-back {
+.sf-back {
   position: absolute; left: 0; top: 0; z-index: 4; margin: 2em; padding: 1em; line-height: 0;
   color: rgba(255, 255, 255, 0.8); transition: opacity 250ms;
 }
-.vf-back svg { width: min(5.8em, 52px); height: min(5.8em, 52px); }
-.vf-back:hover, .vf-back:active { color: #fff; }
+.sf-back svg { width: min(5.6em, 50px); height: min(5.6em, 50px); filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55)); }
+.sf-back:hover, .sf-back:active { color: #fff; }
 
 /* Bottom control row: buttons are 5.2em, 3em apart, 3em above the bottom, 4.5em in from the right. */
-.vf-bottom { position: absolute; left: 0; right: 0; bottom: 3em; z-index: 3; height: 5.2em; pointer-events: none; }
-.vf-bottom > .vf-title, .vf-bottom > .vf-right { opacity: 0; transition: opacity 250ms; }
-.vf-bottom.is-on > .vf-title, .vf-bottom.is-on > .vf-right, .vf-bottom.is-stuck > .vf-right { opacity: 1; }
-.vf-bottom .vf-right { pointer-events: auto; }
-.vf-bottom:not(.is-on):not(.is-stuck) button { pointer-events: none; }
-.vf-title {
+.sf-bottom { position: absolute; left: 0; right: 0; bottom: 3em; z-index: 3; height: 5.2em; pointer-events: none; }
+.sf-bottom > .sf-title, .sf-bottom > .sf-right { opacity: 0; transition: opacity 250ms; }
+.sf-bottom.is-on > .sf-title, .sf-bottom.is-on > .sf-right, .sf-bottom.is-stuck > .sf-right { opacity: 1; }
+.sf-bottom .sf-right { pointer-events: auto; }
+.sf-bottom:not(.is-on):not(.is-stuck) button { pointer-events: none; }
+.sf-title {
   position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 34%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;
   font-size: max(1.8em, 14px); font-weight: 500; color: #fff;
 }
-.vf-title-ep { margin-left: 0.5em; font-weight: 400; color: #ccc; }
+.sf-title-ep { margin-left: 0.5em; font-weight: 400; color: #ccc; }
 /* Player's right group (in our page): fullscreen, settings, subtitles. Ours sit right before subtitles. */
-.vf-right { position: absolute; top: 0; right: calc(4.5em + 3 * 8.2em); display: flex; flex-direction: row-reverse; gap: 3em; }
-.vf-btn { display: block; width: 5.2em; height: 5.2em; line-height: 0; color: rgba(255, 255, 255, 0.8); transition: color 0.15s; }
-.vf-btn svg { width: 100%; height: 100%; }
-.vf-btn:hover, .vf-btn:active, .vf-btn.is-active { color: #fff; }
+.sf-right { position: absolute; top: 0; right: calc(4.5em + 3 * 8.2em); display: flex; flex-direction: row-reverse; gap: 3em; }
+.sf-btn { display: block; width: 5.2em; height: 5.2em; line-height: 0; color: rgba(255, 255, 255, 0.8); transition: color 0.15s; }
+.sf-btn svg { width: 100%; height: 100%; }
+.sf-btn:hover, .sf-btn:active, .sf-btn.is-active { color: #fff; }
 
 /* Server list: VidFast's own menu. */
-.vf-menu {
+.sf-menu {
   position: absolute; right: -1em; bottom: calc(100% + 1.5em); width: 29.5em; max-height: 70vh; overflow-y: auto;
   display: flex; flex-direction: column; gap: 2px; padding: 1.225em;
   border: 1.6px solid rgba(255, 255, 255, 0.1); border-radius: 1.35em; background: rgba(0, 0, 0, 0.95);
-  pointer-events: auto; animation: vf-menu-in 0.15s ease both;
+  pointer-events: auto; animation: sf-menu-in 0.15s ease both;
 }
-@keyframes vf-menu-in { from { opacity: 0; } to { opacity: 1; } }
-.vf-menu-row { display: flex; width: 100%; align-items: center; gap: 0.8em; padding: 1.225em; border-radius: 0.655em; color: #fff; font-weight: 500; }
-.vf-menu-row:hover, .vf-menu-row:active { background: rgb(26, 26, 26); }
-.vf-menu-badge { display: flex; width: 2.67em; height: 2.67em; flex-shrink: 0; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.8); }
-.vf-menu-badge img, .vf-menu-badge svg { width: 100%; height: 100%; object-fit: contain; }
-.vf-menu-name { display: block; font-size: 1.6em; line-height: 1.2; color: #fff; }
-.vf-menu-details { display: block; margin-top: 0.15em; font-size: 1.2em; line-height: 1.2; color: rgb(113, 113, 122); }
-.vf-menu-end { display: flex; width: 2.45em; height: 2.45em; flex-shrink: 0; color: #fff; }
-.vf-menu-end svg { width: 100%; height: 100%; }
+@keyframes sf-menu-in { from { opacity: 0; } to { opacity: 1; } }
+.sf-menu-row { display: flex; width: 100%; align-items: center; gap: 0.8em; padding: 1.225em; border-radius: 0.655em; color: #fff; font-weight: 500; }
+.sf-menu-row:hover, .sf-menu-row:active { background: rgb(26, 26, 26); }
+.sf-menu-badge { display: flex; width: 2.67em; height: 2.67em; flex-shrink: 0; align-items: center; justify-content: center; color: rgba(255, 255, 255, 0.8); }
+.sf-menu-badge img, .sf-menu-badge svg { width: 100%; height: 100%; object-fit: contain; }
+.sf-menu-name { display: block; font-size: 1.6em; line-height: 1.2; color: #fff; }
+.sf-menu-details { display: block; margin-top: 0.15em; font-size: 1.2em; line-height: 1.2; color: rgb(113, 113, 122); }
+.sf-menu-end { display: flex; width: 2.45em; height: 2.45em; flex-shrink: 0; color: #fff; }
+.sf-menu-end svg { width: 100%; height: 100%; }
 
 .nf-watch:fullscreen { background: #000; }
-@media (max-width: 640px) { .vf-title { display: none; } }
+@media (max-width: 640px) { .sf-title { display: none; } }
 
 /* 4 buttons on the right when VidFast shows picture-in-picture: subtitles, PiP, settings, fullscreen. */
-.nf-watch.has-pip .vf-right { right: calc(4.5em + 4 * 8.2em); }
-/* Hover-sensing layer: the middle of the video only, never over VidFast's own buttons. */
-.vf-sense { position: absolute; left: 0; right: 0; top: 14em; bottom: 14em; z-index: 2; cursor: default; }
-.nf-watch.is-idle .vf-sense { cursor: none; }
+.nf-watch.has-pip .sf-right { right: calc(4.5em + 4 * 8.2em); }
+
+/* Server list: star = default server (VidFast's 14px outline star, filled when it's yours). */
+.sf-menu-row { cursor: pointer; outline: none; }
+.sf-menu-row:focus-visible { background: rgb(26, 26, 26); }
+.sf-menu-star { display: flex; width: 2.2em; height: 2.2em; flex-shrink: 0; align-items: center; justify-content: center; padding: 0.3em; border-radius: 0.4em; opacity: 0.85; transition: opacity 0.15s, background-color 0.15s; }
+.sf-menu-star svg { width: 1.56em; height: 1.56em; }
+.sf-menu-star:hover, .sf-menu-star.is-default { opacity: 1; }
+.sf-menu-star:hover { background: rgba(255, 255, 255, 0.06); }
+.nf-watch:focus { outline: none; }
+
+/* Back arrow fades with the controls (like Netflix); 250ms, same as VidFast. */
+.sf-back { transition: opacity 250ms; }
+.sf-back.is-hidden { opacity: 0; pointer-events: none; }
+.nf-watch.is-idle, 
+/* Bold back arrow: full white on hover with a slight lift, like Netflix's. */
+.sf-back { color: rgba(255, 255, 255, 0.92); transition: opacity 250ms, transform 0.2s ease, color 0.15s; }
+.sf-back:hover { color: #fff; transform: scale(1.12); }
+.sf-back:active { transform: scale(0.96); }

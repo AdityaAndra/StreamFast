@@ -4,7 +4,7 @@ import { getTitleDetails, getSeasonDetails, TitleDetails } from '../services/tmd
 import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
-import { goBack, navigate } from '../utils/router';
+import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { CloseIcon, PlayIcon } from '../components/Icons';
 
 const VIDFAST_ORIGINS = [
@@ -12,13 +12,12 @@ const VIDFAST_ORIGINS = [
   'https://vidfast.pm', 'https://vidfast.xyz', 'https://vidfast.vc', 'https://vidfast.bz',
 ];
 // VidFast's documented embed domain; unlike vidfast.pro it reports play / pause / progress to us.
-const VF_MOVIE = 'https://vidfast.vc/movie/';
-const VF_TV = 'https://vidfast.vc/tv/';
+const VIDFAST_EMBED_MOVIE = 'https://vidfast.vc/movie/';
+const VIDFAST_EMBED_TV = 'https://vidfast.vc/tv/';
 const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
-const IDLE_MS = 3500;
-/** Mouse-move sensing: how long the player gets the mouse to itself after each detected move. */
-const SENSE_GAP_MS = 900;
+// VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
+const IDLE_MS = 3000;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -35,15 +34,21 @@ const SERVER_INFO: { name: string; badge: string; details: string }[] = [
 const SERVERS = SERVER_INFO.map((x) => x.name);
 
 /* VidFast's own icon style: 24px grid, 1.5 stroke, round joins. */
+/** Bold back arrow (Netflix-style): heavy shaft and head with rounded ends. */
 const VfBack = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M20 12H4.5" />
-    <path d="M10 6C10 6 4 10.4189 4 12C4 13.5812 10 18 10 18" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 12H5" />
+    <path d="M11 5L4 12L11 19" />
   </svg>
 );
 const VfCloud = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M17.4776 10.0001C17.485 10 17.4925 10 17.5 10C19.9853 10 22 12.0147 22 14.5C22 16.9853 19.9853 19 17.5 19H7C4.23858 19 2 16.7614 2 14C2 11.4003 3.98398 9.26407 6.52042 9.0227M17.4776 10.0001C17.4924 9.83536 17.5 9.66856 17.5 9.5C17.5 6.46243 15.0376 4 12 4C9.12324 4 6.76233 6.20862 6.52042 9.0227M17.4776 10.0001C17.3753 11.1345 16.9286 12.1696 16.2428 13M6.52042 9.0227C6.67826 9.00768 6.83823 9 7 9C8.12582 9 9.16474 9.37209 10.0005 10" />
+  </svg>
+);
+const VfStar = ({ filled }: { filled?: boolean }) => (
+  <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" aria-hidden="true">
+    <path d="M11.109 3.74829C11.48 3.02037 12.52 3.02037 12.891 3.74829L15.0785 8.0407C15.2237 8.32561 15.4964 8.5239 15.8122 8.5742L20.5671 9.33147C21.373 9.45983 21.6941 10.4474 21.1178 11.0252L17.7138 14.4383C17.4883 14.6644 17.3844 14.9846 17.4341 15.3001L18.1843 20.0635C18.3114 20.8702 17.4703 21.4808 16.7426 21.1102L12.4539 18.9254C12.1687 18.7801 11.8313 18.7801 11.5461 18.9254L7.25739 21.1102C6.52973 21.4808 5.68859 20.8702 5.81565 20.0635L6.56594 15.3001C6.61562 14.9846 6.51167 14.6644 6.28617 14.4383L2.88217 11.0252C2.3059 10.4474 2.62703 9.45983 3.43294 9.33147L8.18782 8.5742C8.50362 8.5239 8.77632 8.32561 8.92151 8.0407L11.109 3.74829Z" />
   </svg>
 );
 const VfChevron = () => (
@@ -69,7 +74,7 @@ const VfNext = () => (
     <path d="M20.5 4.5V19.5" />
   </svg>
 );
-const SERVER_KEY = 'vf_server';
+const SERVER_KEY = 'sf_server';
 const loadServer = () => {
   try {
     const v = localStorage.getItem(SERVER_KEY);
@@ -120,6 +125,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, [mediaType, season, episode, episodes, seasons]);
 
   /* ---------- player src (resume where you left off) ---------- */
+  const [defaultServer, setDefaultServer] = useState<string>(loadServer);
   const [server, setServer] = useState<string>(loadServer);
   const [switchAt, setSwitchAt] = useState<number | undefined>(undefined);
   const lastTime = useRef(0);
@@ -136,8 +142,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     }
     const t = resume ? `&startAt=${resume}` : '';
     return mediaType === 'movie'
-      ? `${VF_MOVIE}${id}?autoPlay=true${theme}${t}`
-      : `${VF_TV}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
+      ? `${VIDFAST_EMBED_MOVIE}${id}?autoPlay=true${theme}${t}`
+      : `${VIDFAST_EMBED_TV}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
     // Only rebuild when the episode changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt]);
@@ -160,6 +166,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, []);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
+  const hideRef = useRef(() => {
+    window.clearTimeout(idle.current);
+    setChrome(false);
+  });
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
   // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
     setStarted(false);
@@ -210,6 +222,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         const now = Date.now();
         if (now - lastSave.current < SAVE_EVERY_MS) return;
         lastSave.current = now;
+        if (pr.watched > lastTime.current + 1) setStarted(true); // progress moving: the video is playing
         lastTime.current = pr.watched;
         save(mediaType === 'tv' ? { season: cs, episode: ce, watched: pr.watched, duration: pr.duration } : { watched: pr.watched, duration: pr.duration });
         return;
@@ -221,6 +234,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       // VidFast shows its controls when you play, pause or seek: show ours with them.
       if (ev === 'play' || ev === 'playing') {
         setPaused(false);
+        setServerMenu(false);
         wakeRef.current();
       } else if (ev === 'pause' || ev === 'ended') setPaused(true);
       else if (ev === 'seeked') wakeRef.current();
@@ -249,7 +263,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (e.key === 'Escape') {
         if (serverMenu) setServerMenu(false);
         else if (panel) setPanel(false);
-        else if (!document.fullscreenElement) goBack(titlePath({ id, media_type: mediaType } as any));
+        else if (!document.fullscreenElement) openTitleFromWatch(titlePath({ id, media_type: mediaType, title: item ? getTitle(item) : '' } as any));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -257,10 +271,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [panel, serverMenu, id, mediaType]);
+  }, [panel, serverMenu, id, mediaType, item]);
 
   useEffect(() => {
-    if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — VidFast`;
+    if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — StreamFast`;
   }, [item, mediaType, season, episode]);
 
 
@@ -284,64 +298,85 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
+  // Picking a server switches this video only; the star makes it your default (like VidFast's menu).
   const chooseServer = (name: string) => {
     setServerMenu(false);
+    window.setTimeout(() => iframeRef.current?.focus(), 0);
     if (name === server) return;
+    if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
+    setServer(name);
+  };
+  const toggleDefault = (name: string) => {
+    const next = defaultServer === name ? '' : name;
+    setDefaultServer(next);
     try {
-      if (name) localStorage.setItem(SERVER_KEY, name);
+      if (next) localStorage.setItem(SERVER_KEY, next);
       else localStorage.removeItem(SERVER_KEY);
     } catch {
       /* ignore */
     }
-    if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
-    setServer(name);
   };
 
   /* ---------- hover sync ----------
-     Mouse moves over the player never reach our page. A transparent layer over the middle of the
-     video (not over any of VidFast's buttons) notices a move, shows our title + cloud, then steps
-     aside for a moment so VidFast gets the mouse too and shows its own controls. A click that
-     lands on the layer does what VidFast does on a click: play / pause. */
-  const [sense, setSense] = useState(true);
-  const senseT = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(senseT.current), []);
-  const onSense = useCallback(() => {
-    wake();
-    setSense(false);
-    window.clearTimeout(senseT.current);
-    senseT.current = window.setTimeout(() => setSense(true), SENSE_GAP_MS);
-  }, [wake]);
-  const command = useCallback((msg: Record<string, unknown>) => {
-    iframeRef.current?.contentWindow?.postMessage(msg, '*');
+     Clicks and keys go straight to VidFast's player (so click-to-pause and Space always work).
+     The browser still tells us when the pointer is over the player (the iframe's :hover state),
+     so our title / cloud / back arrow come in when you point at the video, and with every
+     play, pause and seek; after 3s of no player activity they fade, like VidFast's. */
+  useEffect(() => {
+    if (!FINE_POINTER) return;
+    let over = false;
+    const t = window.setInterval(() => {
+      const f = iframeRef.current;
+      const onPlayer = !!f && f.matches(':hover');
+      const onOurs = !!rootRef.current?.querySelector('.sf-back:hover, .sf-right:hover, .sf-menu:hover, .nf-watch-panel:hover');
+      if (onOurs) wakeRef.current(); // pointing at our own buttons keeps them up
+      else if (onPlayer && !over) wakeRef.current(); // pointer came onto the video
+      else if (!onPlayer && over) hideRef.current(); // pointer left the video: controls go, like VidFast's
+      over = onPlayer;
+    }, 100);
+    return () => window.clearInterval(t);
   }, []);
-  const togglePlay = useCallback(() => {
-    const play = !started || paused;
-    command({ command: play ? 'play' : 'pause' });
-    setPaused(!play);
-    onSense();
-  }, [started, paused, command, onSense]);
 
-  // Keyboard while our page has focus (after clicking our layer): Space/K play-pause, arrows seek 10s.
+  // After using one of our buttons, hand the keyboard back to the player so Space keeps working.
+  const refocusPlayer = useCallback(() => {
+    window.setTimeout(() => iframeRef.current?.focus(), 0);
+  }, []);
+
+  // Clicking anywhere inside VidFast's player moves focus into it: close our server list / episodes then.
+  useEffect(() => {
+    const onBlur = () =>
+      window.setTimeout(() => {
+        if (document.activeElement === iframeRef.current) {
+          setServerMenu(false);
+          setPanel(false);
+        }
+      }, 0);
+    window.addEventListener('blur', onBlur);
+    return () => window.removeEventListener('blur', onBlur);
+  }, []);
+
+  // If our page has the keyboard (e.g. right after opening the server list), Space closes our menus
+  // and goes to the player (VidFast's documented play / pause command).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || t.tagName === 'BUTTON')) return;
-      if (e.key === ' ' || e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        togglePlay();
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        const to = Math.max(0, lastTime.current + (e.key === 'ArrowRight' ? 10 : -10));
-        command({ command: 'seek', time: to });
-        lastTime.current = to;
-        onSense();
-      }
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+      e.preventDefault();
+      setServerMenu(false);
+      setPanel(false);
+      iframeRef.current?.contentWindow?.postMessage({ command: pausedRef.current ? 'play' : 'pause' }, '*');
+      refocusPlayer();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, command, onSense]);
+  }, [refocusPlayer]);
 
-  const back = () => goBack(item ? titlePath(item) : '/');
+  // Back = the title's page (its window over the page you came from), like Netflix.
+  const back = () => {
+    if (item) openTitleFromWatch(titlePath(item));
+    else goBack('/');
+  };
   const goEpisode = (s: number, e: number) => {
     setPanel(false);
     navigate(watchPath({ id, media_type: 'tv' }, { season: s, episode: e }), { replace: true, keepScroll: true });
@@ -366,35 +401,38 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         referrerPolicy="origin"
       />
 
-      {FINE_POINTER && sense && !serverMenu && !panel && (
-        <div className="vf-sense" onMouseMove={onSense} onClick={togglePlay} aria-hidden="true" />
-      )}
-
-      {/* always-on back arrow, in VidFast's own server-button spot and style */}
-      <button type="button" onClick={back} className="vf-back" aria-label="Back to browse" title="Back">
+      {/* back arrow, in VidFast's own server-button spot and style; shows and hides with the controls */}
+      <button
+        type="button"
+        onClick={back}
+        onMouseMove={wake}
+        className={`sf-back ${!started || panel || serverMenu || chrome || paused ? '' : 'is-hidden'}`}
+        aria-label="Back to browse"
+        title="Back"
+      >
         <VfBack />
       </button>
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
-      <div className={`vf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
-        <p className="vf-title" title={title} onMouseEnter={wake}>
+      <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
+        <p className="sf-title" title={title} onMouseEnter={wake}>
           {title}
           {mediaType === 'tv' && (
-            <span className="vf-title-ep">
+            <span className="sf-title-ep">
               E{episode}
               {current?.name ? ` ${current.name}` : ''}
             </span>
           )}
         </p>
 
-        <div className="vf-right" onMouseEnter={wake} onMouseMove={wake}>
+        <div className="sf-right" onMouseEnter={wake} onMouseMove={wake}>
           {mediaType === 'tv' && next && (
-            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="vf-btn" aria-label="Next episode" title="Next episode">
+            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="sf-btn" aria-label="Next episode" title="Next episode">
               <VfNext />
             </button>
           )}
           {mediaType === 'tv' && (
-            <button type="button" onClick={() => setPanel((v) => !v)} className={`vf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
+            <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
               <VfEpisodes />
             </button>
           )}
@@ -402,7 +440,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
             <button
               type="button"
               onClick={() => setServerMenu((v) => !v)}
-              className={`vf-btn ${serverMenu ? 'is-active' : ''}`}
+              className={`sf-btn ${serverMenu ? 'is-active' : ''}`}
               aria-expanded={serverMenu}
               aria-haspopup="menu"
               aria-label={`Server: ${server || 'Auto'}`}
@@ -411,27 +449,47 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
               <VfCloud />
             </button>
             {serverMenu && (
-              <div role="menu" className="vf-menu" aria-label="Choose server">
-                {[{ name: '', badge: '', details: 'Picks the best server for you' }, ...SERVER_INFO].map((x) => {
+              <div role="menu" className="sf-menu" aria-label="Choose server">
+                {[{ name: '', badge: '', details: 'Best available server' }, ...SERVER_INFO].map((x) => {
                   const on = server === x.name;
                   return (
-                    <button
+                    <div
                       key={x.name || 'auto'}
-                      type="button"
                       role="menuitemradio"
+                      tabIndex={0}
                       aria-checked={on}
                       onClick={() => chooseServer(x.name)}
-                      className="vf-menu-row"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          chooseServer(x.name);
+                        }
+                      }}
+                      className="sf-menu-row"
                     >
-                      <span className="vf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
+                      <span className="sf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
                       <span className="min-w-0 flex-1 text-left">
-                        <span className="vf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
+                        <span className="sf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
                           {x.name || 'Auto'}
                         </span>
-                        <span className="vf-menu-details">{x.details}</span>
+                        <span className="sf-menu-details">{x.details}</span>
                       </span>
-                      <span className="vf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
-                    </button>
+                      <button
+                        type="button"
+                        className={`sf-menu-star ${defaultServer === x.name ? 'is-default' : ''}`}
+                        style={{ color: playerTheme.hex }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleDefault(x.name);
+                        }}
+                        aria-pressed={defaultServer === x.name}
+                        aria-label={defaultServer === x.name ? `${x.name || 'Auto'} is your default server` : `Make ${x.name || 'Auto'} your default server`}
+                        title={defaultServer === x.name ? 'Default server' : 'Make default'}
+                      >
+                        <VfStar filled={defaultServer === x.name} />
+                      </button>
+                      <span className="sf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
+                    </div>
                   );
                 })}
               </div>

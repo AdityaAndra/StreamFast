@@ -5,18 +5,33 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#141414" />
-    <meta name="description" content="Watch movies and TV shows on VidFast." />
+    <!-- The site is already dark: stop dark-mode extensions (Dark Reader) from recolouring it. -->
+    <meta name="darkreader-lock" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Watch movies and TV shows on StreamFast." />
     <link rel="preconnect" href="https://image.tmdb.org" crossorigin />
     <link rel="dns-prefetch" href="https://image.tmdb.org" />
-    <title>VidFast — Watch TV Shows &amp; Movies</title>
+    <title>StreamFast — Watch TV Shows &amp; Movies</title>
     <script>
-      /* New address: vidfast-link-generator.vercel.app -> streamfast.vercel.app.
-         The old address packs this browser's saved lists into the link; the new one unpacks them. */
+      /* StreamFast saved data.
+         1) Old address (vidfast-link-generator.vercel.app) packs this browser's saved lists into the link
+            and redirects to streamfast.vercel.app, which unpacks them.
+         2) Data saved under the old VidFast names is moved to the StreamFast names (merged, newest wins). */
       (function () {
         var OLD = 'vidfast-link-generator.vercel.app';
         var NEW = 'https://streamfast.vercel.app';
-        var KEYS = ['vidfast_continue_watching', 'vidfast_my_list', 'vidfast_player_theme', 'vidfast_recent_searches', 'vf_region', 'vf_bell_seen'];
-        var TAG = '#vfmove=';
+        var RENAMES = {
+          vidfast_continue_watching: 'streamfast_continue_watching',
+          vidfast_my_list: 'streamfast_my_list',
+          vidfast_player_theme: 'streamfast_player_theme',
+          vidfast_recent_searches: 'streamfast_recent_searches',
+          vf_region: 'sf_region',
+          vf_bell_seen: 'sf_bell_seen',
+          vf_server: 'sf_server'
+        };
+        var NEW_KEYS = Object.keys(RENAMES).map(function (k) { return RENAMES[k]; });
+        var ALL_KEYS = Object.keys(RENAMES).concat(NEW_KEYS);
+        var TAGS = ['#sfmove=', '#vfmove='];
         var b64 = function (bytes) {
           var s = '';
           for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
@@ -33,28 +48,64 @@
           return new Response(new Blob([bytes]).stream().pipeThrough(stream)).arrayBuffer().then(function (b) { return new Uint8Array(b); });
         };
         var stamp = function (x) { return (x && (x.savedAt || x.addedAt)) || 0; };
+        var newName = function (k) { return RENAMES[k] || k; };
+
+        /* Merge a saved value into key k: lists are combined (newest copy of each title wins),
+           settings already set here are kept. */
+        var mergeInto = function (k, value) {
+          var mine = localStorage.getItem(k);
+          if (mine === null) { localStorage.setItem(k, value); return; }
+          var a, c;
+          try { a = JSON.parse(mine); c = JSON.parse(value); } catch (e) { return; }
+          if (!Array.isArray(a) || !Array.isArray(c)) return;
+          if (a.every(function (x) { return typeof x === 'string'; })) {
+            localStorage.setItem(k, JSON.stringify(a.concat(c.filter(function (x) { return a.indexOf(x) < 0; })).slice(0, 12)));
+            return;
+          }
+          var id = function (x) { return x && x.media ? x.media.media_type + ':' + x.media.id : JSON.stringify(x); };
+          var map = {}, order = [];
+          c.concat(a).forEach(function (x) {
+            var key = id(x);
+            if (!(key in map)) order.push(key);
+            if (!(key in map) || stamp(x) >= stamp(map[key])) map[key] = x;
+          });
+          localStorage.setItem(k, JSON.stringify(order.map(function (key) { return map[key]; }).sort(function (x, y) { return stamp(y) - stamp(x); })));
+        };
+        var migrate = function () {
+          try {
+            Object.keys(RENAMES).forEach(function (oldKey) {
+              var v = localStorage.getItem(oldKey);
+              if (v === null) return;
+              mergeInto(RENAMES[oldKey], v);
+              localStorage.removeItem(oldKey);
+            });
+          } catch (e) {}
+        };
 
         try {
           /* ---- old address: send everything to the new one ---- */
           if (location.hostname === OLD) {
-            window.__vfReady = new Promise(function () {}); // never start the app here
+            window.__sfReady = new Promise(function () {}); // never start the app here
             var target = NEW + location.pathname + location.search;
             var data = {};
             try {
-              KEYS.forEach(function (k) { var v = localStorage.getItem(k); if (v !== null) data[k] = v; });
+              ALL_KEYS.forEach(function (k) { var v = localStorage.getItem(k); if (v !== null) data[newName(k)] = v; });
             } catch (e) {}
             if (!Object.keys(data).length) { location.replace(target); return; }
             var raw = new TextEncoder().encode(JSON.stringify(data));
-            var go = function (enc) { location.replace(target + TAG + enc); };
+            var go = function (enc) { location.replace(target + TAGS[0] + enc); };
             if (typeof CompressionStream === 'function') {
               pipe(raw, new CompressionStream('deflate-raw')).then(function (z) { go('z.' + b64(z)); }, function () { go('j.' + b64(raw)); });
             } else go('j.' + b64(raw));
             return;
           }
 
+          migrate();
+
           /* ---- new address: unpack and merge with anything already saved here ---- */
-          if (location.hash.indexOf(TAG) === 0) {
-            var payload = location.hash.slice(TAG.length);
+          var tag = TAGS.filter(function (t) { return location.hash.indexOf(t) === 0; })[0];
+          if (tag) {
+            var payload = location.hash.slice(tag.length);
             history.replaceState(history.state, '', location.pathname + location.search);
             var kind = payload.slice(0, 2);
             var bytes = unb64(payload.slice(2));
@@ -62,28 +113,12 @@
               kind === 'z.' && typeof DecompressionStream === 'function' ? pipe(bytes, new DecompressionStream('deflate-raw'))
               : kind === 'j.' ? Promise.resolve(bytes)
               : Promise.reject(new Error('unknown'));
-            window.__vfReady = decoded.then(function (b) {
+            window.__sfReady = decoded.then(function (b) {
               var incoming = JSON.parse(new TextDecoder().decode(b));
               Object.keys(incoming).forEach(function (k) {
-                if (KEYS.indexOf(k) < 0 || typeof incoming[k] !== 'string') return;
-                var mine = localStorage.getItem(k);
-                if (mine === null) { localStorage.setItem(k, incoming[k]); return; }
-                var a, c;
-                try { a = JSON.parse(mine); c = JSON.parse(incoming[k]); } catch (e) { return; }
-                if (!Array.isArray(a) || !Array.isArray(c)) return; // settings: keep what's here
-                if (a.every(function (x) { return typeof x === 'string'; })) {
-                  localStorage.setItem(k, JSON.stringify(a.concat(c.filter(function (x) { return a.indexOf(x) < 0; })).slice(0, 12)));
-                  return;
-                }
-                var id = function (x) { return x && x.media ? x.media.media_type + ':' + x.media.id : JSON.stringify(x); };
-                var map = {}, order = [];
-                c.concat(a).forEach(function (x) {
-                  var key = id(x);
-                  if (!(key in map)) order.push(key);
-                  if (!(key in map) || stamp(x) >= stamp(map[key])) map[key] = x;
-                });
-                var merged = order.map(function (key) { return map[key]; }).sort(function (x, y) { return stamp(y) - stamp(x); });
-                localStorage.setItem(k, JSON.stringify(merged));
+                var to = newName(k);
+                if (NEW_KEYS.indexOf(to) < 0 || typeof incoming[k] !== 'string') return;
+                mergeInto(to, incoming[k]);
               });
             }).catch(function () {});
           }

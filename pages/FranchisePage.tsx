@@ -32,7 +32,7 @@ const FranchisePage: React.FC<{ id: number }> = ({ id }) => {
 
   const name = data ? data.name.replace(/\s*Collection$/i, '') : '';
   useEffect(() => {
-    if (name) document.title = `${name} — VidFast`;
+    if (name) document.title = `${name} — StreamFast`;
   }, [name]);
 
   const parts = useMemo<SearchResult[]>(

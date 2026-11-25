@@ -177,7 +177,7 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
   const title = getTitle(item);
   const year = getYear(item);
   const genres = getGenres(item, 3);
-  const cardImg = el.querySelector('img.nf-art, img[data-art]') as HTMLImageElement | null;
+  const cardImg = el.querySelector('img.nf-art:not([data-titled]), img[data-art]') as HTMLImageElement | null;
   const backdrop = (variant === 'landscape' && cardImg?.currentSrc) || tmdbImage(item.backdrop_path, 'w780') || tmdbImage(item.poster_path, 'w500');
   const inList = myList.some((i) => i.media.id === item.id && i.media.media_type === item.media_type);
   const expanded = open && !closing;

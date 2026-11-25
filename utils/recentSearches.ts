@@ -1,4 +1,4 @@
-const RECENT_KEY = 'vidfast_recent_searches';
+const RECENT_KEY = 'streamfast_recent_searches';
 const MAX_RECENT = 6;
 
 export const loadRecentSearches = (): string[] => {

@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { SearchResult } from '../types';
 import { getTitle, getYear, tmdbImage, titlePath, isRecent } from '../utils/media';
-import { useLogo, isTop10 } from '../utils/artwork';
+import { useLogo, useCardArt, isTop10 } from '../utils/artwork';
 import { Link } from '../utils/router';
 import { useHoverPreview } from './HoverPreview';
 import { TrashIcon } from './Icons';
@@ -45,15 +45,32 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
   const ref = useRef<HTMLAnchorElement>(null);
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [titledFailed, setTitledFailed] = useState(false);
 
   const title = getTitle(item);
   const year = getYear(item);
   const isLandscape = variant === 'landscape';
   const hasBackdrop = !!item.backdrop_path;
 
+  // Landscape cards use artwork that already has the title on it (one image, no logo popping in
+  // later). Until we know which art a title has, hold the card for a moment so art + title arrive
+  // together; after that, fall back to textless art + logo.
+  const art = useCardArt(isLandscape ? item : null);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    if (!isLandscape || art !== undefined) return;
+    const t = window.setTimeout(() => setWaited(true), 900);
+    return () => window.clearTimeout(t);
+  }, [isLandscape, art]);
+  const titled = isLandscape && art?.titled && !titledFailed ? art.titled : null;
+  const ready = !isLandscape || art !== undefined || waited;
+
   let src: string | null;
   let srcSet: string | undefined;
-  if (isLandscape) {
+  if (titled) {
+    src = tmdbImage(titled, 'w780');
+    srcSet = `${tmdbImage(titled, 'w300')} 300w, ${tmdbImage(titled, 'w780')} 780w`;
+  } else if (isLandscape) {
     src = hasBackdrop ? tmdbImage(item.backdrop_path, 'w780') : tmdbImage(item.poster_path, 'w500');
     srcSet = hasBackdrop ? `${tmdbImage(item.backdrop_path, 'w300')} 300w, ${tmdbImage(item.backdrop_path, 'w780')} 780w` : undefined;
   } else {
@@ -72,8 +89,10 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
       draggable={false}
       className={`nf-card group/card ${isLandscape ? '' : 'is-poster'} ${isLandscape && isRecent(item) ? 'has-badge' : ''}`}
     >
-      {src && !failed ? (
+      {src && (titled || !failed) && ready ? (
         <img
+          key={src}
+          data-titled={titled ? '' : undefined}
           src={src}
           srcSet={srcSet}
           sizes={isLandscape ? LANDSCAPE_SIZES : '(min-width: 1100px) 11vw, (min-width: 800px) 14vw, 26vw'}
@@ -82,7 +101,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
           decoding="async"
           draggable={false}
           onLoad={() => setLoaded(true)}
-          onError={() => setFailed(true)}
+          onError={() => (titled ? setTitledFailed(true) : setFailed(true))}
           className={`nf-art ${loaded ? 'is-loaded' : ''} ${isLandscape && !hasBackdrop ? 'object-[center_20%]' : ''}`}
         />
       ) : (
@@ -91,8 +110,8 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
 
       {isLandscape && (
         <>
-          <div className="nf-card-shade" />
-          <CardLogo item={item} />
+          {!titled && <div className="nf-card-shade" />}
+          {!titled && ready && <CardLogo item={item} />}
           {isTop10(item) && (
             <span className="nf-top10-badge" aria-label="Top 10">
               <small>TOP</small>
