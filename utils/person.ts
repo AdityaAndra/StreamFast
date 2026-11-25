@@ -129,9 +129,12 @@ export const creditYear = (c: Credit) => creditDate(c).slice(0, 4);
 export const creditTitle = (c: Credit) => c.title || c.name || '';
 const TALK = new Set([10767, 10763, 10764]);
 export const isSelf = (c: Credit) => /\b(him|her|them)sel(f|ves)\b|^self$/i.test((c.character || '').trim());
+/** Released in the future. A credit with no date is unknown (TMDB has many undated old credits), not upcoming. */
 export const isUpcoming = (c: Credit) => {
   const d = creditDate(c);
-  return !d || new Date(d).getTime() > Date.now();
+  if (!d) return false;
+  const t = new Date(d + 'T00:00:00').getTime(); // local midnight, like parseDate
+  return Number.isFinite(t) && t > Date.now();
 };
 
 export interface CreditRow {
@@ -179,7 +182,8 @@ export const sortRows = (rows: CreditRow[], sort: CreditSort) => {
       return list.sort((a, b) => v(b) - v(a));
     }
     case 'az': return list.sort((a, b) => creditTitle(a.item).localeCompare(creditTitle(b.item)));
-    default: return list.sort((a, b) => d(b).localeCompare(d(a)));
+    // Newest first: undated credits go last, not first.
+    default: return list.sort((a, b) => (creditDate(b.item) || '0000').localeCompare(creditDate(a.item) || '0000'));
   }
 };
 
