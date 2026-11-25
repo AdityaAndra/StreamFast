@@ -1,6 +1,7 @@
 // Batch title metadata for Netflix-style cards: title logo + IMDb rating.
 // GET /api/logos?ids=movie:603,tv:1399
-//   -> { "movie:603": { "p": "/logo.png", "r": 2.4, "imdb": "tt0133093", "ir": 8.7, "iv": 2200000 }, ... }
+//   -> { "movie:603": { "p": "/logo.png", "r": 2.4, "b": "/titled-backdrop.jpg", "imdb": "tt0133093", "ir": 8.7, "iv": 2200000 }, ... }
+// b = artwork with the title already printed on it (TMDB backdrops tagged English), used as card art.
 //
 // IMDb ratings come from IMDb's official daily dataset (title.ratings.tsv.gz),
 // cached in memory on warm instances. Information courtesy of IMDb (https://www.imdb.com). Used with permission.
@@ -53,6 +54,14 @@ const pickLogo = (logos = []) => {
   return { p: best.file_path, r: Math.round((best.aspect_ratio || 0) * 100) / 100 };
 };
 
+// TMDB backdrops tagged with a language carry the title text (textless ones have no language).
+const pickTitledBackdrop = (backdrops = []) => {
+  const titled = backdrops.filter((b) => b.iso_639_1 === 'en' && (b.width || 0) >= 1280);
+  if (!titled.length) return null;
+  titled.sort((x, y) => (y.vote_average || 0) - (x.vote_average || 0) || (y.vote_count || 0) - (x.vote_count || 0));
+  return titled[0].file_path;
+};
+
 export default async function handler(req, res) {
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey) {
@@ -85,6 +94,7 @@ export default async function handler(req, res) {
         const d = await r.json();
         out[key] = {
           ...pickLogo(d.images && d.images.logos),
+          b: pickTitledBackdrop(d.images && d.images.backdrops),
           imdb: (d.external_ids && d.external_ids.imdb_id) || d.imdb_id || null,
         };
       } catch {

@@ -4,7 +4,7 @@ import { getTitleDetails, getSeasonDetails, TitleDetails } from '../services/tmd
 import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
-import { goBack, navigate } from '../utils/router';
+import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { CloseIcon, PlayIcon } from '../components/Icons';
 
 const VIDFAST_ORIGINS = [
@@ -18,8 +18,6 @@ const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
 // VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
 const IDLE_MS = 3000;
-/** Mouse-move sensing: how long the player gets the mouse to itself after each detected move. */
-const SENSE_GAP_MS = 150;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -36,10 +34,11 @@ const SERVER_INFO: { name: string; badge: string; details: string }[] = [
 const SERVERS = SERVER_INFO.map((x) => x.name);
 
 /* VidFast's own icon style: 24px grid, 1.5 stroke, round joins. */
+/** Bold back arrow (Netflix-style): heavy shaft and head with rounded ends. */
 const VfBack = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M20 12H4.5" />
-    <path d="M10 6C10 6 4 10.4189 4 12C4 13.5812 10 18 10 18" />
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 12H5" />
+    <path d="M11 5L4 12L11 19" />
   </svg>
 );
 const VfCloud = () => (
@@ -167,7 +166,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, []);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
-  const reclaimRef = useRef<() => void>(() => undefined);
+  const hideRef = useRef(() => {
+    window.clearTimeout(idle.current);
+    setChrome(false);
+  });
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
   // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
     setStarted(false);
@@ -218,6 +222,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         const now = Date.now();
         if (now - lastSave.current < SAVE_EVERY_MS) return;
         lastSave.current = now;
+        if (pr.watched > lastTime.current + 1) setStarted(true); // progress moving: the video is playing
         lastTime.current = pr.watched;
         save(mediaType === 'tv' ? { season: cs, episode: ce, watched: pr.watched, duration: pr.duration } : { watched: pr.watched, duration: pr.duration });
         return;
@@ -227,7 +232,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (currentTime > 0) lastTime.current = currentTime;
       if (['play', 'playing', 'timeupdate', 'pause', 'seeked'].includes(ev)) setStarted(true);
       // VidFast shows its controls when you play, pause or seek: show ours with them.
-      if (ev === 'play' || ev === 'playing' || ev === 'pause' || ev === 'seeked') reclaimRef.current();
       if (ev === 'play' || ev === 'playing') {
         setPaused(false);
         setServerMenu(false);
@@ -259,7 +263,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (e.key === 'Escape') {
         if (serverMenu) setServerMenu(false);
         else if (panel) setPanel(false);
-        else if (!document.fullscreenElement) goBack(titlePath({ id, media_type: mediaType } as any));
+        else if (!document.fullscreenElement) openTitleFromWatch(titlePath({ id, media_type: mediaType, title: item ? getTitle(item) : '' } as any));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -267,7 +271,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [panel, serverMenu, id, mediaType]);
+  }, [panel, serverMenu, id, mediaType, item]);
 
   useEffect(() => {
     if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — StreamFast`;
@@ -297,6 +301,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // Picking a server switches this video only; the star makes it your default (like VidFast's menu).
   const chooseServer = (name: string) => {
     setServerMenu(false);
+    window.setTimeout(() => iframeRef.current?.focus(), 0);
     if (name === server) return;
     if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
     setServer(name);
@@ -313,33 +318,29 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   };
 
   /* ---------- hover sync ----------
-     Mouse moves over the player never reach our page. A transparent layer over the middle of the
-     video (not over any of VidFast's buttons) notices a move, shows our title + cloud, then steps
-     aside for a moment so VidFast gets the mouse too and shows its own controls. A click that
-     lands on the layer does what VidFast does on a click: play / pause. */
-  const [sense, setSense] = useState(true);
-  const senseT = useRef<number | undefined>(undefined);
-  useEffect(() => () => window.clearTimeout(senseT.current), []);
-  const reclaimFocus = useCallback(() => {
-    if (document.activeElement === iframeRef.current) rootRef.current?.focus({ preventScroll: true });
+     Clicks and keys go straight to VidFast's player (so click-to-pause and Space always work).
+     The browser still tells us when the pointer is over the player (the iframe's :hover state),
+     so our title / cloud / back arrow come in when you point at the video, and with every
+     play, pause and seek; after 3s of no player activity they fade, like VidFast's. */
+  useEffect(() => {
+    if (!FINE_POINTER) return;
+    let over = false;
+    const t = window.setInterval(() => {
+      const f = iframeRef.current;
+      const onPlayer = !!f && f.matches(':hover');
+      const onOurs = !!rootRef.current?.querySelector('.sf-back:hover, .sf-right:hover, .sf-menu:hover, .nf-watch-panel:hover');
+      if (onOurs) wakeRef.current(); // pointing at our own buttons keeps them up
+      else if (onPlayer && !over) wakeRef.current(); // pointer came onto the video
+      else if (!onPlayer && over) hideRef.current(); // pointer left the video: controls go, like VidFast's
+      over = onPlayer;
+    }, 100);
+    return () => window.clearInterval(t);
   }, []);
-  const onSense = useCallback(() => {
-    reclaimFocus();
-    wake();
-    setSense(false);
-    window.clearTimeout(senseT.current);
-    senseT.current = window.setTimeout(() => setSense(true), SENSE_GAP_MS);
-  }, [wake, reclaimFocus]);
-  reclaimRef.current = reclaimFocus;
-  const command = useCallback((msg: Record<string, unknown>) => {
-    iframeRef.current?.contentWindow?.postMessage(msg, '*');
+
+  // After using one of our buttons, hand the keyboard back to the player so Space keeps working.
+  const refocusPlayer = useCallback(() => {
+    window.setTimeout(() => iframeRef.current?.focus(), 0);
   }, []);
-  const togglePlay = useCallback(() => {
-    const play = !started || paused;
-    command({ command: play ? 'play' : 'pause' });
-    setPaused(!play);
-    onSense();
-  }, [started, paused, command, onSense]);
 
   // Clicking anywhere inside VidFast's player moves focus into it: close our server list / episodes then.
   useEffect(() => {
@@ -354,42 +355,28 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     return () => window.removeEventListener('blur', onBlur);
   }, []);
 
-  // Pointer leaves the window from our layer: VidFast's controls go too.
-  const onSenseLeave = useCallback((e: React.MouseEvent) => {
-    if (!e.relatedTarget && started && !paused) {
-      window.clearTimeout(idle.current);
-      setChrome(false);
-    }
-  }, [started, paused]);
-
-  // Keyboard while our page has focus (after clicking our layer): Space/K play-pause, arrows seek 10s.
+  // If our page has the keyboard (e.g. right after opening the server list), Space closes our menus
+  // and goes to the player (VidFast's documented play / pause command).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === ' ' || e.key.toLowerCase() === 'k') {
-        // Like Netflix: Space always plays / pauses, even if one of our buttons has focus.
-        e.preventDefault();
-        if (t && t.tagName === 'BUTTON') t.blur();
-        setServerMenu(false);
-        setPanel(false);
-        togglePlay();
-      } else if (t && t.tagName === 'BUTTON' && (e.key === 'Enter')) {
-        return; // Enter still presses the focused button
-      } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        const to = Math.max(0, lastTime.current + (e.key === 'ArrowRight' ? 10 : -10));
-        command({ command: 'seek', time: to });
-        lastTime.current = to;
-        onSense();
-      }
+      e.preventDefault();
+      setServerMenu(false);
+      setPanel(false);
+      iframeRef.current?.contentWindow?.postMessage({ command: pausedRef.current ? 'play' : 'pause' }, '*');
+      refocusPlayer();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [togglePlay, command, onSense]);
+  }, [refocusPlayer]);
 
-  const back = () => goBack(item ? titlePath(item) : '/');
+  // Back = the title's page (its window over the page you came from), like Netflix.
+  const back = () => {
+    if (item) openTitleFromWatch(titlePath(item));
+    else goBack('/');
+  };
   const goEpisode = (s: number, e: number) => {
     setPanel(false);
     navigate(watchPath({ id, media_type: 'tv' }, { season: s, episode: e }), { replace: true, keepScroll: true });
@@ -402,7 +389,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const title = item ? getTitle(item) : '';
 
   return (
-    <div ref={rootRef} tabIndex={-1} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
+    <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
       <iframe
         ref={iframeRef}
         key={src}
@@ -413,20 +400,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         allowFullScreen
         referrerPolicy="origin"
       />
-
-      {FINE_POINTER && (
-        <div
-          className={`sf-sense ${sense && !serverMenu && !panel ? '' : 'is-off'}`}
-          onMouseMove={onSense}
-          onMouseLeave={onSenseLeave}
-          onClick={togglePlay}
-          onDoubleClick={() => {
-            const p = document.fullscreenElement ? document.exitFullscreen() : rootRef.current?.requestFullscreen();
-            p?.catch(() => undefined);
-          }}
-          aria-hidden="true"
-        />
-      )}
 
       {/* back arrow, in VidFast's own server-button spot and style; shows and hides with the controls */}
       <button
