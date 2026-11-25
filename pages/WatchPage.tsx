@@ -18,6 +18,8 @@ const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
 // VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
 const IDLE_MS = 3000;
+/** Pause screen shows this long after pausing (Netflix waits a few seconds; we use 2s). */
+const PAUSE_SCREEN_MS = 2000;
 /** Hover-sync tile size (px): smaller = finer mouse tracking, so even small moves keep our
  *  controls up exactly as long as VidFast's (it restarts its 3s timer on every move). */
 const CELL_PX = 24;
@@ -178,7 +180,14 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const [panel, setPanel] = useState(false);
   const [serverMenu, setServerMenu] = useState(false);
   const idle = useRef<number | undefined>(undefined);
+  // Netflix-style pause screen: appears 2s after you pause (and stop moving the mouse), never blocks clicks.
+  const [pauseShow, setPauseShow] = useState(false);
+  const pauseShowRef = useRef(false);
+  pauseShowRef.current = pauseShow;
+  const lastActive = useRef(0);
   const wake = useCallback(() => {
+    lastActive.current = Date.now();
+    if (pauseShowRef.current) setPauseShow(false);
     setChrome(true);
     window.clearTimeout(idle.current);
     idle.current = window.setTimeout(() => setChrome(false), IDLE_MS);
@@ -187,6 +196,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   wakeRef.current = wake;
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+  useEffect(() => {
+    if (!paused || !started || panel || serverMenu) {
+      setPauseShow(false);
+      return;
+    }
+    const t = window.setInterval(() => {
+      if (!pauseShowRef.current && Date.now() - lastActive.current >= PAUSE_SCREEN_MS) setPauseShow(true);
+    }, 200);
+    return () => window.clearInterval(t);
+  }, [paused, started, panel, serverMenu]);
   // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
     setStarted(false);
@@ -477,6 +496,14 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   })();
 
   const title = item ? getTitle(item) : '';
+  const logo = useMemo(() => {
+    const ls = (data?.images?.logos || []).filter((l) => l.file_path && !l.file_path.endsWith('.svg'));
+    const en = ls.filter((l) => l.iso_639_1 === 'en');
+    const pick = [...(en.length ? en : ls)].sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))[0];
+    return pick ? tmdbImage(pick.file_path, 'w500') : null;
+  }, [data]);
+  const year = (data?.release_date || data?.first_air_date || '').slice(0, 4);
+  const pauseDesc = (mediaType === 'tv' ? current?.overview : '') || data?.overview || '';
 
   return (
     <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${mediaType === 'tv' && next ? 'has-next' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
@@ -499,20 +526,42 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         </div>
       )}
 
+      {/* Netflix-style pause screen (visual only: clicks and keys pass straight through) */}
+      {started && (
+        <div className={`sf-pause ${pauseShow ? 'is-on' : ''}`} aria-hidden={!pauseShow}>
+          <div className="sf-pause-body">
+            <p className="sf-pause-kicker">You&rsquo;re watching</p>
+            {logo ? <img className="sf-pause-logo" src={logo} alt={title} /> : <p className="sf-pause-name">{title}</p>}
+            <p className="sf-pause-meta">
+              {mediaType === 'tv' ? (
+                <>
+                  {seasons.length > 0 && `S${season}:`}E{episode}
+                  {current?.name ? <span className="sf-pause-ep"> &ldquo;{current.name}&rdquo;</span> : null}
+                </>
+              ) : (
+                year
+              )}
+            </p>
+            {pauseDesc && <p className="sf-pause-desc">{pauseDesc}</p>}
+          </div>
+          <span className="sf-pause-tag">Paused</span>
+        </div>
+      )}
+
       {/* back arrow, in VidFast's own server-button spot and style; shows and hides with the controls */}
       <button
         type="button"
         onClick={back}
         onMouseDown={keepPlayerFocus}
         onMouseMove={wake}
-        className={`sf-back ${!started || panel || serverMenu || chrome || paused ? '' : 'is-hidden'}`}
+        className={`sf-back ${!pauseShow && (!started || panel || serverMenu || chrome || paused) ? '' : 'is-hidden'}`}
         aria-label="Back to browse"
       >
         <VfBack />
       </button>
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
-      <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
+      <div className={`sf-bottom ${panel || serverMenu || (started && !pauseShow && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
         <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`} onMouseEnter={wake}>
           <span className="sf-title-main">{title}</span>
           {mediaType === 'tv' && (
