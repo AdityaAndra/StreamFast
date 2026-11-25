@@ -22,7 +22,7 @@ const IDLE_MS = 3000;
 const PAUSE_SCREEN_MS = 2000;
 /** Hover-sync tile size (px): smaller = finer mouse tracking, so even small moves keep our
  *  controls up exactly as long as VidFast's (it restarts its 3s timer on every move). */
-const CELL_PX = 24;
+const CELL_PX = 16;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -379,8 +379,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     const measure = () => {
       lastCell.current = null;
       lastRow.current = -1;
-      // 24px tiles, a little bigger on very large screens so there are never more than ~4,500.
-      const size = Math.max(CELL_PX, Math.ceil(Math.sqrt((el.clientWidth * el.clientHeight) / 4500)));
+      // 16px tiles (VidFast restarts its timer on every tiny move), a little bigger on very large
+      // screens so there are never more than ~8,000.
+      const size = Math.max(CELL_PX, Math.ceil(Math.sqrt((el.clientWidth * el.clientHeight) / 8000)));
       setGrid({ cols: Math.ceil(el.clientWidth / size), rows: Math.ceil(el.clientHeight / size), size });
     };
     measure();
@@ -400,27 +401,26 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   useEffect(() => {
     if (!FINE_POINTER) return;
+    // Measured on VidFast's player: controls show on any mouse move or key press, hide exactly 3s after
+    // the last one (even with the pointer resting on its control bar, and even after the pointer leaves),
+    // and stay up while paused. So ours only wake on real moves over the video (the tiles), on the pointer
+    // arriving / leaving, and on play / pause / seek. Nothing else keeps them up, or they drift out of sync.
     let over = false;
     const t = window.setInterval(() => {
       const f = iframeRef.current;
-      const onPlayer = !!f && f.matches(':hover');
-      const onGrid = !!gridRef.current?.matches(':hover');
-      const onOurs = !!rootRef.current?.querySelector('.sf-back:hover, .sf-right:hover, .sf-menu:hover, .nf-eps:hover');
-      const now = onPlayer || onGrid;
-      if (onOurs) wakeRef.current(); // pointing at our own buttons keeps them up
-      else if (now && !over) wakeRef.current(); // pointer came onto the video
-      else if (now && lastRow.current === grid.rows - 1) wakeRef.current(); // on VidFast's control bar: it keeps its controls up
-      else if (!now && over) {
-        // Pointer left the video: VidFast keeps its controls for 3s after the last move, so do we.
-        wakeRef.current();
-        if (lastCell.current) lastCell.current.style.pointerEvents = '';
-        lastCell.current = null;
-        lastRow.current = -1;
+      const now = (!!f && f.matches(':hover')) || !!gridRef.current?.matches(':hover');
+      if (now !== over) {
+        wakeRef.current(); // arriving, or leaving (VidFast's 3s runs from that last move too)
+        if (!now) {
+          if (lastCell.current) lastCell.current.style.pointerEvents = '';
+          lastCell.current = null;
+          lastRow.current = -1;
+        }
       }
       over = now;
-    }, 40);
+    }, 30);
     return () => window.clearInterval(t);
-  }, [grid.rows]);
+  }, []);
 
   // Play / pause state straight from the player (its status reply), checked every second.
   useEffect(() => {
@@ -556,7 +556,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         type="button"
         onClick={back}
         onMouseDown={keepPlayerFocus}
-        onMouseMove={wake}
         className={`sf-back ${!started || panel || serverMenu || chrome || paused ? '' : 'is-hidden'}`}
         aria-label="Back to browse"
       >
@@ -565,7 +564,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
       <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
-        <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`} onMouseEnter={wake}>
+        <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`}>
           <span className="sf-title-main">{title}</span>
           {mediaType === 'tv' && (
             <span className="sf-title-ep">
@@ -575,7 +574,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           )}
         </div>
 
-        <div className="sf-right" onMouseEnter={wake} onMouseMove={wake} onMouseDown={keepPlayerFocus}>
+        <div className="sf-right" onMouseDown={keepPlayerFocus}>
           {mediaType === 'tv' && (
             <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes">
               <VfEpisodes />
@@ -644,7 +643,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       {/* Episodes panel: Netflix's own (season header, expanding episode rows, season list) */}
       {mediaType === 'tv' && panel && (
         <div className="nf-eps-wrap">
-          <div className="nf-eps" data-lenis-prevent role="dialog" aria-label="Episodes" onMouseMove={wake} onMouseDown={keepPlayerFocus}>
+          <div className="nf-eps" data-lenis-prevent role="dialog" aria-label="Episodes" onMouseDown={keepPlayerFocus}>
             {paneView === 'seasons' ? (
               <>
                 <div className="nf-eps-head is-static">
