@@ -532,16 +532,18 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           <div className="sf-pause-body">
             <p className="sf-pause-kicker">You&rsquo;re watching</p>
             {logo ? <img className="sf-pause-logo" src={logo} alt={title} /> : <p className="sf-pause-name">{title}</p>}
-            <p className="sf-pause-meta">
-              {mediaType === 'tv' ? (
-                <>
-                  {seasons.length > 0 && `S${season}:`}E{episode}
-                  {current?.name ? <span className="sf-pause-ep"> &ldquo;{current.name}&rdquo;</span> : null}
-                </>
-              ) : (
-                year
-              )}
-            </p>
+            {mediaType === 'tv' ? (
+              <>
+                <p className="sf-pause-season">{seasons.find((s) => s.season_number === season)?.name || `Season ${season}`}</p>
+                <p className="sf-pause-ep">
+                  {current?.name ? `${current.name}: ` : ''}Ep. {episode}
+                </p>
+              </>
+            ) : (
+              <p className="sf-pause-meta">
+                {[year, data?.runtime ? `${Math.floor(data.runtime / 60) ? `${Math.floor(data.runtime / 60)}h ` : ''}${data.runtime % 60}m` : ''].filter(Boolean).join(' \u00b7 ')}
+              </p>
+            )}
             {pauseDesc && <p className="sf-pause-desc">{pauseDesc}</p>}
           </div>
           <span className="sf-pause-tag">Paused</span>
