@@ -468,8 +468,8 @@ html.lenis, html.lenis body { height: auto; }
 }
 /* Main title on top; for shows the episode line sits centred below it (never runs into our buttons). */
 .sf-title > span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sf-title-main { font-size: max(1.8em, 14px); font-weight: 500; }
-.sf-title-ep { font-size: max(1.45em, 12px); font-weight: 400; color: #d2d2d2; }
+.sf-title-main { font-size: max(2.05em, 16px); font-weight: 500; }
+.sf-title-ep { font-size: max(1.6em, 13px); font-weight: 400; color: #d2d2d2; }
 .sf-title-ep b { font-weight: 500; color: #fff; margin-right: 0.35em; }
 /* Player's right group (in our page): fullscreen, settings, subtitles. Ours sit right before subtitles. */
 .sf-right { position: absolute; top: 0; right: calc(4.5em + 3 * 8.2em); display: flex; flex-direction: row-reverse; gap: 3em; }
@@ -577,7 +577,7 @@ html.lenis, html.lenis body { height: auto; }
 .sf-pause {
   position: absolute; inset: 0; z-index: 6; pointer-events: none; opacity: 0; visibility: hidden;
   background: linear-gradient(90deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.42) 45%, rgba(0, 0, 0, 0.3) 100%);
-  transition: opacity 0.35s ease, visibility 0s linear 0.35s;
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
 }
 .sf-pause.is-on { opacity: 1; visibility: visible; transition: opacity 0.9s ease, visibility 0s; }
 /* cover VidFast's cast button (top) and control bar (bottom) */
@@ -587,7 +587,7 @@ html.lenis, html.lenis body { height: auto; }
 .sf-pause-body {
   position: absolute; left: 12%; top: 45%; width: min(46%, 64em); z-index: 1;
   transform: translateY(calc(-50% + 1.4em)); opacity: 0;
-  transition: transform 0.35s ease, opacity 0.35s ease;
+  transition: transform 0.25s ease, opacity 0.25s ease;
 }
 .sf-pause.is-on .sf-pause-body { transform: translateY(-50%); opacity: 1; transition: transform 1s cubic-bezier(0.2, 0.7, 0.2, 1) 0.15s, opacity 0.9s ease 0.15s; }
 .sf-pause-kicker { margin: 0 0 0.45em; font-size: max(2em, 15px); font-weight: 400; color: #d2d2d2; }

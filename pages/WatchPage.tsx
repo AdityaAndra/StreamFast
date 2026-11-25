@@ -182,6 +182,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const idle = useRef<number | undefined>(undefined);
   // Netflix-style pause screen: appears 2s after you pause (and stop moving the mouse), never blocks clicks.
   const [pauseShow, setPauseShow] = useState(false);
+  // Our controls stay where they are under the pause screen (like VidFast's), so its fade reveals both together.
   const pauseShowRef = useRef(false);
   pauseShowRef.current = pauseShow;
   const lastActive = useRef(0);
@@ -556,14 +557,14 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         onClick={back}
         onMouseDown={keepPlayerFocus}
         onMouseMove={wake}
-        className={`sf-back ${!pauseShow && (!started || panel || serverMenu || chrome || paused) ? '' : 'is-hidden'}`}
+        className={`sf-back ${!started || panel || serverMenu || chrome || paused ? '' : 'is-hidden'}`}
         aria-label="Back to browse"
       >
         <VfBack />
       </button>
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
-      <div className={`sf-bottom ${panel || serverMenu || (started && !pauseShow && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
+      <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
         <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`} onMouseEnter={wake}>
           <span className="sf-title-main">{title}</span>
           {mediaType === 'tv' && (
