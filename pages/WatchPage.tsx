@@ -479,12 +479,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const title = item ? getTitle(item) : '';
 
   return (
-    <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
+    <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${mediaType === 'tv' && next ? 'has-next' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
       <iframe
         ref={iframeRef}
         key={src}
         src={src}
-        title={title ? `${title} player` : 'Player'}
+        aria-label={title ? `${title} player` : 'Player'}
         className="absolute inset-0 h-full w-full border-0"
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         allowFullScreen
@@ -507,7 +507,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         onMouseMove={wake}
         className={`sf-back ${!started || panel || serverMenu || chrome || paused ? '' : 'is-hidden'}`}
         aria-label="Back to browse"
-        title="Back"
       >
         <VfBack />
       </button>
@@ -515,9 +514,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
       <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
         <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`} onMouseEnter={wake}>
-          <span className="sf-title-main" title={title}>{title}</span>
+          <span className="sf-title-main">{title}</span>
           {mediaType === 'tv' && (
-            <span className="sf-title-ep" title={current?.name || ''}>
+            <span className="sf-title-ep">
               <b>E{episode}</b>
               {current?.name ? ` ${current.name}` : ''}
             </span>
@@ -526,7 +525,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
         <div className="sf-right" onMouseEnter={wake} onMouseMove={wake} onMouseDown={keepPlayerFocus}>
           {mediaType === 'tv' && (
-            <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
+            <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes">
               <VfEpisodes />
             </button>
           )}
@@ -538,7 +537,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
               aria-expanded={serverMenu}
               aria-haspopup="menu"
               aria-label={`Server: ${server || 'Auto'}`}
-              title="Server"
             >
               <VfCloud />
             </button>
@@ -578,7 +576,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                         }}
                         aria-pressed={defaultServer === x.name}
                         aria-label={defaultServer === x.name ? `${x.name || 'Auto'} is your default server` : `Make ${x.name || 'Auto'} your default server`}
-                        title={defaultServer === x.name ? 'Default server' : 'Make default'}
                       >
                         <VfStar filled={defaultServer === x.name} />
                       </button>

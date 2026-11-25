@@ -35,4 +35,10 @@ export const jumpToY = (y: number) => {
 };
 
 export const pauseScroll = () => lenis?.stop();
-export const resumeScroll = () => lenis?.start();
+export const resumeScroll = () => {
+  if (!lenis) return;
+  lenis.start();
+  // Pick up wherever the page is now (it may have been moved while paused), never an old position.
+  (lenis as any).resize?.();
+  lenis.scrollTo(window.scrollY, { immediate: true, force: true } as any);
+};
