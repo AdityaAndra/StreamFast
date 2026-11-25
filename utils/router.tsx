@@ -68,11 +68,12 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
   } else if (isWatchLoc(to)) {
     // Remember the page behind the player (and the title window it came from, if any).
     const cur = currentLocation();
+    // fromY = how far the page behind was scrolled, so Back can show the title window over that exact spot.
     extra = isWatchLoc(cur)
-      ? { from: st.from, fromT: st.fromT }
+      ? { from: st.from, fromT: st.fromT, fromY: st.fromY }
       : isTitleLoc(cur)
-        ? { from: typeof st.bg === 'string' ? st.bg : '/', fromT: typeof st.tStart === 'number' ? st.tStart : idx }
-        : { from: cur, fromT: nextIdx };
+        ? { from: typeof st.bg === 'string' ? st.bg : '/', fromT: typeof st.tStart === 'number' ? st.tStart : idx, fromY: window.scrollY }
+        : { from: cur, fromT: nextIdx, fromY: window.scrollY };
   }
   if (opts.replace) window.history.replaceState({ scrollY: 0, idx, ...extra }, '', to);
   else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
@@ -87,8 +88,10 @@ export const openTitleFromWatch = (titleLoc: string) => {
   const idx = Number(st.idx || 0);
   const from = typeof st.from === 'string' && !isWatchLoc(st.from) && !isTitleLoc(st.from) ? st.from : '/';
   const tStart = typeof st.fromT === 'number' ? st.fromT : idx;
-  window.history.replaceState({ scrollY: 0, idx, bg: from, tStart }, '', titleLoc);
-  pendingRestoreY = null;
+  // Put the page behind back where you were scrolled before the player opened (not the top of it).
+  const y = typeof st.fromY === 'number' && st.fromY > 0 ? st.fromY : 0;
+  window.history.replaceState({ scrollY: y, idx, bg: from, tStart }, '', titleLoc);
+  pendingRestoreY = y > 0 ? y : null;
   emit();
 };
 
