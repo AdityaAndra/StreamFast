@@ -451,8 +451,13 @@ html.lenis, html.lenis body { height: auto; }
 .sf-back:hover, .sf-back:active { color: #fff; }
 
 /* Bottom control row: buttons are 5.2em, 3em apart, 3em above the bottom, 4.5em in from the right. */
-.sf-bottom { position: absolute; left: 0; right: 0; bottom: 3em; z-index: 3; height: 5.2em; pointer-events: none; }
-.sf-bottom > .sf-title, .sf-bottom > .sf-right { opacity: 0; transition: opacity 250ms; }
+/* Hides exactly like VidFast's control bar: slides down 11.2em while fading, both 250ms ease. */
+.sf-bottom {
+  position: absolute; left: 0; right: 0; bottom: 3em; z-index: 3; height: 5.2em; pointer-events: none;
+  transform: translateY(11.2em); transition: transform 250ms ease; will-change: transform;
+}
+.sf-bottom.is-on, .sf-bottom.is-stuck { transform: none; }
+.sf-bottom > .sf-title, .sf-bottom > .sf-right { opacity: 0; transition: opacity 250ms ease; }
 .sf-bottom.is-on > .sf-title, .sf-bottom.is-on > .sf-right, .sf-bottom.is-stuck > .sf-right { opacity: 1; }
 .sf-bottom .sf-right { pointer-events: auto; }
 .sf-bottom:not(.is-on):not(.is-stuck) button { pointer-events: none; }
@@ -503,9 +508,8 @@ html.lenis, html.lenis body { height: auto; }
 /* Back arrow fades with the controls (like Netflix); 250ms, same as VidFast. */
 .sf-back { transition: opacity 250ms; }
 .sf-back.is-hidden { opacity: 0; pointer-events: none; }
-.nf-watch.is-idle, 
 /* Bold back arrow: full white on hover with a slight lift, like Netflix's. */
-.sf-back { color: rgba(255, 255, 255, 0.92); transition: opacity 250ms, transform 0.2s ease, color 0.15s; }
+.sf-back { color: rgba(255, 255, 255, 0.92); transition: opacity 250ms ease, transform 0.2s ease, color 0.15s; }
 .sf-back:hover { color: #fff; transform: scale(1.12); }
 .sf-back:active { transform: scale(0.96); }
 
