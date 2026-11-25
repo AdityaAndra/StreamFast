@@ -462,11 +462,15 @@ html.lenis, html.lenis body { height: auto; }
 .sf-bottom .sf-right { pointer-events: auto; }
 .sf-bottom:not(.is-on):not(.is-stuck) button { pointer-events: none; }
 .sf-title {
-  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 34%;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2;
-  font-size: max(1.8em, 14px); font-weight: 500; color: #fff;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: max-content; max-width: 30%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.35em;
+  text-align: center; line-height: 1.2; color: #fff;
 }
-.sf-title-ep { margin-left: 0.5em; font-weight: 400; color: #ccc; }
+/* Main title on top; for shows the episode line sits centred below it (never runs into our buttons). */
+.sf-title > span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-title-main { font-size: max(1.8em, 14px); font-weight: 500; }
+.sf-title-ep { font-size: max(1.45em, 12px); font-weight: 400; color: #d2d2d2; }
+.sf-title-ep b { font-weight: 500; color: #fff; margin-right: 0.35em; }
 /* Player's right group (in our page): fullscreen, settings, subtitles. Ours sit right before subtitles. */
 .sf-right { position: absolute; top: 0; right: calc(4.5em + 3 * 8.2em); display: flex; flex-direction: row-reverse; gap: 3em; }
 .sf-btn { display: block; width: 5.2em; height: 5.2em; line-height: 0; color: rgba(255, 255, 255, 0.8); transition: color 0.15s; }
@@ -520,3 +524,44 @@ html.lenis, html.lenis body { height: auto; }
   display: grid; pointer-events: none;
 }
 .sf-grid > i { display: block; pointer-events: auto; }
+
+/* ============ Episodes panel: Netflix's (measured from netflix.com's player) ============
+   #262626 card, 7.2px corners, ~44.5% of the width, 75% of the height at most, 0.15s fade.
+   Sizes are in this panel's own em (Netflix: 18.9px on a 1536px-wide window). */
+.nf-eps-wrap { position: absolute; right: 4.5em; bottom: calc(3em + 5.2em + 2.2em); z-index: 5; pointer-events: none; }
+.nf-eps {
+  pointer-events: auto; display: flex; flex-direction: column; width: clamp(320px, 44.5vw, 860px); max-height: 75vh;
+  font-size: clamp(13px, 1.23vw, 22px); line-height: 1.2; color: #fff; background: #262626; border-radius: 0.38em; overflow: hidden;
+  box-shadow: 0 0.6em 2.4em rgba(0, 0, 0, 0.45); animation: nf-eps-in 0.15s linear both;
+}
+@keyframes nf-eps-in { from { opacity: 0; transform: translateY(0.4em); } to { opacity: 1; transform: none; } }
+.nf-eps-head { display: flex; flex-shrink: 0; align-items: center; gap: 0.75em; width: 100%; padding: 0.95em 1.43em; text-align: left; color: #fff; }
+.nf-eps-head svg { width: 1.27em; height: 1.27em; flex-shrink: 0; transition: transform 0.15s; }
+.nf-eps-head:not(.is-static):hover svg { transform: translateX(-0.15em); }
+.nf-eps-head.is-static { cursor: default; }
+.nf-eps-title { font-size: 1.43em; font-weight: 500; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-eps-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #5a5a5a transparent; }
+.nf-ep { padding: 1.43em; cursor: pointer; outline: none; transition: background-color 0.15s; }
+.nf-ep.is-open { background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 0 0 3px #fff; }
+.nf-ep-row { display: flex; align-items: center; }
+.nf-ep-num { flex-shrink: 0; padding: 0 1.1em 0 0.76em; font-weight: 500; }
+.nf-ep-name { flex: 1; min-width: 0; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nf-ep-bar { flex-shrink: 0; width: 6.3em; height: 2px; margin-left: 1.2em; background: rgba(128, 128, 128, 0.5); }
+.nf-ep-bar i { display: block; height: 100%; background: #e50914; }
+.nf-ep-open { display: flex; align-items: flex-start; gap: 1.43em; margin-top: 0.85em; }
+.nf-ep-thumb { position: relative; flex-shrink: 0; width: 11.9em; aspect-ratio: 16 / 9; overflow: hidden; background: #333; }
+.nf-ep-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.nf-ep-now { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 0.4em; background: rgba(0, 0, 0, 0.7); font-weight: 500; }
+.nf-ep-bars { width: 1.16em; height: 1.16em; fill: #fff; }
+.nf-ep-bars rect { transform-box: fill-box; transform-origin: center; animation: nf-eq 0.9s ease-in-out infinite alternate; }
+.nf-ep-bars rect:nth-child(2) { animation-delay: -0.3s; } .nf-ep-bars rect:nth-child(3) { animation-delay: -0.6s; }
+.nf-ep-bars rect:nth-child(4) { animation-delay: -0.15s; } .nf-ep-bars rect:nth-child(5) { animation-delay: -0.45s; }
+@keyframes nf-eq { from { transform: scaleY(0.35); } to { transform: scaleY(1); } }
+.nf-ep-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.nf-ep-play > span { display: flex; width: 2.4em; height: 2.4em; padding: 0.62em 0.55em 0.62em 0.7em; border-radius: 50%; background: rgba(0, 0, 0, 0.6); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.9); }
+.nf-ep-desc { margin: 0; color: #fff; line-height: 1.2; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.nf-eps-season { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 1em; padding: 1.15em 1.43em; text-align: left; font-weight: 500; color: #fff; transition: background-color 0.15s; }
+.nf-eps-season:hover { background: rgba(255, 255, 255, 0.08); }
+.nf-eps-season.is-on { background: rgba(0, 0, 0, 0.5); box-shadow: inset 0 0 0 3px #fff; }
+.nf-eps-count { flex-shrink: 0; font-size: 0.85em; font-weight: 400; color: #a3a3a3; }
+@media (prefers-reduced-motion: reduce) { .nf-ep-bars rect { animation: none; } }
