@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
-import { scrollToY } from './smoothScroll';
+import { jumpToY, scrollToY } from './smoothScroll';
 
 /**
  * Tiny History-API router: real URLs (/movie/603-the-matrix, /tv/1399, /search?q=dune, …),
@@ -68,11 +68,12 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
   } else if (isWatchLoc(to)) {
     // Remember the page behind the player (and the title window it came from, if any).
     const cur = currentLocation();
+    // fromY = how far the page behind was scrolled, so Back can show the title window over that exact spot.
     extra = isWatchLoc(cur)
-      ? { from: st.from, fromT: st.fromT }
+      ? { from: st.from, fromT: st.fromT, fromY: st.fromY }
       : isTitleLoc(cur)
-        ? { from: typeof st.bg === 'string' ? st.bg : '/', fromT: typeof st.tStart === 'number' ? st.tStart : idx }
-        : { from: cur, fromT: nextIdx };
+        ? { from: typeof st.bg === 'string' ? st.bg : '/', fromT: typeof st.tStart === 'number' ? st.tStart : idx, fromY: window.scrollY }
+        : { from: cur, fromT: nextIdx, fromY: window.scrollY };
   }
   if (opts.replace) window.history.replaceState({ scrollY: 0, idx, ...extra }, '', to);
   else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
@@ -87,8 +88,10 @@ export const openTitleFromWatch = (titleLoc: string) => {
   const idx = Number(st.idx || 0);
   const from = typeof st.from === 'string' && !isWatchLoc(st.from) && !isTitleLoc(st.from) ? st.from : '/';
   const tStart = typeof st.fromT === 'number' ? st.fromT : idx;
-  window.history.replaceState({ scrollY: 0, idx, bg: from, tStart }, '', titleLoc);
-  pendingRestoreY = null;
+  // Put the page behind back where you were scrolled before the player opened (not the top of it).
+  const y = typeof st.fromY === 'number' && st.fromY > 0 ? st.fromY : 0;
+  window.history.replaceState({ scrollY: y, idx, bg: from, tStart }, '', titleLoc);
+  pendingRestoreY = y > 0 ? y : null;
   emit();
 };
 
@@ -112,18 +115,41 @@ export const goBack = (fallback = '/') => {
   else navigate(fallback, { replace: true });
 };
 
-/** Restore the scroll position after a back/forward navigation (retries while content streams in). */
+/** Restore the scroll position after a back/forward navigation.
+ *  Rows may still be streaming in, the closing title window may still be releasing the page lock,
+ *  and the smooth-scroll library may resync after it resumes, so for 2.5s we keep putting you back
+ *  on the saved spot if anything moves you, until you scroll yourself. */
+let restoreRun = 0;
 export const consumeScrollRestore = () => {
   if (pendingRestoreY === null) return;
   const target = pendingRestoreY;
   pendingRestoreY = null;
-  let tries = 0;
-  const attempt = () => {
-    const max = document.documentElement.scrollHeight - window.innerHeight;
-    scrollToY(Math.min(target, Math.max(0, max)));
-    if (max < target && tries++ < 40) requestAnimationFrame(attempt);
+  const run = ++restoreRun;
+  const started = Date.now();
+  let userMoved = false;
+  const stop = () => {
+    userMoved = true;
+    window.removeEventListener('wheel', stop, true);
+    window.removeEventListener('touchstart', stop, true);
+    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('mousedown', stop, true);
   };
-  requestAnimationFrame(attempt);
+  const onKey = (e: KeyboardEvent) => {
+    if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(e.key)) stop();
+  };
+  window.addEventListener('wheel', stop, { capture: true, passive: true });
+  window.addEventListener('touchstart', stop, { capture: true, passive: true });
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('mousedown', stop, true);
+  const attempt = () => {
+    if (run !== restoreRun || userMoved) return stop();
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const y = Math.min(target, Math.max(0, max));
+    if (Math.abs(window.scrollY - y) > 2) jumpToY(y);
+    if (Date.now() - started < 2500) window.setTimeout(attempt, 40);
+    else stop();
+  };
+  attempt();
 };
 
 export const parseRoute = (loc: string): Route => {

@@ -26,5 +26,19 @@ export const scrollToY = (y: number, smooth = false) => {
   else window.scrollTo({ top: y, behavior: smooth ? 'smooth' : 'auto' });
 };
 
+/** Jump straight to y (no animation), after re-measuring the page, so a stale page height from
+ *  the previous screen (e.g. the full-screen player) can never clamp the jump to the top. */
+export const jumpToY = (y: number) => {
+  (lenis as any)?.resize?.();
+  window.scrollTo(0, y);
+  if (lenis) lenis.scrollTo(y, { immediate: true, force: true } as any);
+};
+
 export const pauseScroll = () => lenis?.stop();
-export const resumeScroll = () => lenis?.start();
+export const resumeScroll = () => {
+  if (!lenis) return;
+  lenis.start();
+  // Pick up wherever the page is now (it may have been moved while paused), never an old position.
+  (lenis as any).resize?.();
+  lenis.scrollTo(window.scrollY, { immediate: true, force: true } as any);
+};
