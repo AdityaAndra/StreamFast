@@ -112,24 +112,41 @@ export const goBack = (fallback = '/') => {
   else navigate(fallback, { replace: true });
 };
 
-/** Restore the scroll position after a back/forward navigation (retries while content streams in). */
+/** Restore the scroll position after a back/forward navigation.
+ *  Rows may still be streaming in, the closing title window may still be releasing the page lock,
+ *  and the smooth-scroll library may resync after it resumes, so for 2.5s we keep putting you back
+ *  on the saved spot if anything moves you, until you scroll yourself. */
+let restoreRun = 0;
 export const consumeScrollRestore = () => {
   if (pendingRestoreY === null) return;
   const target = pendingRestoreY;
   pendingRestoreY = null;
-  let tries = 0;
-  // Keep trying for ~1s: rows may still be streaming in, and a closing title window may still be
-  // releasing the page lock. Stop once we're really there.
+  const run = ++restoreRun;
+  const started = Date.now();
+  let userMoved = false;
+  const stop = () => {
+    userMoved = true;
+    window.removeEventListener('wheel', stop, true);
+    window.removeEventListener('touchstart', stop, true);
+    window.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('mousedown', stop, true);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(e.key)) stop();
+  };
+  window.addEventListener('wheel', stop, { capture: true, passive: true });
+  window.addEventListener('touchstart', stop, { capture: true, passive: true });
+  window.addEventListener('keydown', onKey, true);
+  window.addEventListener('mousedown', stop, true);
   const attempt = () => {
+    if (run !== restoreRun || userMoved) return stop();
     const max = document.documentElement.scrollHeight - window.innerHeight;
     const y = Math.min(target, Math.max(0, max));
-    jumpToY(y);
-    const done = max >= target && Math.abs(window.scrollY - target) < 2;
-    // Timers (not animation frames) so this also finishes in a background tab.
-    if (!done && tries++ < 60) window.setTimeout(attempt, 16);
+    if (Math.abs(window.scrollY - y) > 2) jumpToY(y);
+    if (Date.now() - started < 2500) window.setTimeout(attempt, 40);
+    else stop();
   };
   attempt();
-  window.setTimeout(attempt, 0);
 };
 
 export const parseRoute = (loc: string): Route => {

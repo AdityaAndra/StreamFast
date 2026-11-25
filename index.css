@@ -499,6 +499,9 @@ html.lenis, html.lenis body { height: auto; }
 
 /* 4 buttons on the right when VidFast shows picture-in-picture: subtitles, PiP, settings, fullscreen. */
 .nf-watch.has-pip .sf-right { right: calc(4.5em + 4 * 8.2em); }
+/* VidFast adds its Next episode button (before subtitles) when there is a next episode: one slot more. */
+.nf-watch.has-next .sf-right { right: calc(4.5em + 4 * 8.2em); }
+.nf-watch.has-pip.has-next .sf-right { right: calc(4.5em + 5 * 8.2em); }
 
 /* Server list: star = default server (VidFast's 14px outline star, filled when it's yours). */
 .sf-menu-row { cursor: pointer; outline: none; }
