@@ -5,7 +5,7 @@ import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate, openTitleFromWatch } from '../utils/router';
-import { CloseIcon, PlayIcon } from '../components/Icons';
+import { PlayIcon } from '../components/Icons';
 
 const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
@@ -18,8 +18,11 @@ const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
 // VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
 const IDLE_MS = 3000;
-/** Hover-sync tile size (px): smaller = finer mouse tracking. */
-const CELL_PX = 44;
+/** Pause screen shows this long after pausing (Netflix waits a few seconds; we use 2s). */
+const PAUSE_SCREEN_MS = 2000;
+/** Hover-sync tile size (px): smaller = finer mouse tracking, so even small moves keep our
+ *  controls up exactly as long as VidFast's (it restarts its 3s timer on every move). */
+const CELL_PX = 24;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -64,10 +67,26 @@ const VfPlaying = () => (
     <path fill="#16a085" d="M16.4375 12.4512C16.2355 13.1675 15.281 13.6736 13.3719 14.6859C11.5263 15.6645 10.6035 16.1538 9.8599 15.9571C9.55246 15.8758 9.27234 15.7214 9.04643 15.5086C8.5 14.9941 8.5 13.9961 8.5 12C8.5 10.0039 8.5 9.00592 9.04643 8.49137C9.27234 8.27864 9.55246 8.12421 9.8599 8.04289C10.6035 7.84617 11.5263 8.33547 13.3719 9.31407C15.281 10.3264 16.2355 10.8325 16.4375 11.5488C16.5208 11.8445 16.5208 12.1555 16.4375 12.4512Z" />
   </svg>
 );
+/** Netflix's own Episodes icon (EpisodesMedium). */
 const VfEpisodes = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M3 9.5C3 8.11929 4.11929 7 5.5 7H14.5C15.8807 7 17 8.11929 17 9.5V18.5C17 19.8807 15.8807 21 14.5 21H5.5C4.11929 21 3 19.8807 3 18.5V9.5Z" />
-    <path d="M7 3.5H17.5C19.433 3.5 21 5.067 21 7V17" />
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path fill="currentColor" fillRule="evenodd" clipRule="evenodd" d="M8 5h14v8h2V5a2 2 0 0 0-2-2H8zm10 4H4V7h14a2 2 0 0 1 2 2v8h-2zM0 13a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm14 6v-6H2v6z" />
+  </svg>
+);
+/** Netflix's ArrowLeftMedium (episodes panel header). */
+const NfArrowLeft = () => (
+  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path fill="currentColor" fillRule="evenodd" clipRule="evenodd" d="M6.414 11H21v2H6.414l5.293 5.293-1.414 1.414-7-7a1 1 0 0 1 0-1.414l7-7 1.414 1.414z" />
+  </svg>
+);
+/** Netflix's animated "Now Playing" bars. */
+const NfNowBars = () => (
+  <svg viewBox="0 0 36 36" className="nf-ep-bars" aria-hidden="true">
+    <rect x="1" y="8" width="4" height="20" />
+    <rect x="9" y="2" width="4" height="32" />
+    <rect x="17" y="0" width="4" height="36" />
+    <rect x="25" y="6" width="4" height="24" />
+    <rect x="31" y="12" width="4" height="12" />
   </svg>
 );
 const VfNext = () => (
@@ -161,7 +180,15 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const [panel, setPanel] = useState(false);
   const [serverMenu, setServerMenu] = useState(false);
   const idle = useRef<number | undefined>(undefined);
+  // Netflix-style pause screen: appears 2s after you pause (and stop moving the mouse), never blocks clicks.
+  const [pauseShow, setPauseShow] = useState(false);
+  // Our controls stay where they are under the pause screen (like VidFast's), so its fade reveals both together.
+  const pauseShowRef = useRef(false);
+  pauseShowRef.current = pauseShow;
+  const lastActive = useRef(0);
   const wake = useCallback(() => {
+    lastActive.current = Date.now();
+    if (pauseShowRef.current) setPauseShow(false);
     setChrome(true);
     window.clearTimeout(idle.current);
     idle.current = window.setTimeout(() => setChrome(false), IDLE_MS);
@@ -170,6 +197,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   wakeRef.current = wake;
   const pausedRef = useRef(false);
   pausedRef.current = paused;
+  useEffect(() => {
+    if (!paused || !started || panel || serverMenu) {
+      setPauseShow(false);
+      return;
+    }
+    const t = window.setInterval(() => {
+      if (!pauseShowRef.current && Date.now() - lastActive.current >= PAUSE_SCREEN_MS) setPauseShow(true);
+    }, 200);
+    return () => window.clearInterval(t);
+  }, [paused, started, panel, serverMenu]);
   // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
     setStarted(false);
@@ -335,14 +372,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const gridRef = useRef<HTMLDivElement>(null);
   const lastCell = useRef<HTMLElement | null>(null);
   const lastRow = useRef(-1);
-  const [grid, setGrid] = useState({ cols: 0, rows: 0 });
+  const [grid, setGrid] = useState({ cols: 0, rows: 0, size: CELL_PX });
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
     const measure = () => {
       lastCell.current = null;
       lastRow.current = -1;
-      setGrid({ cols: Math.ceil(el.clientWidth / CELL_PX), rows: Math.ceil(el.clientHeight / CELL_PX) });
+      // 24px tiles, a little bigger on very large screens so there are never more than ~4,500.
+      const size = Math.max(CELL_PX, Math.ceil(Math.sqrt((el.clientWidth * el.clientHeight) / 4500)));
+      setGrid({ cols: Math.ceil(el.clientWidth / size), rows: Math.ceil(el.clientHeight / size), size });
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -366,7 +405,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       const f = iframeRef.current;
       const onPlayer = !!f && f.matches(':hover');
       const onGrid = !!gridRef.current?.matches(':hover');
-      const onOurs = !!rootRef.current?.querySelector('.sf-back:hover, .sf-right:hover, .sf-menu:hover, .nf-watch-panel:hover');
+      const onOurs = !!rootRef.current?.querySelector('.sf-back:hover, .sf-right:hover, .sf-menu:hover, .nf-eps:hover');
       const now = onPlayer || onGrid;
       if (onOurs) wakeRef.current(); // pointing at our own buttons keeps them up
       else if (now && !over) wakeRef.current(); // pointer came onto the video
@@ -379,7 +418,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         lastRow.current = -1;
       }
       over = now;
-    }, 100);
+    }, 40);
     return () => window.clearInterval(t);
   }, [grid.rows]);
 
@@ -436,18 +475,44 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   };
 
   const [panelSeason, setPanelSeason] = useState<number | undefined>(season);
+  const [paneView, setPaneView] = useState<'episodes' | 'seasons'>('episodes');
+  const [hoverEp, setHoverEp] = useState<number | null>(null);
   useEffect(() => setPanelSeason(season), [season]);
+  // Each time the panel opens: the current season, current episode expanded (like Netflix).
+  useEffect(() => {
+    if (!panel) return;
+    setPanelSeason(season);
+    setPaneView('episodes');
+    setHoverEp(null);
+  }, [panel, season]);
+  const curEpRef = useRef<HTMLLIElement | null>(null);
   const panelData = useCachedData<SeasonDetails>(panel && panelSeason ? `season:${id}:${panelSeason}` : null, () => getSeasonDetails(id, panelSeason!));
+  useEffect(() => {
+    if (panel && paneView === 'episodes' && panelData.data) curEpRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [panel, paneView, panelData.data]);
+  const curPct = (() => {
+    const pr = saved?.progress;
+    if (!pr?.watched || !pr.duration || pr.season !== season || pr.episode !== episode) return 0;
+    return Math.min(100, (pr.watched / pr.duration) * 100);
+  })();
 
   const title = item ? getTitle(item) : '';
+  const logo = useMemo(() => {
+    const ls = (data?.images?.logos || []).filter((l) => l.file_path && !l.file_path.endsWith('.svg'));
+    const en = ls.filter((l) => l.iso_639_1 === 'en');
+    const pick = [...(en.length ? en : ls)].sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0))[0];
+    return pick ? tmdbImage(pick.file_path, 'w500') : null;
+  }, [data]);
+  const year = (data?.release_date || data?.first_air_date || '').slice(0, 4);
+  const pauseDesc = (mediaType === 'tv' ? current?.overview : '') || data?.overview || '';
 
   return (
-    <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
+    <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${mediaType === 'tv' && next ? 'has-next' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
       <iframe
         ref={iframeRef}
         key={src}
         src={src}
-        title={title ? `${title} player` : 'Player'}
+        aria-label={title ? `${title} player` : 'Player'}
         className="absolute inset-0 h-full w-full border-0"
         allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
         allowFullScreen
@@ -455,10 +520,34 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       />
 
       {FINE_POINTER && (
-        <div ref={gridRef} className="sf-grid" style={{ gridTemplateColumns: `repeat(${grid.cols}, ${CELL_PX}px)`, gridAutoRows: `${CELL_PX}px` }} onMouseOver={onCell} aria-hidden="true">
+        <div ref={gridRef} className="sf-grid" style={{ gridTemplateColumns: `repeat(${grid.cols}, ${grid.size}px)`, gridAutoRows: `${grid.size}px` }} onMouseOver={onCell} aria-hidden="true">
           {Array.from({ length: grid.cols * grid.rows }, (_, k) => (
             <i key={k} data-r={Math.floor(k / Math.max(1, grid.cols))} />
           ))}
+        </div>
+      )}
+
+      {/* Netflix-style pause screen (visual only: clicks and keys pass straight through) */}
+      {started && (
+        <div className={`sf-pause ${pauseShow ? 'is-on' : ''}`} aria-hidden={!pauseShow}>
+          <div className="sf-pause-body">
+            <p className="sf-pause-kicker">You&rsquo;re watching</p>
+            {logo ? <img className="sf-pause-logo" src={logo} alt={title} /> : <p className="sf-pause-name">{title}</p>}
+            {mediaType === 'tv' ? (
+              <>
+                <p className="sf-pause-season">{seasons.find((s) => s.season_number === season)?.name || `Season ${season}`}</p>
+                <p className="sf-pause-ep">
+                  {current?.name ? `${current.name}: ` : ''}Ep. {episode}
+                </p>
+              </>
+            ) : (
+              <p className="sf-pause-meta">
+                {[year, data?.runtime ? `${Math.floor(data.runtime / 60) ? `${Math.floor(data.runtime / 60)}h ` : ''}${data.runtime % 60}m` : ''].filter(Boolean).join(' \u00b7 ')}
+              </p>
+            )}
+            {pauseDesc && <p className="sf-pause-desc">{pauseDesc}</p>}
+          </div>
+          <span className="sf-pause-tag">Paused</span>
         </div>
       )}
 
@@ -470,31 +559,25 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         onMouseMove={wake}
         className={`sf-back ${!started || panel || serverMenu || chrome || paused ? '' : 'is-hidden'}`}
         aria-label="Back to browse"
-        title="Back"
       >
         <VfBack />
       </button>
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
       <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
-        <p className="sf-title" title={title} onMouseEnter={wake}>
-          {title}
+        <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`} onMouseEnter={wake}>
+          <span className="sf-title-main">{title}</span>
           {mediaType === 'tv' && (
             <span className="sf-title-ep">
-              E{episode}
+              <b>E{episode}</b>
               {current?.name ? ` ${current.name}` : ''}
             </span>
           )}
-        </p>
+        </div>
 
         <div className="sf-right" onMouseEnter={wake} onMouseMove={wake} onMouseDown={keepPlayerFocus}>
-          {mediaType === 'tv' && next && (
-            <button type="button" onClick={() => goEpisode(next.season, next.episode)} className="sf-btn" aria-label="Next episode" title="Next episode">
-              <VfNext />
-            </button>
-          )}
           {mediaType === 'tv' && (
-            <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes" title="Episodes">
+            <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes">
               <VfEpisodes />
             </button>
           )}
@@ -506,7 +589,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
               aria-expanded={serverMenu}
               aria-haspopup="menu"
               aria-label={`Server: ${server || 'Auto'}`}
-              title="Server"
             >
               <VfCloud />
             </button>
@@ -546,7 +628,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                         }}
                         aria-pressed={defaultServer === x.name}
                         aria-label={defaultServer === x.name ? `${x.name || 'Auto'} is your default server` : `Make ${x.name || 'Auto'} your default server`}
-                        title={defaultServer === x.name ? 'Default server' : 'Make default'}
                       >
                         <VfStar filled={defaultServer === x.name} />
                       </button>
@@ -560,50 +641,98 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         </div>
       </div>
 
-      {/* episodes drawer */}
+      {/* Episodes panel: Netflix's own (season header, expanding episode rows, season list) */}
       {mediaType === 'tv' && panel && (
-        <aside className="nf-watch-panel" data-lenis-prevent aria-label="Episodes">
-          <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-            {seasons.length > 1 ? (
-              <select aria-label="Season" value={panelSeason} onChange={(e) => setPanelSeason(Number(e.target.value))} className="nf-select !text-[15px] !font-semibold">
-                {seasons.map((s) => (
-                  <option key={s.season_number} value={s.season_number}>{s.name}</option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-[16px] font-bold text-white">{seasons[0]?.name || `Season ${season}`}</span>
-            )}
-            <button type="button" onClick={() => setPanel(false)} className="nf-circle text-sm" aria-label="Close episodes"><CloseIcon className="h-4 w-4" /></button>
-          </div>
-          <ol className="flex-1 overflow-y-auto overscroll-contain py-1">
-            {!panelData.data
-              ? [0, 1, 2, 3].map((i) => <li key={i} className="nf-skel mx-4 my-3 h-16" style={{ ['--i' as any]: i }} />)
-              : panelData.data.episodes.map((ep) => {
-                  const isCur = panelSeason === season && ep.episode_number === episode;
-                  return (
-                    <li key={ep.id}>
+        <div className="nf-eps-wrap">
+          <div className="nf-eps" data-lenis-prevent role="dialog" aria-label="Episodes" onMouseMove={wake} onMouseDown={keepPlayerFocus}>
+            {paneView === 'seasons' ? (
+              <>
+                <div className="nf-eps-head is-static">
+                  <span className="nf-eps-title">{title}</span>
+                </div>
+                <ul className="nf-eps-list">
+                  {seasons.map((s) => (
+                    <li key={s.season_number}>
                       <button
                         type="button"
-                        onClick={() => goEpisode(panelSeason!, ep.episode_number)}
-                        className={`group flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.07] ${isCur ? 'bg-white/[0.1]' : ''}`}
+                        className={`nf-eps-season ${s.season_number === panelSeason ? 'is-on' : ''}`}
+                        onClick={() => {
+                          setPanelSeason(s.season_number);
+                          setHoverEp(null);
+                          setPaneView('episodes');
+                        }}
                       >
-                        <span className="relative aspect-video w-[7.5rem] flex-shrink-0 overflow-hidden rounded-[4px] bg-[#232323]">
-                          {ep.still_path && <img src={tmdbImage(ep.still_path, 'w300') || ''} alt="" loading="lazy" className="h-full w-full object-cover" />}
-                          <span className={`absolute inset-0 flex items-center justify-center bg-black/30 transition-opacity ${isCur ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                            <PlayIcon className="h-5 w-5 text-white" />
-                          </span>
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-[14px] font-semibold text-white">{ep.episode_number}. {ep.name}</span>
-                          {isCur && <span className="text-[12px] font-semibold text-netflix-red">Now playing</span>}
-                          {!isCur && (ep as any).runtime ? <span className="text-[12px] text-[#a3a3a3]">{(ep as any).runtime}m</span> : null}
-                        </span>
+                        <span className="truncate">{s.name}</span>
+                        <span className="nf-eps-count">{s.episode_count} Episodes</span>
                       </button>
                     </li>
-                  );
-                })}
-          </ol>
-        </aside>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={`nf-eps-head ${seasons.length > 1 ? '' : 'is-static'}`}
+                  onClick={() => seasons.length > 1 && setPaneView('seasons')}
+                  aria-label={seasons.length > 1 ? 'Choose season' : undefined}
+                >
+                  {seasons.length > 1 && <NfArrowLeft />}
+                  <span className="nf-eps-title">{seasons.find((s) => s.season_number === panelSeason)?.name || `Season ${panelSeason}`}</span>
+                </button>
+                <ol className="nf-eps-list" onMouseLeave={() => setHoverEp(null)}>
+                  {!panelData.data
+                    ? [0, 1, 2, 3].map((i) => <li key={i} className="nf-skel mx-[1.43em] my-[1em] h-[2.2em]" style={{ ['--i' as any]: i }} />)
+                    : panelData.data.episodes.map((ep) => {
+                        const isCur = panelSeason === season && ep.episode_number === episode;
+                        const open = hoverEp !== null ? hoverEp === ep.episode_number : isCur;
+                        const pct = isCur ? curPct : 0;
+                        return (
+                          <li
+                            key={ep.id}
+                            ref={isCur ? curEpRef : undefined}
+                            role="button"
+                            tabIndex={0}
+                            aria-current={isCur ? 'true' : undefined}
+                            aria-label={`Episode ${ep.episode_number}: ${ep.name}${isCur ? ' (now playing)' : ''}`}
+                            className={`nf-ep ${open ? 'is-open' : ''}`}
+                            onMouseEnter={() => setHoverEp(ep.episode_number)}
+                            onFocus={() => setHoverEp(ep.episode_number)}
+                            onClick={() => (isCur ? setPanel(false) : goEpisode(panelSeason!, ep.episode_number))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                if (isCur) setPanel(false);
+                                else goEpisode(panelSeason!, ep.episode_number);
+                              }
+                            }}
+                          >
+                            <div className="nf-ep-row">
+                              <span className="nf-ep-num">{ep.episode_number}</span>
+                              <span className="nf-ep-name">{ep.name}</span>
+                              <span className="nf-ep-bar"><i style={{ width: `${pct}%` }} /></span>
+                            </div>
+                            {open && (
+                              <div className="nf-ep-open">
+                                <span className="nf-ep-thumb">
+                                  {ep.still_path && <img src={tmdbImage(ep.still_path, 'w300') || ''} alt="" loading="lazy" decoding="async" />}
+                                  {isCur ? (
+                                    <span className="nf-ep-now"><NfNowBars />Now Playing</span>
+                                  ) : (
+                                    <span className="nf-ep-play"><span><PlayIcon className="h-full w-full" /></span></span>
+                                  )}
+                                </span>
+                                <p className="nf-ep-desc">{ep.overview || 'No description available.'}</p>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                </ol>
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
