@@ -231,13 +231,42 @@ export interface BrowsePage {
 
 const withType = (results: any[], type: 'movie' | 'tv') => (results || []).map((r) => ({ ...r, media_type: r.media_type || type }));
 
+/** TMDB's trending list has no server-side filters, so genre / year / language / rating are applied here. */
+const matchesTrending = (r: any, p: BrowseParams) => {
+  const type: 'movie' | 'tv' = r.media_type;
+  if (p.genre) {
+    const g = p.type === 'all' ? mapGenres(p.genre, type) : p.genre;
+    if (!g) return false;
+    const ids: number[] = r.genre_ids || [];
+    const want = g.split(/[|,]/).map(Number);
+    // TMDB's own meaning: "a,b" = all of these genres, "a|b" = any of them.
+    if (g.includes(',') ? !want.every((id) => ids.includes(id)) : !want.some((id) => ids.includes(id))) return false;
+  }
+  const date: string = (type === 'movie' ? r.release_date : r.first_air_date) || '';
+  if (p.year) {
+    if (/^\d{4}$/.test(p.year) && !date.startsWith(p.year)) return false;
+    if (/^\d{4}s$/.test(p.year)) {
+      const y = Number(date.slice(0, 4));
+      const d = Number(p.year.slice(0, 4));
+      if (!(y >= d && y <= d + 9)) return false;
+    }
+  }
+  if (p.lang && r.original_language !== p.lang) return false;
+  if (p.rating && !((r.vote_average || 0) >= Number(p.rating) && (r.vote_count || 0) >= 50)) return false;
+  return true;
+};
+
 export const fetchBrowsePage = async (p: BrowseParams, page: number, signal?: AbortSignal): Promise<BrowsePage> => {
-  if (p.list === 'trending') {
+  // Trending can't be narrowed by streaming service / studio / network / keyword, so those views use
+  // TMDB's discover instead (most popular first), which supports every filter.
+  if (p.list === 'trending' && !(p.provider || p.company || p.network || p.keyword)) {
     const t = p.type === 'all' ? 'all' : p.type;
     const data = await tmdbGet(`/trending/${t}/${p.window || 'week'}`, { page: String(page) }, signal);
-    const results = withType(data.results, p.type === 'tv' ? 'tv' : 'movie').filter(
-      (r: any) => (r.media_type === 'movie' || r.media_type === 'tv') && (r.backdrop_path || r.poster_path)
-    );
+    const items = withType(data.results, p.type === 'tv' ? 'tv' : 'movie').filter(
+      (r: any) => (r.media_type === 'movie' || r.media_type === 'tv') && (r.backdrop_path || r.poster_path) && matchesTrending(r, p)
+    ) as SearchResult[];
+    // Trending's own order is "most popular right now"; any other sort is applied to each page.
+    const results = p.sort === 'popular' ? items : mergeSorted([items], p.sort);
     return { results, totalPages: Math.min(data.total_pages || 1, 500) };
   }
 
