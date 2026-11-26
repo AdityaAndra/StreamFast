@@ -108,7 +108,6 @@ interface ContentCarouselProps {
   title: string;
   items: SearchResult[];
   onRemoveItem?: (item: SearchResult) => void;
-  onSelect?: (item: SearchResult) => void;
   viewAll?: string;
 }
 

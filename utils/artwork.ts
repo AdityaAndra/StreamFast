@@ -17,7 +17,7 @@ const savedAt = new Map<string, number>();
 
 try {
   localStorage.removeItem('vf_logos_v1');
-    localStorage.removeItem('vf_meta_v2');
+  localStorage.removeItem('vf_meta_v2');
   localStorage.removeItem('sf_meta_v2');
   localStorage.removeItem('sf_meta_v3');
 } catch {

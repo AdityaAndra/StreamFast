@@ -10,7 +10,7 @@ import { BellIcon } from './Icons';
 /** StreamFast logo: a sliced red play mark with motion trails, and a two-weight wordmark
  *  (light STREAM, heavy red FAST with a top sheen). Text uses the site's Inter font. */
 export const StreamFastLogo: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <svg viewBox="-4 0 218 40" className={`sf-logo sf-logo ${className}`} role="img" aria-label="StreamFast">
+  <svg viewBox="-4 0 218 40" className={`sf-logo ${className}`} role="img" aria-label="StreamFast">
     <defs>
       <linearGradient id="sf-red" x1="0" y1="0" x2="0.35" y2="1">
         <stop offset="0" stopColor="#ff3b47" />
@@ -393,7 +393,7 @@ export const NotificationsBell: React.FC = () => {
         ) : (
           <span className="block aspect-video w-[7.2rem] rounded-md bg-[#2a2a2a]" />
         )}
-        {!seen.has(n.id) && <span className="absolute -left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-netflix-red" aria-label="New" />}
+        {!seen.has(n.id) && <span className="absolute -left-1.5 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-netflix-red" role="img" aria-label="New" />}
       </span>
       <span className="min-w-0">
         <span className={`block text-[13px] font-semibold ${n.upcoming ? 'text-[#b3b3b3]' : 'text-white'}`}>{n.label}</span>
@@ -408,7 +408,7 @@ export const NotificationsBell: React.FC = () => {
 
   return (
     <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-label={`Notifications${unread ? ` (${unread} new)` : ''}`} aria-expanded={open} className="relative flex h-9 w-9 items-center justify-center text-white transition-transform duration-200 hover:scale-105">
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-label={`Notifications${unread ? ` (${unread} new)` : ''}`} aria-haspopup="menu" aria-expanded={open} className="relative flex h-9 w-9 items-center justify-center text-white transition-transform duration-200 hover:scale-105">
         <BellIcon className="h-[22px] w-[22px]" />
         {unread > 0 && (
           <span className="absolute right-[3px] top-[2px] flex h-[16px] min-w-[16px] items-center justify-center rounded-full bg-netflix-red px-[4px] text-[10px] font-bold leading-none text-white ring-2 ring-[#141414]">

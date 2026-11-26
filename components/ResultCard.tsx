@@ -11,8 +11,6 @@ interface ResultCardProps {
   onRemove?: (item: SearchResult) => void;
   /** landscape = Netflix boxart (backdrop + title logo), poster = tall key art (Top 10) */
   variant?: 'landscape' | 'poster';
-  /** Kept for backwards compatibility; cards now open the title page. */
-  onSelect?: (item: SearchResult) => void;
   eager?: boolean;
 }
 

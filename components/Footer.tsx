@@ -21,7 +21,7 @@ const Footer: React.FC<FooterProps> = ({ onOpenGuide, onThemeSelect, onExport, o
       <FooterLink onClick={() => onNavigate('home')}>Home</FooterLink>
       <FooterLink onClick={() => onNavigate('tv-shows')}>TV Shows</FooterLink>
       <FooterLink onClick={() => onNavigate('movies')}>Movies</FooterLink>
-      <FooterLink onClick={() => onNavigate('my-list')}>My List</FooterLink>
+      <FooterLink onClick={() => onNavigate('my-list')}>My Content</FooterLink>
       <FooterLink onClick={onOpenGuide}>How to use StreamFast</FooterLink>
       <FooterLink onClick={onThemeSelect}>Player theme</FooterLink>
       <FooterLink onClick={onExport}>Export history</FooterLink>
