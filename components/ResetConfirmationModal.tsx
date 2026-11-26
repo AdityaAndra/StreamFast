@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangleIcon } from './Icons';
+import { useAuth } from '../contexts/AuthContext';
 
 interface ResetConfirmationModalProps {
   isOpen: boolean;
@@ -8,6 +9,7 @@ interface ResetConfirmationModalProps {
 }
 
 const ResetConfirmationModal: React.FC<ResetConfirmationModalProps> = ({ isOpen, onConfirm, onCancel }) => {
+  const { user } = useAuth();
   // Escape cancels, like the site's other dialogs.
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
@@ -37,6 +39,7 @@ const ResetConfirmationModal: React.FC<ResetConfirmationModalProps> = ({ isOpen,
             <h2 id="reset-modal-title" className="text-2xl font-bold mb-2">Are you sure?</h2>
             <p className="text-neutral-400 mb-6">
                 This will permanently delete your Continue Watching list, My List and player theme from this browser. This action cannot be undone.
+                {user && ' You\'re signed in, so they are also cleared from your account on your other devices.'}
             </p>
             <div className="flex justify-center space-x-4">
                 <button type="button" onClick={onCancel} className="bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-2 px-6 rounded-md transition-colors w-32">

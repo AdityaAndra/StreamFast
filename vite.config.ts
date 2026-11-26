@@ -24,10 +24,10 @@ export default defineConfig(({ mode }) => {
               return `/3${tmdbPath}?${url.searchParams.toString()}`;
             },
           },
-          // The other serverless functions (logos + IMDb ratings, brand logos, person extras) do more
-          // than proxy TMDB, so in `npm run dev` they're served by the live site. Use `vercel dev`
-          // to run your own copies of everything in api/.
-          '^/api/(logos|brands|person)': {
+          // The other serverless functions (logos + IMDb ratings, brand logos, person extras, sign-in,
+          // keep-awake ping) do more than proxy TMDB, so in `npm run dev` they're served by the live site.
+          // Use `vercel dev` to run your own copies of everything in api/.
+          '^/api/(logos|brands|person|login|ping)': {
             target: 'https://streamfast.vercel.app',
             changeOrigin: true,
           },

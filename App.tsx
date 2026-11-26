@@ -21,14 +21,19 @@ import ExplorePage from './pages/ExplorePage';
 import FranchisePage from './pages/FranchisePage';
 import PersonPage from './pages/PersonPage';
 import WatchPage from './pages/WatchPage';
+import LoginPage from './pages/LoginPage';
+import SignUpPage from './pages/SignUpPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import { watchPath } from './utils/media';
 import { BrowsePage, CompanyPage, ProviderPage } from './pages/BrowsePage';
 import { BrandGridPage } from './components/BrandRow';
 import { initSmoothScroll, pauseScroll, resumeScroll, scrollToY } from './utils/smoothScroll';
 import type { SearchResult, WatchProgress } from './types';
 import { useAppContext } from './contexts/AppContext';
+import { useAuth } from './contexts/AuthContext';
 import { PlayerContext, PlayerTab } from './contexts/PlayerContext';
-import { consumeScrollRestore, navigate, Route, useLocationString, useRoute, titleBackground, closeTitleWindow, parseRoute } from './utils/router';
+import { consumeScrollRestore, navigate, Route, useLocationString, useRoute, titleBackground, closeTitleWindow, parseRoute, AUTH_ROUTES } from './utils/router';
 
 const NAV_PATHS: Record<string, string> = {
   home: '/',
@@ -57,6 +62,8 @@ const viewOf = (route: Route): AppView => {
 
 const App: React.FC = () => {
   const { continueWatchingList, feedbackMessage, exportList, importList, resetData } = useAppContext();
+  // Without the Supabase settings the account pages don't exist (they show "Page not found", as before).
+  const { enabled: accountsEnabled } = useAuth();
   const route = useRoute();
   const location = useLocationString();
   // A title opens as a window over the page you came from; that page keeps rendering behind it.
@@ -116,10 +123,12 @@ const App: React.FC = () => {
     if (!['title', 'company', 'provider', 'franchise', 'person', 'watch'].includes(route.name)) {
       const titles: Partial<Record<Route['name'], string>> = {
         home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse', 'not-found': 'Page not found',
+        login: 'Sign In', signup: 'Sign Up', 'forgot-password': 'Forgot password', 'reset-password': 'Reset password',
       };
-      document.title = `${titles[route.name] || 'StreamFast'} — StreamFast`;
+      const name = !accountsEnabled && AUTH_ROUTES.includes(route.name) ? 'not-found' : route.name;
+      document.title = `${titles[name] || 'StreamFast'} — StreamFast`;
     }
-  }, [route.name]);
+  }, [route.name, accountsEnabled]);
 
   const openPlayer = useCallback(
     (item: SearchResult, opts: { progress?: WatchProgress; tab?: PlayerTab } = {}) => {
@@ -202,6 +211,14 @@ const App: React.FC = () => {
         return <WatchPage mediaType={route.mediaType} id={route.id} season={route.season} episode={route.episode} startAt={route.t} />;
       case 'person':
         return <PersonPage key={route.id} id={route.id} />;
+      case 'login':
+        return accountsEnabled ? <LoginPage next={route.next} /> : <NotFoundPage />;
+      case 'signup':
+        return accountsEnabled ? <SignUpPage next={route.next} /> : <NotFoundPage />;
+      case 'forgot-password':
+        return accountsEnabled ? <ForgotPasswordPage /> : <NotFoundPage />;
+      case 'reset-password':
+        return accountsEnabled ? <ResetPasswordPage /> : <NotFoundPage />;
       case 'guide':
         return (
           <div className="px-[4%] pt-24 sm:pt-28">

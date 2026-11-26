@@ -21,7 +21,7 @@ Browse like Netflix, press Play, and watch right in the site.
 
 ## ✨ What it is
 
-StreamFast is a Netflix replica: the same dark look, billboard banner, sliding rows, hover previews, title windows and full-screen player. Everything (titles, artwork, cast, seasons, ratings) comes live from [TMDB](https://www.themoviedb.org/), and videos play through the [VidFast](https://vidfast.vc) player embedded in the page. No account and no sign-up: your lists and progress are saved in your browser.
+StreamFast is a Netflix replica: the same dark look, billboard banner, sliding rows, hover previews, title windows and full-screen player. Everything (titles, artwork, cast, seasons, ratings) comes live from [TMDB](https://www.themoviedb.org/), and videos play through the [VidFast](https://vidfast.vc) player embedded in the page. No account needed: your lists and progress are saved in your browser. Create a free account if you want them on all your devices.
 
 > The site streams nothing itself and hosts no video files. It only shows public title data and embeds a third-party player.
 
@@ -67,7 +67,15 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 - **My List** to save titles for later
 - **Notifications bell**: new episodes and seasons of shows you watch, release dates of titles on your list, and what's new on StreamFast, with optional desktop alerts
 - **Export and import** your lists as a file, or reset everything
-- All saved only in your browser (local storage): nothing is sent to a server
+- Saved in your browser (local storage) — and, if you sign in, synced to your account
+
+### 🔐 Accounts & sync (optional)
+- **Sign in with your username or your email** (Netflix-style Sign In / Sign Up pages, show/hide password, *Forgot password?* email link)
+- **What syncs:** Continue Watching progress, My List, player theme, default server, recent searches, notification read marks (and the desktop-alerts switch) and your streaming region
+- Changes upload a moment after you make them, and other devices catch up when you switch back to their tab. Lists are merged (the newest copy of each title wins, removals stick); settings follow your latest change
+- Signing out stops syncing but keeps everything on that device; signing in on a new device brings everything over
+- Usernames are turned into the account's email on the server (`/api/login`), so emails are never shown to anyone
+- Without the Supabase settings, accounts simply don't appear and the site works exactly as before
 
 ### ⌨️ Accessible
 - Keyboard friendly: windows close with Escape, focus stays inside open windows, rows slide to the card you Tab to, and every card and button can be reached without a mouse
@@ -84,9 +92,10 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 | Data | [TMDB API](https://developer.themoviedb.org/) and [Wikidata](https://www.wikidata.org/) (person facts and awards), IMDb ratings dataset |
 | Player | [VidFast](https://vidfast.vc) embed |
 | Hosting | [Vercel](https://vercel.com) (static site + serverless functions) |
-| Checks | GitHub Actions type check on every push |
+| Accounts & sync | [Supabase](https://supabase.com) (Auth + Postgres with row-level security) |
+| Checks | GitHub Actions type check on every push, and an hourly keep-awake check |
 
-**Security:** the TMDB API key lives only on the server, in Vercel's environment variables, and never reaches the browser. The serverless proxy only allows the TMDB endpoints and parameters the site uses. The site sends strict security headers (Content Security Policy, HSTS, no-sniff, frame and referrer policies).
+**Security:** the TMDB API key and the Supabase secret key live only on the server, in Vercel's environment variables, and never reach the browser. Every synced row is protected by row-level security (each account can only read and write its own data). The serverless proxy only allows the TMDB endpoints and parameters the site uses. The site sends strict security headers (Content Security Policy, HSTS, no-sniff, frame and referrer policies).
 
 ---
 
@@ -99,7 +108,7 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
    cd StreamFast
    npm install
    ~~~
-3. **Add the key:** copy `.env.example` to `.env.local` and set `TMDB_API_KEY`.
+3. **Add the key:** copy `.env.example` to `.env.local` and set `TMDB_API_KEY` (and the Supabase values if you want accounts; see below).
 4. **Start it**
    ~~~bash
    npm run dev        # http://localhost:3000
@@ -110,8 +119,25 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 
 ### Deploy to Vercel
 1. Import the repository in Vercel (no framework preset needed; build command `npm run build`, output `dist`).
-2. Project → Settings → Environment Variables → add `TMDB_API_KEY` for Production and Preview.
+2. Project → Settings → Environment Variables → add the variables below for Production and Preview.
 3. Deploy. Every push to `main` goes live; other branches get preview links.
+
+| Variable | Where it's used | Secret? |
+|---|---|---|
+| `TMDB_API_KEY` | `api/*` (TMDB proxy, logos, brands, people) | Yes, server only |
+| `VITE_SUPABASE_URL` | Browser + `api/login`, `api/ping` (`https://<project-ref>.supabase.co`) | No (public) |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Browser + `api/login` (`sb_publishable_…`) | No (public by design; access is limited by row-level security) |
+| `SUPABASE_SECRET_KEY` | `api/login` (username → email lookup) and `api/ping` only (`sb_secret_…`) | **Yes — never give it a `VITE_` prefix or put it in client code** |
+
+The `VITE_` values are baked into the build, so redeploy after changing them. Leave the three Supabase variables out and the site runs without accounts.
+
+### Accounts & sync setup (Supabase)
+- Database: tables `profiles` (username, display name), `user_data` (one row per account per synced item: `progress`, `my_list`, `theme`, `default_server`, `recent_searches`, `notifications`, `region`) and `heartbeat`, all with row-level security, plus the `username_available` check.
+- Authentication → URL Configuration: set **Site URL** to `https://streamfast.vercel.app` and add `https://streamfast.vercel.app/reset-password` (plus `http://localhost:3000/reset-password` for local testing) to **Redirect URLs**, so password-reset links land on the site.
+- Password-reset emails use Supabase's built-in mailer unless you add your own SMTP server (Authentication → Emails). The built-in one is heavily rate-limited and may only deliver to your project team's addresses, so set up custom SMTP before relying on password resets.
+
+### Keep-awake check
+Free Supabase projects pause after a week without activity. `.github/workflows/keep-awake.yml` runs every hour: it calls `/api/ping` (which writes a heartbeat row) and, if the site doesn't answer, touches the database directly with the public key. If the database can't be reached the run fails, GitHub emails you, and the run summary links to the Supabase dashboard (click **Restore**). Run it by hand from the Actions tab with **test_alert** ticked to check that the email reaches you.
 
 ---
 
@@ -123,14 +149,17 @@ api/
   logos.js         Title logos + IMDb ratings for cards
   brands.js        Studio, network and streaming-service logos
   person.js        Person facts and awards from Wikidata
+  login.js         Sign in with username or email (looks the email up on the server)
+  ping.js          Keep-awake heartbeat for the database
 components/        Header, billboard, rows, hover preview, cards, bell, filters, dialogs…
-contexts/          Continue Watching, My List and player theme (AppContext), player state
+contexts/          Continue Watching, My List and player theme (AppContext), accounts (AuthContext), player state
 data/              VidFast server list for the player's server menu
 pages/             Home, Movies, TV, Categories, New & Popular, My Content, Languages, Browse,
-                   brand and franchise pages, Search, Title window, Person, Watch (player)
-services/          TMDB client (with cache) and browser storage
+                   brand and franchise pages, Search, Title window, Person, Watch (player),
+                   Sign In, Sign Up, Forgot / Reset password
+services/          TMDB client (with cache), browser storage, Supabase client and cloud sync
 utils/             Router, rows, browse filters, artwork and logos, search ranking, smooth scroll…
-.github/workflows/ Type check on every push
+.github/workflows/ Type check on every push, hourly keep-awake check
 index.html         App page (also moves saved lists over from the old address)
 vercel.json        Rewrites and security headers
 ~~~

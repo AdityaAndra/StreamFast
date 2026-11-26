@@ -3,6 +3,7 @@ import type { SearchResult, SeasonDetails, WatchProgress } from '../types';
 import { getTitleDetails, getSeasonDetails, TitleDetails } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
 import { useAppContext } from '../contexts/AppContext';
+import { notifyLocalDataChange } from '../services/storage';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { PlayIcon } from '../components/Icons';
@@ -382,6 +383,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     try {
       if (next) localStorage.setItem(SERVER_KEY, next);
       else localStorage.removeItem(SERVER_KEY);
+      notifyLocalDataChange('default_server');
     } catch {
       /* ignore */
     }
