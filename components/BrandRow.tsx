@@ -4,7 +4,7 @@ import SkeletonCarousel from './SkeletonCarousel';
 import { Link, BrandKind } from '../utils/router';
 import { usePerRow } from '../utils/artwork';
 import { tmdbImage } from '../utils/media';
-import { STUDIOS, PRODUCTION_HOUSES, FRANCHISE_IDS, getRegion, saveRegion, useCompanies, useCollections, useProviders, REGIONS } from '../utils/brands';
+import { STUDIOS, PRODUCTION_HOUSES, FRANCHISE_IDS, franchiseLogo, getRegion, saveRegion, useCompanies, useCollections, useProviders, REGIONS } from '../utils/brands';
 import type { RowDef } from '../utils/rows';
 
 export interface Tile {
@@ -12,6 +12,8 @@ export interface Tile {
   to: string;
   label: string;
   img: string | null;
+  /** Franchise tiles: the franchise's own title logo, shown instead of the name. */
+  logo?: string | null;
   variant: 'light' | 'dark' | 'art';
 }
 
@@ -59,18 +61,31 @@ export const useBrandTiles = (kind: BrandKind, mediaType?: 'movie' | 'tv', regio
   return FRANCHISE_IDS.flatMap((id) => {
     const info = collections.data?.[String(id)];
     if (!info || !info.backdrop) return [];
-    return [{ key: String(id), to: `/franchise/${id}`, label: info.name.replace(/\s*(Collection|- Collection)$/i, ''), img: tmdbImage(info.backdrop, 'w780'), variant: 'art' as const }];
+    return [{ key: String(id), to: `/franchise/${id}`, label: info.name.replace(/\s*(Collection|- Collection)$/i, ''), img: tmdbImage(info.backdrop, 'w780'), logo: franchiseLogo(id, 'w500'), variant: 'art' as const }];
   });
 };
 
 export const BrandTile: React.FC<{ tile: Tile }> = ({ tile }) => {
   const [loaded, setLoaded] = useState(false);
+  const [logoState, setLogoState] = useState<'loading' | 'ok' | 'failed'>('loading');
   if (tile.variant === 'art') {
     return (
       <Link to={tile.to} aria-label={tile.label} className="nf-card group/card">
         {tile.img && <img src={tile.img} alt="" loading="lazy" decoding="async" onLoad={() => setLoaded(true)} className={`nf-art ${loaded ? 'is-loaded' : ''}`} />}
-        <span className="nf-card-shade" />
-        <span className="nf-franchise-name">{tile.label}</span>
+        <span className={`nf-card-shade ${tile.logo ? 'has-logo' : ''}`} />
+        {tile.logo && logoState !== 'failed' ? (
+          <img
+            src={tile.logo}
+            alt=""
+            loading="lazy"
+            decoding="async"
+            onLoad={() => setLogoState('ok')}
+            onError={() => setLogoState('failed')}
+            className={`nf-franchise-logo ${logoState === 'ok' ? 'is-loaded' : ''}`}
+          />
+        ) : (
+          <span className="nf-franchise-name">{tile.label}</span>
+        )}
         <span className="nf-card-hover" />
       </Link>
     );

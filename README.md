@@ -1,6 +1,13 @@
 <div align="center">
 
-# 🎬 StreamFast
+<a href="https://streamfast.vercel.app">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/logo.svg">
+    <img src="public/logo-light.svg" alt="StreamFast" width="360">
+  </picture>
+</a>
+
+<h1>StreamFast</h1>
 
 **A Netflix-style streaming site for movies and TV shows, built with React.**
 
@@ -36,7 +43,7 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 - **Top 10** rows with big outlined rank numbers, plus *Recently added* and *New episode* badges
 - **Title logos and IMDb ratings** on cards, like Netflix shows them
 - **Pages for everything**: Home, Movies, TV Shows, Categories, New & Popular, My Content and Browse by Languages
-- **Brand pages** for studios, TV networks and streaming services (Netflix, Prime Video, Disney+, Marvel Studios, HBO…) and **franchise pages** for collections like *The Lord of the Rings*
+- **Brand pages** for studios, TV networks and streaming services (Netflix, Prime Video, Disney+, Marvel Studios, HBO…) and **franchise pages** for collections like *The Lord of the Rings*, shown with each franchise's own logo
 - **Browse with filters**: type, genre, year or decade, language, rating, streaming service and sort order (popular, newest, oldest, top rated, A–Z, revenue…)
 - **Smooth scrolling**, and Back always returns you to exactly where you were on the page
 

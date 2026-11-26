@@ -56,6 +56,47 @@ export const FRANCHISE_IDS = [
   2150, 86066, 84, 264, 8091, 528, 313086, 535313, 77816, 386382, 284433, 121938,
 ];
 
+/** Official title logos for the Popular Franchises (TMDB has no logos for collections, so each one uses the
+ *  logo of the film that carries the franchise name). Checked by eye; franchises not listed fall back to text. */
+export const FRANCHISE_LOGOS: Record<number, string> = {
+  86311: '/2VLCNzMOGayRGdiSGyaOD0MzA3Y.png', // The Avengers (from The Avengers)
+  1241: '/n7Pj4doQ1yfElCiGTGFTvzoQkpf.png', // Harry Potter (from Harry Potter and the Philosopher's Stone)
+  10: '/vswPivs3yuUsk5aW6DbnyeNQ4GX.png', // Star Wars (from Star Wars)
+  645: '/kqKmAtdICZFz7dURG0AGoH7Mbbb.png', // James Bond (from No Time to Die (gold 007))
+  9485: '/jCbjdbiG1BtiX4aqhvgf6YdXuIq.png', // The Fast and the Furious (from The Fast and the Furious)
+  119: '/87sl6r7n7Qx0fALtLZFxM3mU3KM.png', // The Lord of the Rings (from The Lord of the Rings: The Fellowship of the Ring)
+  87359: '/d4Nk4FAlEoHLNEny88SQ7Jk9ZsZ.png', // Mission: Impossible (from Mission: Impossible)
+  328: '/djIhZiHr974aA5Cyprgal4YAJDl.png', // Jurassic Park (from Jurassic Park)
+  404609: '/eVXvH6j4qM8ZEqZfw5bZ6JGQxqZ.png', // John Wick (from John Wick)
+  263: '/nO5Uix3Qr4WjOyU1BMPv0okyNWm.png', // The Dark Knight (from The Dark Knight)
+  131635: '/hJA3edSToEmAXHKSiDjTb4ZtM7H.png', // The Hunger Games (from The Hunger Games)
+  295: '/o0s0xqUcaWWv0Kh3QYmfxSQjmPD.png', // Pirates of the Caribbean (from Pirates of the Caribbean: The Curse of the Black Pearl)
+  2344: '/xslT5YyQOaqcVKAZxcoq2YbcbEf.png', // The Matrix (from The Matrix)
+  10194: '/eX8LcW1zdjxvWNB5ZsZuhPO7NtP.png', // Toy Story (from Toy Story)
+  8650: '/ozzvPYVLxYwXgspOrF5CyDP2A8S.png', // Transformers (from Transformers)
+  531241: '/dBuI6v9X484QeG3fb4oH8RJ7021.png', // Spider-Man (MCU) (from Spider-Man: Homecoming)
+  748: '/bfUbOGdmttSCvar958KkUJlEOiQ.png', // X-Men (from X-Men)
+  87096: '/bET8bJdM8diTCpUVilWqqu0M3EJ.png', // Avatar (from Avatar)
+  726871: '/hlnyMaUxeFJTb3QL1hKpHwhWowC.png', // Dune (from Dune)
+  448150: '/piuamNKC09lepRcjrWx9GfEa8hN.png', // Deadpool (from Deadpool)
+  2150: '/mEtAnquVJzgMwmBeZNw4fhccj2s.png', // Shrek (from Shrek)
+  86066: '/hrAeReyKsy89ue9bMWKuTJ57GGz.png', // Despicable Me (from Despicable Me)
+  84: '/tPI0BNiiGbVAPIrO8kcBWajM6He.png', // Indiana Jones (from Raiders of the Lost Ark)
+  264: '/7hXsyx9em5FhNdeEf0tehFmG06r.png', // Back to the Future (from Back to the Future)
+  8091: '/riI33EA1vYQ1szTtMe0NR7TwV1p.png', // Alien (from Alien)
+  528: '/6hBVMofGYDOC20yYiQeOnuHmK9d.png', // The Terminator (from The Terminator)
+  313086: '/oFieLsWzLyaSh3fywpuSIq3gEit.png', // The Conjuring (from The Conjuring)
+  535313: '/z5pLdgfhfLy9vRRyAMgXLy2TFir.png', // Godzilla (from Godzilla)
+  77816: '/gkpcd4k3IrkqIAqRBNLLjBHGYyr.png', // Kung Fu Panda (from Kung Fu Panda)
+  386382: '/r05nI8WQvBbdvuwVXtXuvOi0cJ9.png', // Frozen (from Frozen)
+  284433: '/tikZxXefORICSFaRxEJ01YEfOu1.png', // Guardians of the Galaxy (from Guardians of the Galaxy)
+  121938: '/h5DwmLJAw9xr9Sx33G0ckg7yjTB.png', // The Hobbit (from The Hobbit: An Unexpected Journey)
+};
+export const franchiseLogo = (id: number, size: 'w300' | 'w500' = 'w500') => {
+  const p = FRANCHISE_LOGOS[id];
+  return p ? `https://image.tmdb.org/t/p/${size}${p}` : null;
+};
+
 export const findBrand = (key: string) => [...STUDIOS, ...PRODUCTION_HOUSES].find((b) => b.key === key);
 
 export interface CompanyInfo { name: string; logo: string | null }
