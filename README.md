@@ -7,8 +7,6 @@
   </picture>
 </a>
 
-<h1>StreamFast</h1>
-
 **A Netflix-style streaming site for movies and TV shows, built with React.**
 
 Browse like Netflix, press Play, and watch right in the site.
