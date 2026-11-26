@@ -95,8 +95,8 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 1. **Get a free TMDB API key:** https://www.themoviedb.org/settings/api
 2. **Clone and install**
    ~~~bash
-   git clone https://github.com/AdityaAndra/Vidfast-link-generator.git
-   cd Vidfast-link-generator
+   git clone https://github.com/AdityaAndra/StreamFast.git
+   cd StreamFast
    npm install
    ~~~
 3. **Add the key:** copy `.env.example` to `.env.local` and set `TMDB_API_KEY`.
