@@ -10,7 +10,7 @@ const SKIP_IDS = new Set([2, 3, 7, 10, 35, 68, 175, 192, 279, 1796]);
 const SKIP_NAME = /justwatch|channel|with ads|amazon video|google play|microsoft store|fandango|vudu|redbox/i;
 
 const getJSON = async (url) => {
-  const r = await fetch(url);
+  const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
   if (!r.ok) throw new Error(String(r.status));
   return r.json();
 };
@@ -18,14 +18,17 @@ const getJSON = async (url) => {
 export default async function handler(req, res) {
   const key = process.env.TMDB_API_KEY;
   if (!key) {
+    res.setHeader('Cache-Control', 'no-store');
     res.status(500).json({ error: 'TMDB_API_KEY is not configured on the server.' });
     return;
   }
   const q = req.query || {};
   const kind = String(q.kind || '');
-  const send = (body) => {
+  // A complete answer is cached for a week. If any lookup failed, only for 5 minutes,
+  // so a short TMDB hiccup doesn't leave studios or services without a logo all week.
+  const send = (body, complete = true) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=2592000');
+    res.setHeader('Cache-Control', complete ? 'public, s-maxage=604800, stale-while-revalidate=2592000' : 'public, s-maxage=300');
     res.status(200).json(body);
   };
 
@@ -46,14 +49,20 @@ export default async function handler(req, res) {
           }
         })
       );
-      send(out);
+      send(out, ids.every((id) => out[id]));
       return;
     }
 
     if (kind === 'providers') {
       const region = /^[A-Z]{2}$/.test(String(q.region || '')) ? String(q.region) : 'US';
+      let failed = false;
       const lists = await Promise.all(
-        ['movie', 'tv'].map((t) => getJSON(`${TMDB}/watch/providers/${t}?watch_region=${region}&api_key=${key}`).catch(() => ({ results: [] })))
+        ['movie', 'tv'].map((t) =>
+          getJSON(`${TMDB}/watch/providers/${t}?watch_region=${region}&api_key=${key}`).catch(() => {
+            failed = true;
+            return { results: [] };
+          })
+        )
       );
       const map = new Map();
       for (const p of lists.flatMap((l) => l.results || [])) {
@@ -66,12 +75,14 @@ export default async function handler(req, res) {
         .sort((a, b) => a.priority - b.priority)
         .slice(0, 24)
         .map(({ priority, ...rest }) => rest);
-      send({ region, providers });
+      send({ region, providers }, !failed);
       return;
     }
 
+    res.setHeader('Cache-Control', 'no-store');
     res.status(400).json({ error: 'Unknown kind' });
   } catch {
+    res.setHeader('Cache-Control', 'no-store');
     res.status(502).json({ error: 'Could not reach TMDB.' });
   }
 }
