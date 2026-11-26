@@ -1,0 +1,27 @@
+[
+  {
+    "name": "vRapid",
+    "badge": "https://vidfast.vc/4k.png",
+    "details": "Original audio, 4K?"
+  },
+  {
+    "name": "vBlaze",
+    "badge": "https://vidfast.vc/4k.png",
+    "details": "Original audio, 4K?"
+  },
+  {
+    "name": "Cobra",
+    "badge": "https://flagsapi.com/US/flat/24.png",
+    "details": "Original audio"
+  },
+  {
+    "name": "Bravo",
+    "badge": "https://flagsapi.com/US/flat/24.png",
+    "details": "Original audio"
+  },
+  {
+    "name": "Delta",
+    "badge": "https://flagsapi.com/US/flat/24.png",
+    "details": "Original audio"
+  }
+]

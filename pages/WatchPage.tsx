@@ -6,6 +6,7 @@ import { useAppContext } from '../contexts/AppContext';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { PlayIcon } from '../components/Icons';
+import VIDFAST_SERVERS from '../data/vidfast-servers.json';
 
 const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
@@ -28,16 +29,12 @@ const BLOCK = 3;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
-/** VidFast's servers, as its own server menu lists them (badge + details). "Auto" lets the player pick. */
-const BADGE_4K = 'https://vidfast.vc/4k.png';
-const FLAG_US = 'https://flagsapi.com/US/flat/24.png';
-const SERVER_INFO: { name: string; badge: string; details: string }[] = [
-  { name: 'vRapid', badge: BADGE_4K, details: 'Original audio, 4K?' },
-  { name: 'vBlaze', badge: BADGE_4K, details: 'Original audio, 4K?' },
-  { name: 'Cobra', badge: FLAG_US, details: 'Original audio' },
-  { name: 'Bravo', badge: FLAG_US, details: 'Original audio' },
-  { name: 'Delta', badge: FLAG_US, details: 'Original audio' },
-];
+/** VidFast's servers, as its own server menu lists them (badge + details). "Auto" lets the player pick.
+    Kept in sync with VidFast every 6 hours by .github/workflows/vidfast-servers.yml: new servers appear here,
+    removed ones disappear (a saved default that no longer exists falls back to Auto). */
+const SERVER_INFO: { name: string; badge: string; details: string }[] = (VIDFAST_SERVERS as { name: string; badge?: string; details?: string }[])
+  .filter((x) => x && typeof x.name === 'string' && x.name)
+  .map((x) => ({ name: x.name, badge: x.badge || '', details: x.details || '' }));
 const SERVERS = SERVER_INFO.map((x) => x.name);
 
 /* VidFast's own icon style: 24px grid, 1.5 stroke, round joins. */
@@ -106,7 +103,6 @@ const loadServer = () => {
     return '';
   }
 };
-
 const toSearchResult = (d: TitleDetails): SearchResult => {
   const base = {
     id: d.id, poster_path: d.poster_path, backdrop_path: d.backdrop_path, overview: d.overview,
@@ -228,6 +224,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       window.clearTimeout(idle.current);
     };
   }, [src]);
+
 
   /* ---------- progress saving (Continue Watching) ---------- */
   const lastSave = useRef(0);
