@@ -166,7 +166,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const src = useMemo(() => {
     if (autoAdvanced.current === `${id}:${season}:${episode}` && srcRef.current) return srcRef.current;
     // Our page shows the title and server picker itself (Netflix layout), so hide VidFast's.
-    const theme = `&theme=${playerTheme.hex.replace('#', '')}&title=false&hideServer=true${server ? `&server=${server}` : ''}`;
+    // No autoPlay param: VidFast's player currently stalls on "Loading, one moment" when it is set
+    // (tested Nov 2026), so the viewer presses Play once in the player instead.
+    const theme = `theme=${playerTheme.hex.replace('#', '')}&title=false&hideServer=true${server ? `&server=${server}` : ''}`;
     let resume = (switchAt && switchAt.ep === epKey ? switchAt.t : undefined) ?? startAt;
     if (resume === undefined && saved?.progress.watched && saved.progress.duration) {
       const same = mediaType === 'movie' || (saved.progress.season === season && saved.progress.episode === episode);
@@ -175,8 +177,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     }
     const t = resume ? `&startAt=${resume}` : '';
     return mediaType === 'movie'
-      ? `${VIDFAST_EMBED_MOVIE}${id}?autoPlay=true${theme}${t}`
-      : `${VIDFAST_EMBED_TV}${id}/${season}/${episode}?autoPlay=true&nextButton=true&autoNext=true${theme}${t}`;
+      ? `${VIDFAST_EMBED_MOVIE}${id}?${theme}${t}`
+      : `${VIDFAST_EMBED_TV}${id}/${season}/${episode}?nextButton=true&autoNext=true&${theme}${t}`;
     // Only rebuild when the episode changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt]);
