@@ -6,7 +6,7 @@ const ENDPOINT = 'https://query.wikidata.org/sparql?format=json&query=';
 const UA = 'StreamFast/1.0 (https://streamfast.vercel.app)';
 
 const sparql = async (q) => {
-  const r = await fetch(ENDPOINT + encodeURIComponent(q), { headers: { 'User-Agent': UA, Accept: 'application/sparql-results+json' } });
+  const r = await fetch(ENDPOINT + encodeURIComponent(q), { headers: { 'User-Agent': UA, Accept: 'application/sparql-results+json' }, signal: AbortSignal.timeout(15000) });
   if (!r.ok) throw new Error(`Wikidata ${r.status}`);
   return (await r.json()).results.bindings;
 };
@@ -23,6 +23,7 @@ const year = (t) => (t ? String(t).slice(0, 4).replace(/^\+/, '') : undefined);
 export default async function handler(req, res) {
   const wd = String((req.query && req.query.wd) || '');
   if (!WD_RE.test(wd)) {
+    res.setHeader('Cache-Control', 'no-store');
     res.status(400).json({ error: 'Invalid Wikidata id' });
     return;
   }
@@ -45,11 +46,13 @@ export default async function handler(req, res) {
     SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 300`;
 
   try {
-    const [aRows, fRows] = await Promise.all([sparql(awardsQ), sparql(factsQ).catch(() => [])]);
+    // Either query can fail on its own (Wikidata times out on big filmographies): return whatever loaded.
+    const [aRows, fRows] = await Promise.all([sparql(awardsQ).catch(() => null), sparql(factsQ).catch(() => null)]);
+    if (!aRows && !fRows) throw new Error('Wikidata unavailable');
 
     const seen = new Set();
     const awards = [];
-    for (const b of aRows) {
+    for (const b of aRows || []) {
       const a = label(b, 'award');
       if (!a || isQid(a)) continue;
       const y = year(b.time && b.time.value);
@@ -63,7 +66,7 @@ export default async function handler(req, res) {
 
     const facts = { citizenship: [], education: [], spouses: [], occupations: [] };
     const add = (list, v) => v && !isQid(v) && !list.includes(v) && list.push(v);
-    for (const b of fRows) {
+    for (const b of fRows || []) {
       const k = b.k.value;
       const v = label(b, 'val');
       if (k === 'birthName' && !facts.birthName) facts.birthName = v;
@@ -84,9 +87,11 @@ export default async function handler(req, res) {
     facts.occupations = facts.occupations.slice(0, 8);
 
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=2592000');
+    // Cache a full answer for a week; a partial one (a query failed) only for 5 minutes.
+    res.setHeader('Cache-Control', aRows && fRows ? 'public, s-maxage=604800, stale-while-revalidate=2592000' : 'public, s-maxage=300');
     res.status(200).json({ awards, facts });
   } catch (e) {
+    res.setHeader('Cache-Control', 'no-store');
     res.status(502).json({ error: 'Could not reach Wikidata.' });
   }
 }
