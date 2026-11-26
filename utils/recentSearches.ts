@@ -1,5 +1,7 @@
+import { notifyLocalDataChange } from '../services/storage';
+
 const RECENT_KEY = 'streamfast_recent_searches';
-const MAX_RECENT = 6;
+export const MAX_RECENT = 6;
 
 export const loadRecentSearches = (): string[] => {
   try {
@@ -16,6 +18,7 @@ export const saveRecentSearch = (query: string) => {
   try {
     const next = [q, ...loadRecentSearches().filter((x) => x.toLowerCase() !== q.toLowerCase())].slice(0, MAX_RECENT);
     localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+    notifyLocalDataChange('recent_searches');
   } catch {
     /* storage unavailable: ignore */
   }
@@ -24,6 +27,7 @@ export const saveRecentSearch = (query: string) => {
 export const clearRecentSearches = () => {
   try {
     localStorage.removeItem(RECENT_KEY);
+    notifyLocalDataChange('recent_searches');
   } catch {
     /* ignore */
   }

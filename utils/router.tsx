@@ -24,6 +24,10 @@ export type Route =
   | { name: 'franchise'; id: number }
   | { name: 'person'; id: number }
   | { name: 'watch'; mediaType: 'movie' | 'tv'; id: number; season?: number; episode?: number; t?: number }
+  | { name: 'login'; next: string }
+  | { name: 'signup'; next: string }
+  | { name: 'forgot-password' }
+  | { name: 'reset-password' }
   | { name: 'not-found' };
 
 export type BrandKind = 'studios' | 'production' | 'providers' | 'franchises';
@@ -165,6 +169,10 @@ export const parseRoute = (loc: string): Route => {
   if (path === '/explore' || path === '/categories') return { name: 'explore' };
   if (path === '/languages' || path === '/browse-by-languages') return { name: 'languages', search: url.search };
   if (path === '/browse') return { name: 'browse', search: url.search };
+  if (path === '/login' || path === '/signin') return { name: 'login', next: safeNext(url.searchParams.get('next')) };
+  if (path === '/signup') return { name: 'signup', next: safeNext(url.searchParams.get('next')) };
+  if (path === '/forgot-password') return { name: 'forgot-password' };
+  if (path === '/reset-password') return { name: 'reset-password' };
   if (BRAND_LISTS[path]) return { name: 'brands', kind: BRAND_LISTS[path] };
   let b = path.match(/^\/(?:studio|production|company)\/([a-z0-9-]+)/);
   if (b) return { name: 'company', key: b[1], search: url.search };
@@ -182,6 +190,36 @@ export const parseRoute = (loc: string): Route => {
   const m = path.match(/^\/(?:title\/)?(movie|tv)\/(\d+)/);
   if (m) return { name: 'title', mediaType: m[1] as 'movie' | 'tv', id: Number(m[2]), play: url.searchParams.get('play') === '1' };
   return { name: 'not-found' };
+};
+
+/* ---------- Account pages ---------- */
+
+export const AUTH_ROUTES: readonly Route['name'][] = ['login', 'signup', 'forgot-password', 'reset-password'];
+const AUTH_PATHS = ['/login', '/signin', '/signup', '/forgot-password', '/reset-password'];
+
+/** Where to go after signing in: only a path on this site, never back to an account page. */
+export const safeNext = (raw: string | null | undefined): string => {
+  if (!raw || raw[0] !== '/' || raw.startsWith('//') || raw.startsWith('/\\')) return '/';
+  const path = raw.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+  return AUTH_PATHS.includes(path) ? '/' : raw;
+};
+
+/** /login, remembering the page you're on so signing in brings you back to it. */
+export const signInPath = (): string => {
+  const next = safeNext(currentLocation());
+  return next === '/' ? '/login' : `/login?next=${encodeURIComponent(next)}`;
+};
+
+/** Leave an account page for `next`. Titles and the player open over Home (they remember the page
+ *  behind them, which must not be the sign-in page). */
+export const navigateAfterAuth = (next: string) => {
+  const to = safeNext(next);
+  if (to !== '/' && (isTitleLoc(to) || isWatchLoc(to))) {
+    navigate('/', { replace: true });
+    navigate(to);
+    return;
+  }
+  navigate(to, { replace: true });
 };
 
 const subscribe = (cb: () => void) => {

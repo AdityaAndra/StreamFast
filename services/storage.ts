@@ -7,6 +7,50 @@ const STORAGE_KEY = 'streamfast_continue_watching';
 const MY_LIST_STORAGE_KEY = 'streamfast_my_list';
 const THEME_STORAGE_KEY = 'streamfast_player_theme';
 
+/* ---------- Change notifications (used by cloud sync, services/cloudSync.ts) ----------
+   Every save path calls notifyLocalDataChange(key) after writing to localStorage, so a signed-in
+   user's changes can be uploaded. When cloud sync writes newer data into localStorage it calls
+   notifyRemoteDataApplied(keys), so screens can re-read it without a page reload. */
+export type SyncKey = 'progress' | 'my_list' | 'theme' | 'default_server' | 'recent_searches' | 'notifications' | 'region';
+export const SYNC_KEYS: readonly SyncKey[] = ['progress', 'my_list', 'theme', 'default_server', 'recent_searches', 'notifications', 'region'];
+
+const localChangeListeners = new Set<(key: SyncKey) => void>();
+const remoteApplyListeners = new Set<(keys: SyncKey[]) => void>();
+
+export const onLocalDataChange = (fn: (key: SyncKey) => void): (() => void) => {
+    localChangeListeners.add(fn);
+    return () => {
+        localChangeListeners.delete(fn);
+    };
+};
+
+export const notifyLocalDataChange = (key: SyncKey): void => {
+    localChangeListeners.forEach((fn) => {
+        try {
+            fn(key);
+        } catch {
+            /* a listener must never break a save */
+        }
+    });
+};
+
+export const onRemoteDataApplied = (fn: (keys: SyncKey[]) => void): (() => void) => {
+    remoteApplyListeners.add(fn);
+    return () => {
+        remoteApplyListeners.delete(fn);
+    };
+};
+
+export const notifyRemoteDataApplied = (keys: SyncKey[]): void => {
+    remoteApplyListeners.forEach((fn) => {
+        try {
+            fn(keys);
+        } catch {
+            /* ignore */
+        }
+    });
+};
+
 
 export const getContinueWatchingList = (): WatchProgressItem[] => {
     try {
@@ -41,6 +85,7 @@ export const saveToContinueWatching = (item: SearchResult, progress: WatchProgre
     }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list.sort((a,b) => b.savedAt - a.savedAt)));
+    notifyLocalDataChange('progress');
 };
 
 
@@ -48,6 +93,7 @@ export const removeFromContinueWatching = (id: number, media_type: 'movie' | 'tv
     let list = getContinueWatchingList();
     list = list.filter(i => !(i.media.id === id && i.media.media_type === media_type));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    notifyLocalDataChange('progress');
 };
 
 export const getMyList = (): MyListItem[] => {
@@ -76,12 +122,14 @@ export const saveToMyList = (item: SearchResult): void => {
     };
     list.unshift(newItem);
     localStorage.setItem(MY_LIST_STORAGE_KEY, JSON.stringify(list.sort((a,b) => b.savedAt - a.savedAt)));
+    notifyLocalDataChange('my_list');
 };
 
 export const removeFromMyList = (id: number, media_type: 'movie' | 'tv'): void => {
     let list = getMyList();
     list = list.filter(i => !(i.media.id === id && i.media.media_type === media_type));
     localStorage.setItem(MY_LIST_STORAGE_KEY, JSON.stringify(list));
+    notifyLocalDataChange('my_list');
 };
 
 export const exportContinueWatchingList = () => {
@@ -139,6 +187,7 @@ export const importContinueWatchingList = (jsonContent: string): Promise<WatchPr
             }
 
             localStorage.setItem(STORAGE_KEY, JSON.stringify(validatedList));
+            notifyLocalDataChange('progress');
             resolve(validatedList.sort((a,b) => b.savedAt - a.savedAt));
         } catch (error) {
             console.error("Failed to import continue watching list", error);
@@ -166,6 +215,7 @@ export const getPlayerTheme = (): ColorInfo => {
 export const setPlayerTheme = (theme: ColorInfo): void => {
     try {
         localStorage.setItem(THEME_STORAGE_KEY, JSON.stringify(theme));
+        notifyLocalDataChange('theme');
     } catch (error) {
         console.error("Failed to save player theme to localStorage", error);
     }
@@ -175,4 +225,7 @@ export const resetSiteData = (): void => {
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(MY_LIST_STORAGE_KEY);
     localStorage.removeItem(THEME_STORAGE_KEY);
+    notifyLocalDataChange('progress');
+    notifyLocalDataChange('my_list');
+    notifyLocalDataChange('theme');
 };

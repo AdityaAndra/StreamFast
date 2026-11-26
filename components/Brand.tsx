@@ -5,6 +5,7 @@ import { useCachedData } from '../utils/useCachedData';
 import { getTitle, tmdbImage, titlePath } from '../utils/media';
 import { Link, navigate } from '../utils/router';
 import { useAppContext } from '../contexts/AppContext';
+import { notifyLocalDataChange, onRemoteDataApplied } from '../services/storage';
 import { BellIcon } from './Icons';
 
 /** StreamFast logo: a sliced red play mark with motion trails, and a two-weight wordmark
@@ -108,6 +109,7 @@ const readSet = (key: string): Set<string> => {
 const writeSet = (key: string, s: Set<string>) => {
   try {
     localStorage.setItem(key, JSON.stringify([...s].slice(-400)));
+    notifyLocalDataChange('notifications');
   } catch {
     /* ignore */
   }
@@ -234,6 +236,14 @@ const buildArrivals = async (): Promise<Note[]> => {
 
 const canAlert = () => typeof window !== 'undefined' && 'Notification' in window;
 
+const readAlerts = (): boolean => {
+  try {
+    return localStorage.getItem(ALERTS_KEY) === '1' && canAlert() && Notification.permission === 'granted';
+  } catch {
+    return false;
+  }
+};
+
 const showAlert = (n: Note) => {
   try {
     const a = new Notification(`${n.label}: ${n.title}`, { body: n.sub, icon: n.img || '/favicon.svg', tag: n.id });
@@ -253,13 +263,7 @@ export const NotificationsBell: React.FC = () => {
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(() => readSet(SEEN_KEY));
-  const [alerts, setAlerts] = useState(() => {
-    try {
-      return localStorage.getItem(ALERTS_KEY) === '1' && canAlert() && Notification.permission === 'granted';
-    } catch {
-      return false;
-    }
-  });
+  const [alerts, setAlerts] = useState(readAlerts);
   const [blocked, setBlocked] = useState(() => canAlert() && Notification.permission === 'denied');
   const ref = useRef<HTMLDivElement>(null);
 
@@ -267,6 +271,17 @@ export const NotificationsBell: React.FC = () => {
     const t = window.setTimeout(() => setReady(true), 1500);
     return () => window.clearTimeout(t);
   }, []);
+
+  // Signed in on another device: cloud sync brought newer read marks / the alerts setting.
+  useEffect(
+    () =>
+      onRemoteDataApplied((keys) => {
+        if (!keys.includes('notifications')) return;
+        setSeen(readSet(SEEN_KEY));
+        setAlerts(readAlerts());
+      }),
+    []
+  );
 
   // Shows / movies you follow: Continue Watching (with your progress) + My List, newest first.
   const tracked = useMemo(() => {
@@ -354,6 +369,7 @@ export const NotificationsBell: React.FC = () => {
       setAlerts(false);
       try {
         localStorage.setItem(ALERTS_KEY, '0');
+        notifyLocalDataChange('notifications');
       } catch {
         /* ignore */
       }
@@ -368,6 +384,7 @@ export const NotificationsBell: React.FC = () => {
     writeSet(NOTIFIED_KEY, done);
     try {
       localStorage.setItem(ALERTS_KEY, '1');
+      notifyLocalDataChange('notifications');
     } catch {
       /* ignore */
     }
