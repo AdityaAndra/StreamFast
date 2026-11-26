@@ -7,6 +7,17 @@ const API_ENDPOINT = '/api/tmdb';
 // Small in-memory cache so moving between pages feels instant. Only successful responses are cached.
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const cache = new Map<string, { at: number; data: any }>();
+const CACHE_MAX = 300;
+// Drop expired entries, then the oldest ones, so the cache can't keep growing all session.
+const pruneCache = () => {
+    const now = Date.now();
+    for (const [k, v] of cache) if (now - v.at >= CACHE_TTL_MS) cache.delete(k);
+    while (cache.size > CACHE_MAX) {
+        const oldest = cache.keys().next().value;
+        if (oldest === undefined) break;
+        cache.delete(oldest);
+    }
+};
 
 const fetchFromTMDB = async (path: string, params: Record<string, string> = {}, signal?: AbortSignal) => {
     const query = new URLSearchParams({ path, ...params }).toString();
@@ -23,6 +34,7 @@ const fetchFromTMDB = async (path: string, params: Record<string, string> = {}, 
     }
     const data = await response.json();
     cache.set(query, { at: Date.now(), data });
+    pruneCache();
     return data;
 };
 
