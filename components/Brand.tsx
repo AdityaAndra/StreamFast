@@ -133,7 +133,7 @@ const relDay = (ts: number) => {
   return `${Math.round(d / 30)} month${d >= 60 ? 's' : ''} ago`;
 };
 
-const img = (path?: string | null) => tmdbImage(path, 'w300' as any);
+const img = (path?: string | null) => tmdbImage(path, 'w300');
 
 interface Tracked {
   media: SearchResult;
@@ -328,17 +328,24 @@ export const NotificationsBell: React.FC = () => {
     };
   }, [open]);
 
-  // Opening the panel marks everything in it as read.
+  // What you saw in the panel is marked as read when it CLOSES, so the red "new" dots stay
+  // visible while you're looking at them.
+  const shownRef = useRef<string[]>([]);
   useEffect(() => {
-    if (!open || !all.length) return;
-    const next = new Set(seen);
-    let changed = false;
-    for (const n of all) if (!next.has(n.id)) (next.add(n.id), (changed = true));
-    if (changed) {
-      setSeen(next);
-      writeSet(SEEN_KEY, next);
+    if (open) {
+      shownRef.current = all.map((n) => n.id);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const shown = shownRef.current;
+    if (!shown.length) return;
+    shownRef.current = [];
+    setSeen((prev) => {
+      if (shown.every((id) => prev.has(id))) return prev;
+      const next = new Set(prev);
+      shown.forEach((id) => next.add(id));
+      writeSet(SEEN_KEY, next);
+      return next;
+    });
   }, [open, all]);
 
   const toggleAlerts = async () => {
