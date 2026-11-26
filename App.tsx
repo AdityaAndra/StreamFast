@@ -104,12 +104,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let ticking = false;
+    let last = false;
     const onScroll = () => {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
-        setShowScrollToTop(window.scrollY > 900);
         ticking = false;
+        // Only touch App state (which re-renders the whole page) when the button really appears/disappears.
+        const next = window.scrollY > 900;
+        if (next === last) return;
+        last = next;
+        setShowScrollToTop(next);
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });

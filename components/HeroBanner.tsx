@@ -8,6 +8,8 @@ import { useCachedData } from '../utils/useCachedData';
 import { getAmbient } from '../utils/ambient';
 import { getRegion } from '../utils/brands';
 import { navigate } from '../utils/router';
+import { setTitleOrigin } from '../utils/motion';
+import { prefetchTitle } from '../utils/prefetch';
 import { PlayIcon } from './Icons';
 import { ImdbRating, useHasImdb } from './Imdb';
 
@@ -89,6 +91,7 @@ const HeroLogo: React.FC<{ item: SearchResult }> = ({ item }) => {
     <img
       src={tmdbImage(logo.p, 'w780') || ''}
       alt={title}
+      decoding="async"
       onLoad={() => setLoaded(true)}
       className={`nf-hero-logo ${tall ? 'is-tall' : ''} ${loaded ? 'is-loaded' : ''}`}
     />
@@ -123,7 +126,8 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState<Record<number, boolean>>({});
   const [paused, setPaused] = useState(false);
-  const [ambient, setAmbient] = useState('#141414');
+  // Two tint layers: the new colour fades in over the previous one (opacity only, on the GPU).
+  const [ambient, setAmbient] = useState<{ cur: string; prev: string }>({ cur: '#141414', prev: '#141414' });
 
   useEffect(() => {
     if (slides.length) prefetchLogos(slides);
@@ -144,7 +148,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
   // Page tint follows the artwork's colour (Netflix ambient background).
   useEffect(() => {
     let alive = true;
-    if (current) getAmbient(current.backdrop_path).then((c) => alive && setAmbient(c));
+    if (current) getAmbient(current.backdrop_path).then((c) => alive && setAmbient((a) => (a.cur === c ? a : { cur: c, prev: a.cur })));
     return () => {
       alive = false;
     };
@@ -159,7 +163,10 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
 
   return (
     <section className="nf-hero" aria-roledescription="carousel" aria-label="Featured">
-      <div className="nf-ambient" style={{ backgroundColor: ambient }} aria-hidden="true" />
+      <div className="nf-ambient" aria-hidden="true">
+        <i style={{ backgroundColor: ambient.prev }} />
+        <i key={ambient.cur} className="is-in" style={{ backgroundColor: ambient.cur }} />
+      </div>
       {top && <div className="nf-hero-top">{top}</div>}
 
       <div
@@ -183,6 +190,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
               alt=""
               aria-hidden="true"
               fetchPriority={i === index ? 'high' : 'low'}
+              decoding="async"
               onLoad={() => setLoaded((l) => ({ ...l, [i]: true }))}
               className={`nf-billboard-img ${i === index ? 'is-active' : ''} ${loaded[i] ? 'is-loaded' : ''}`}
             />
@@ -200,7 +208,16 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
                 <PlayIcon />
                 Play
               </button>
-              <button type="button" className="nf-btn nf-btn-grey" onClick={() => navigate(titlePath(current))}>
+              <button
+                type="button"
+                className="nf-btn nf-btn-grey"
+                onMouseEnter={() => prefetchTitle(current)}
+                onFocus={() => prefetchTitle(current)}
+                onClick={(e) => {
+                  setTitleOrigin(e.currentTarget);
+                  navigate(titlePath(current));
+                }}
+              >
                 More Info
               </button>
             </div>
