@@ -16,18 +16,19 @@ const HomePage: React.FC = () => {
   const { myList, toggleMyListItem } = useAppContext();
   const hero = useCachedData<SearchResult[]>('hero:home', HOME_HERO);
 
-  if (hero.error) {
-    return (
-      <div className="pt-28">
-        <ErrorState message="We couldn't load titles right now. Check your connection and try again." onRetry={hero.reload} />
-      </div>
-    );
-  }
-
+  // If only the banner fails, show the error in its place and keep Continue Watching, My List and the rows.
   return (
     <div>
-      {hero.data ? <HeroBanner items={hero.data} /> : <HeroSkeleton />}
-      <div className={ROWS_OVERLAP}>
+      {hero.error ? (
+        <div className="px-[4%] pb-4 pt-28">
+          <ErrorState message="We couldn't load the featured titles. Check your connection and try again." onRetry={hero.reload} />
+        </div>
+      ) : hero.data ? (
+        <HeroBanner items={hero.data} />
+      ) : (
+        <HeroSkeleton />
+      )}
+      <div className={hero.error ? 'relative z-[1]' : ROWS_OVERLAP}>
         <ContinueWatchingGrid />
         {myList.length > 0 && <ContentCarousel title="My List" items={myList.map((i) => i.media)} onRemoveItem={toggleMyListItem} viewAll="/my-list" />}
         <RowList rows={HOME_ROWS.slice(0, 2)} />
