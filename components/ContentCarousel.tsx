@@ -28,6 +28,13 @@ interface RowShellProps {
  */
 const SWIPE_SETTLE_MS = 140;
 const EDGE_GIVE = 0.4; // how far (in cards) the row may stretch past either end while swiping
+// After a swipe the row glides onto the nearest card from wherever it is (ease-out, no slow start).
+const SNAP_TRANSITION = 'transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)';
+const SNAP_MS = 520;
+
+/** Page dot for a row moved left by `s` cards: the page most of the visible cards belong to. */
+const pageOf = (s: number, per: number, max: number, pages: number) =>
+  max > 0 && s >= max - 0.01 ? pages - 1 : Math.min(pages - 1, Math.max(0, Math.round(s / per)));
 
 export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: perRowOverride, actions, viewAll, children }) => {
   const basePerRow = usePerRow();
@@ -42,7 +49,7 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
   }, [maxShift]);
 
   const atEnd = shift >= maxShift - 0.01;
-  const page = atEnd ? pages - 1 : Math.min(pages - 1, Math.floor(shift / perRow + 1e-6));
+  const page = pageOf(shift, perRow, maxShift, pages);
   const offset = -(shift / perRow) * 100;
 
   const go = (dir: -1 | 1) =>
@@ -54,10 +61,11 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
   // ---- Two-finger trackpad swipe ----
   const sliderRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
-  const live = useRef({ shift: 0, swiping: false, timer: 0 });
+  const pagerRef = useRef<HTMLDivElement>(null);
+  const live = useRef({ shift: 0, swiping: false, timer: 0, snapTimer: 0 });
   live.current.shift = live.current.swiping ? live.current.shift : shift;
-  const limits = useRef({ perRow, maxShift });
-  limits.current = { perRow, maxShift };
+  const limits = useRef({ perRow, maxShift, pages });
+  limits.current = { perRow, maxShift, pages };
 
   useEffect(() => {
     const slider = sliderRef.current;
@@ -66,7 +74,14 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
     const state = live.current;
 
     const paint = (s: number) => {
-      track.style.transform = `translate3d(${-(s / limits.current.perRow) * 100}%, 0, 0)`;
+      const { perRow: per, maxShift: max, pages: count } = limits.current;
+      track.style.transform = `translate3d(${-(s / per) * 100}%, 0, 0)`;
+      // Page dots follow the row live while it is being swiped (React catches up when it settles).
+      const pager = pagerRef.current;
+      if (pager) {
+        const on = pageOf(s, per, max, count);
+        Array.from(pager.children).forEach((dot, i) => dot.classList.toggle('on', i === on));
+      }
     };
 
     const settle = () => {
@@ -74,10 +89,16 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
       const { maxShift: max } = limits.current;
       const snapped = Math.min(Math.max(Math.round(state.shift), 0), max);
       state.swiping = false;
-      track.style.transition = ''; // back to the normal Netflix easing for the snap
+      track.style.transition = SNAP_TRANSITION;
       state.shift = snapped;
       paint(snapped);
       setShift(snapped);
+      // Then hand back to the normal paging easing for the arrows.
+      if (state.snapTimer) window.clearTimeout(state.snapTimer);
+      state.snapTimer = window.setTimeout(() => {
+        state.snapTimer = 0;
+        if (!state.swiping) track.style.transition = '';
+      }, SNAP_MS);
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -92,6 +113,15 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
       const cardPx = track.clientWidth / per || 1;
       if (!state.swiping) {
         state.swiping = true;
+        if (state.snapTimer) window.clearTimeout(state.snapTimer);
+        state.snapTimer = 0;
+        // Pick the row up exactly where it is on screen, even mid-glide.
+        const moving = getComputedStyle(track).transform;
+        if (moving && moving !== 'none') {
+          const m = new DOMMatrixReadOnly(moving);
+          const w = track.clientWidth || 1;
+          state.shift = (-m.m41 / w) * per;
+        }
         track.style.transition = 'none';
       }
       let next = state.shift + px / cardPx;
@@ -110,6 +140,8 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
       slider.removeEventListener('wheel', onWheel);
       if (state.timer) window.clearTimeout(state.timer);
       state.timer = 0;
+      if (state.snapTimer) window.clearTimeout(state.snapTimer);
+      state.snapTimer = 0;
       state.swiping = false;
       track.style.transition = '';
     };
@@ -149,7 +181,7 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
         <div className="flex items-center gap-3">
           {actions}
           {CAN_HOVER && pages > 1 && (
-            <div className="nf-pager" aria-hidden="true">
+            <div ref={pagerRef} className="nf-pager" aria-hidden="true">
               {Array.from({ length: pages }).map((_, i) => (
                 <span key={i} className={i === page ? 'on' : ''} />
               ))}
@@ -191,7 +223,7 @@ interface ContentCarouselProps {
   viewAll?: string;
 }
 
-const ContentCarousel: React.FC<ContentCarouselProps> = ({ title, items, onRemoveItem, viewAll }) => {
+const ContentCarouselBase: React.FC<ContentCarouselProps> = ({ title, items, onRemoveItem, viewAll }) => {
   useEffect(() => {
     if (items?.length) prefetchLogos(items);
   }, [items]);
@@ -208,6 +240,9 @@ const ContentCarousel: React.FC<ContentCarouselProps> = ({ title, items, onRemov
     </RowShell>
   );
 };
+
+/** Rows skip re-rendering when their props haven't changed (e.g. when an unrelated part of the page updates). */
+const ContentCarousel = React.memo(ContentCarouselBase);
 
 /** Loads a row only when it is about to scroll into view (keeps 20+ rows fast). */
 export const LazyRow: React.FC<{ def: RowDef; eager?: boolean }> = ({ def, eager }) => {

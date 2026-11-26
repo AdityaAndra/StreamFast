@@ -406,7 +406,7 @@ export const NotificationsBell: React.FC = () => {
     >
       <span className="relative flex-shrink-0">
         {n.img ? (
-          <img src={n.img} alt="" loading="lazy" className="aspect-video w-[7.2rem] rounded-md object-cover" />
+          <img src={n.img} alt="" loading="lazy" decoding="async" className="aspect-video w-[7.2rem] rounded-md object-cover" />
         ) : (
           <span className="block aspect-video w-[7.2rem] rounded-md bg-[#2a2a2a]" />
         )}
@@ -437,7 +437,7 @@ export const NotificationsBell: React.FC = () => {
         <div
           role="menu"
           data-lenis-prevent
-          className="absolute right-[-3.5rem] top-[calc(100%+0.8rem)] z-50 max-h-[min(72vh,560px)] w-[min(92vw,25rem)] overflow-y-auto overscroll-contain rounded-xl bg-[#181818]/[0.98] py-2 shadow-[0_18px_50px_rgba(0,0,0,0.7)] ring-1 ring-white/10 backdrop-blur-md animate-dropdown-in sm:right-0"
+          className="absolute right-[-3.5rem] top-[calc(100%+0.8rem)] z-50 max-h-[min(72vh,560px)] w-[min(92vw,25rem)] overflow-y-auto overscroll-contain rounded-xl bg-[#181818]/[0.98] py-2 shadow-[0_18px_50px_rgba(0,0,0,0.7)] ring-1 ring-white/10 animate-dropdown-in sm:right-0"
         >
           <p className="px-4 pb-2 pt-1 text-[13px] font-semibold uppercase tracking-[0.14em] text-[#8c8c8c]">For you</p>
           {forYou.map(row)}

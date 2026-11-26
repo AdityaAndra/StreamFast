@@ -105,7 +105,7 @@ const GenresMenu: React.FC<{ mediaType: 'movie' | 'tv' }> = ({ mediaType }) => {
         <div
           role="menu"
           data-lenis-prevent
-          className="absolute left-0 top-[calc(100%+0.6rem)] z-50 max-h-[min(70vh,640px)] w-[min(86vw,22rem)] overflow-y-auto overscroll-contain rounded-2xl bg-[#262626]/[0.97] py-2.5 shadow-[0_16px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/10 backdrop-blur-md animate-dropdown-in sm:left-[calc(100%-6.5rem)]"
+          className="absolute left-0 top-[calc(100%+0.6rem)] z-50 max-h-[min(70vh,640px)] w-[min(86vw,22rem)] overflow-y-auto overscroll-contain rounded-2xl bg-[#262626]/[0.97] py-2.5 shadow-[0_16px_48px_rgba(0,0,0,0.6)] ring-1 ring-white/10 animate-dropdown-in sm:left-[calc(100%-6.5rem)]"
         >
           {items.map((it) => (
             <Link
