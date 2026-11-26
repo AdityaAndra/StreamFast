@@ -5,6 +5,7 @@ import { useCachedData } from '../utils/useCachedData';
 import { getTitle, tmdbImage } from '../utils/media';
 import { MOVIE_GENRES } from '../utils/browse';
 import { goBack } from '../utils/router';
+import { franchiseLogo } from '../utils/brands';
 import ResultsGrid from '../components/ResultsGrid';
 import SkeletonGrid from '../components/SkeletonGrid';
 import ErrorState from '../components/ErrorState';
@@ -29,6 +30,8 @@ const FranchisePage: React.FC<{ id: number }> = ({ id }) => {
   const [genre, setGenre] = useState('');
   const [q, setQ] = useState('');
   const [heroLoaded, setHeroLoaded] = useState(false);
+  const logo = franchiseLogo(id, 'w500');
+  const [logoState, setLogoState] = useState<'loading' | 'ok' | 'failed'>('loading');
 
   const name = data ? data.name.replace(/\s*Collection$/i, '') : '';
   useEffect(() => {
@@ -93,7 +96,20 @@ const FranchisePage: React.FC<{ id: number }> = ({ id }) => {
         </button>
         <div className="absolute bottom-[12%] left-[4%] z-[3] w-[min(52%,760px)] animate-fade-in-up max-sm:left-[6%] max-sm:right-[6%] max-sm:w-auto">
           <p className="mb-2 text-[max(12px,0.9vw)] font-semibold uppercase tracking-[0.25em] text-white/80">Franchise</p>
-          <h1 className="mb-3 text-[clamp(2rem,4.2vw,4.8rem)] font-black leading-[0.95] tracking-[-0.03em] text-white text-shadow-netflix">{name || '\u00a0'}</h1>
+          {logo && logoState !== 'failed' ? (
+            <h1 className="mb-4">
+              <img
+                src={logo}
+                alt={name || 'Franchise'}
+                decoding="async"
+                onLoad={() => setLogoState('ok')}
+                onError={() => setLogoState('failed')}
+                className={`nf-franchise-hero-logo ${logoState === 'ok' ? 'is-loaded' : ''}`}
+              />
+            </h1>
+          ) : (
+            <h1 className="mb-3 text-[clamp(2rem,4.2vw,4.8rem)] font-black leading-[0.95] tracking-[-0.03em] text-white text-shadow-netflix">{name || '\u00a0'}</h1>
+          )}
           {data && (
             <p className="mb-2 text-[max(14px,1.05vw)] font-medium text-white/90 text-shadow-netflix">
               {parts.length} {parts.length === 1 ? 'movie' : 'movies'}
