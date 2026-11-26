@@ -132,7 +132,9 @@ export const describe = (p: BrowseParams) => {
   return [prefix, g, noun].filter(Boolean).join(' ');
 };
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
+// Local calendar date (not UTC), so "today" is right in India before 5:30am too.
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const iso = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 const daysFromNow = (n: number) => iso(new Date(Date.now() + n * 86400000));
 
 const discoverParams = (type: 'movie' | 'tv', p: BrowseParams): Record<string, string> | null => {
@@ -213,12 +215,15 @@ const valueOf = (item: SearchResult, sort: SortKey): number | string => {
   }
 };
 
-const mergeSorted = (lists: SearchResult[][], sort: SortKey) => {
+/** Sorts where smaller values come first. Upcoming + "newest" means soonest first. */
+const isAsc = (p: BrowseParams) => p.sort === 'oldest' || p.sort === 'az' || (p.list === 'upcoming' && p.sort === 'newest');
+
+const mergeSorted = (lists: SearchResult[][], p: BrowseParams) => {
   const all = lists.flat();
-  const asc = sort === 'oldest' || sort === 'az';
+  const asc = isAsc(p);
   return all.sort((a, b) => {
-    const va = valueOf(a, sort);
-    const vb = valueOf(b, sort);
+    const va = valueOf(a, p.sort);
+    const vb = valueOf(b, p.sort);
     if (va === vb) return 0;
     return (va > vb ? 1 : -1) * (asc ? 1 : -1);
   });
@@ -230,6 +235,77 @@ export interface BrowsePage {
 }
 
 const withType = (results: any[], type: 'movie' | 'tv') => (results || []).map((r) => ({ ...r, media_type: r.media_type || type }));
+
+/*
+ * "Movies & TV" together: TMDB pages movies and TV separately, so sorting each page on its own puts
+ * items on page 3 that belong on page 1. Instead we keep a sorted merge of both streams per filter
+ * combination and hand out 20 at a time, fetching the next TMDB page of a type only when needed.
+ */
+type MediaKind = 'movie' | 'tv';
+interface MergeState {
+  buf: Record<MediaKind, SearchResult[]>;
+  page: Record<MediaKind, number>;
+  pages: Record<MediaKind, number>;
+  results: Record<MediaKind, number>;
+  out: SearchResult[];
+  chain: Promise<unknown>;
+}
+const merges = new Map<string, MergeState>();
+const PAGE_SIZE = 20;
+const KINDS: MediaKind[] = ['movie', 'tv'];
+
+const fetchMerged = (p: BrowseParams, page: number, signal?: AbortSignal): Promise<BrowsePage> => {
+  const key = JSON.stringify(p);
+  let st = merges.get(key);
+  if (!st) {
+    st = { buf: { movie: [], tv: [] }, page: { movie: 0, tv: 0 }, pages: { movie: 1, tv: 1 }, results: { movie: 0, tv: 0 }, out: [], chain: Promise.resolve() };
+    merges.set(key, st);
+    while (merges.size > 20) {
+      const oldest = merges.keys().next().value;
+      if (oldest === undefined) break;
+      merges.delete(oldest);
+    }
+  }
+  const s = st;
+  const asc = isAsc(p);
+  const first = (a: SearchResult, b: SearchResult) => {
+    const va = valueOf(a, p.sort);
+    const vb = valueOf(b, p.sort);
+    return asc ? va <= vb : va >= vb;
+  };
+  const refill = async (t: MediaKind) => {
+    while (!s.buf[t].length && s.page[t] < s.pages[t]) {
+      const params = discoverParams(t, p);
+      if (!params) {
+        s.pages[t] = 0;
+        return;
+      }
+      const data = await tmdbGet(`/discover/${t}`, { ...params, page: String(s.page[t] + 1) }, signal);
+      s.page[t] += 1;
+      s.pages[t] = Math.min(data.total_pages || 0, 500);
+      s.results[t] = data.total_results || 0;
+      s.buf[t].push(...(withType(data.results, t).filter((r: any) => r.backdrop_path || r.poster_path) as SearchResult[]));
+    }
+  };
+  const run = async (): Promise<BrowsePage> => {
+    const want = page * PAGE_SIZE;
+    while (s.out.length < want) {
+      await Promise.all(KINDS.map(refill));
+      const m = s.buf.movie[0];
+      const t = s.buf.tv[0];
+      if (!m && !t) break;
+      const from = m && (!t || first(m, t)) ? s.buf.movie : s.buf.tv;
+      s.out.push(from.shift() as SearchResult);
+    }
+    const more = KINDS.some((k) => s.buf[k].length > 0 || s.page[k] < s.pages[k]);
+    const estimate = Math.min(500, Math.ceil((s.results.movie + s.results.tv) / PAGE_SIZE));
+    return { results: s.out.slice(want - PAGE_SIZE, want), totalPages: more ? Math.max(page + 1, estimate) : page };
+  };
+  // One request at a time per filter combination, so pages are handed out in order.
+  const next = s.chain.then(run, run);
+  s.chain = next.catch(() => undefined);
+  return next;
+};
 
 /** TMDB's trending list has no server-side filters, so genre / year / language / rating are applied here. */
 const matchesTrending = (r: any, p: BrowseParams) => {
@@ -266,11 +342,13 @@ export const fetchBrowsePage = async (p: BrowseParams, page: number, signal?: Ab
       (r: any) => (r.media_type === 'movie' || r.media_type === 'tv') && (r.backdrop_path || r.poster_path) && matchesTrending(r, p)
     ) as SearchResult[];
     // Trending's own order is "most popular right now"; any other sort is applied to each page.
-    const results = p.sort === 'popular' ? items : mergeSorted([items], p.sort);
+    const results = p.sort === 'popular' ? items : mergeSorted([items], p);
     return { results, totalPages: Math.min(data.total_pages || 1, 500) };
   }
 
-  const types: ('movie' | 'tv')[] = p.network ? ['tv'] : p.type === 'all' ? ['movie', 'tv'] : [p.type];
+  // Revenue only exists for movies, so "All" + Revenue shows movies.
+  const types: ('movie' | 'tv')[] = p.network ? ['tv'] : p.type === 'all' ? (p.sort === 'revenue' ? ['movie'] : ['movie', 'tv']) : [p.type];
+  if (types.length > 1) return fetchMerged(p, page, signal);
   const lists = await Promise.all(
     types.map(async (t) => {
       const params = discoverParams(t, p);
@@ -283,7 +361,7 @@ export const fetchBrowsePage = async (p: BrowseParams, page: number, signal?: Ab
     })
   );
   return {
-    results: lists.length > 1 ? mergeSorted(lists.map((l) => l.results), p.sort) : lists[0].results,
-    totalPages: Math.max(0, ...lists.map((l) => l.total)),
+    results: lists[0].results,
+    totalPages: lists[0].total,
   };
 };
