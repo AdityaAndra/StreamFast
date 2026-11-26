@@ -155,7 +155,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const volKey = useRef('');
   useEffect(() => setSwitchAt(undefined), [season, episode]);
 
+  // When VidFast moves to the next episode on its own we only update the address bar: the player is
+  // already playing that episode, so rebuilding its address would reload it from the start.
+  const autoAdvanced = useRef<string | null>(null);
+  const srcRef = useRef('');
   const src = useMemo(() => {
+    if (autoAdvanced.current === `${id}:${season}:${episode}` && srcRef.current) return srcRef.current;
     // Our page shows the title and server picker itself (Netflix layout), so hide VidFast's.
     const theme = `&theme=${playerTheme.hex.replace('#', '')}&title=false&hideServer=true${server ? `&server=${server}` : ''}`;
     let resume = switchAt ?? startAt;
@@ -171,6 +176,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     // Only rebuild when the episode changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt]);
+  srcRef.current = src;
 
   /* ---------- overlay chrome ----------
      The player is VidFast's page inside ours, so mouse moves over it never reach us.
@@ -303,7 +309,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         progress.season = s || cs || 1;
         progress.episode = ep || ce || 1;
         // Player auto-advanced to the next episode: keep the URL in sync.
-        if ((s && s !== cs) || (ep && ep !== ce)) navigate(watchPath({ id, media_type: 'tv' }, { season: progress.season, episode: progress.episode }), { replace: true, keepScroll: true });
+        if ((s && s !== cs) || (ep && ep !== ce)) {
+          autoAdvanced.current = `${id}:${progress.season}:${progress.episode}`;
+          navigate(watchPath({ id, media_type: 'tv' }, { season: progress.season, episode: progress.episode }), { replace: true, keepScroll: true });
+        }
       }
       save(progress);
     };
@@ -359,6 +368,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setServerMenu(false);
     window.setTimeout(() => iframeRef.current?.focus(), 0);
     if (name === server) return;
+    autoAdvanced.current = null;
     if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
     setServer(name);
   };
@@ -509,6 +519,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     else goBack('/');
   };
   const goEpisode = (s: number, e: number) => {
+    autoAdvanced.current = null;
     setPanel(false);
     navigate(watchPath({ id, media_type: 'tv' }, { season: s, episode: e }), { replace: true, keepScroll: true });
   };

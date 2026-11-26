@@ -49,9 +49,17 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   const ranked = useMemo(() => rankSearch(raw, q), [raw, q]);
   const top = ranked.strong[0];
   const topPerson = peopleRes.data?.[0];
+  // Choose between person and title mode only once the people search has answered, and only for this
+  // query's own results: otherwise we'd start fetching titles related to the top title, then flip to
+  // the person (wasted TMDB calls and a layout jump), or fetch them for the previous query's top title.
+  const peopleSettled = peopleRes.data !== undefined || !!peopleRes.error;
+  const freshResults = data !== undefined;
   // A person search ("hans zimmer") explores the person instead of a weak title match.
   const personFirst = !!topPerson && (!top || (topPerson.popularity || 0) > (top.popularity || 0) * 2);
-  const rel = useCachedData<SearchRelated>(top && !personFirst ? `searchrel:${top.media_type}:${top.id}` : null, () => fetchSearchRelated(top!));
+  const rel = useCachedData<SearchRelated>(
+    top && freshResults && peopleSettled && !personFirst ? `searchrel:${top.media_type}:${top.id}` : null,
+    () => fetchSearchRelated(top!)
+  );
   const results = useMemo(() => {
     const seen = new Set<string>();
     const out: SearchResult[] = [];
