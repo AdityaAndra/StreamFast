@@ -41,79 +41,75 @@ const ContinueWatchingCard: React.FC<ContinueWatchingCardProps> = ({ item, onSel
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          open();
-        }
-      }}
       onMouseEnter={() => artRef.current && show({ item: media, el: artRef.current, variant: 'landscape', cw: { progress, onRemove: remove } })}
       onMouseLeave={cancel}
-      aria-label={`${title}, ${progressText}`}
-      className="group/cw relative cursor-pointer"
+      className="group/cw relative"
     >
-      <div ref={artRef} className={`nf-card !aspect-video ${percent !== null ? '!rounded-b-none' : ''}`}>
-        {image ? (
-          <img
-            src={image}
-            alt=""
-            data-art=""
-            loading="lazy"
-            decoding="async"
-            onLoad={() => setLoaded(true)}
-            className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'} ${usingPoster ? 'object-[center_25%]' : ''}`}
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-[#2b2b2b] to-[#151515]" />
-        )}
-        <span className="nf-card-shade" />
-        <CardLogo item={media} />
-        <span className="nf-card-hover" />
-        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-[3px] bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">{progressText}</span>
-
-        {!CAN_HOVER && (
-          <>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(item);
-              }}
-              className="absolute inset-0 m-auto flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-black/50 text-white"
-              aria-label={`Resume ${title}`}
-            >
-              <PlayIcon className="ml-1 h-5 w-5" />
-            </button>
-            <Link
-              to={titlePath(media)}
-              onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-white/60 bg-black/50 text-white"
-              aria-label={`More info about ${title}`}
-            >
-              <InfoIcon className="h-4 w-4" />
-            </Link>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                remove();
-              }}
-              className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"
-              aria-label={`Remove ${title} from Continue Watching`}
-            >
-              <CloseIcon className="h-4 w-4" />
-            </button>
-          </>
-        )}
-      </div>
-
-      {percent !== null && (
-        <div className="h-[3px] w-full overflow-hidden rounded-b-[4px] bg-[#4d4d4d]" aria-hidden="true">
-          <div className="h-full bg-netflix-red" style={{ width: `${percent}%` }} />
+      {/* One main button per card. The extra buttons sit beside it, not inside it. */}
+      <button type="button" onClick={open} aria-label={`${title}, ${progressText}`} className="block w-full cursor-pointer text-left">
+        <div ref={artRef} className={`nf-card !aspect-video ${percent !== null ? '!rounded-b-none' : ''}`}>
+          {image ? (
+            <img
+              src={image}
+              alt=""
+              data-art=""
+              loading="lazy"
+              decoding="async"
+              onLoad={() => setLoaded(true)}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'} ${usingPoster ? 'object-[center_25%]' : ''}`}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-[#2b2b2b] to-[#151515]" />
+          )}
+          <span className="nf-card-shade" />
+          <CardLogo item={media} />
+          <span className="nf-card-hover" />
+          <span className="pointer-events-none absolute left-1.5 top-1.5 rounded-[3px] bg-black/70 px-1.5 py-0.5 text-[11px] font-semibold text-white">{progressText}</span>
         </div>
+
+        {percent !== null && (
+          <div className="h-[3px] w-full overflow-hidden rounded-b-[4px] bg-[#4d4d4d]" aria-hidden="true">
+            <div className="h-full bg-netflix-red" style={{ width: `${percent}%` }} />
+          </div>
+        )}
+      </button>
+
+      {!CAN_HOVER ? (
+        <>
+          <button
+            type="button"
+            onClick={open}
+            className="absolute inset-0 m-auto flex h-11 w-11 items-center justify-center rounded-full border-2 border-white bg-black/50 text-white"
+            aria-label={`Resume ${title}`}
+          >
+            <PlayIcon className="ml-1 h-5 w-5" />
+          </button>
+          <Link
+            to={titlePath(media)}
+            className="absolute bottom-2.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-white/60 bg-black/50 text-white"
+            aria-label={`More info about ${title}`}
+          >
+            <InfoIcon className="h-4 w-4" />
+          </Link>
+          <button
+            type="button"
+            onClick={remove}
+            className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"
+            aria-label={`Remove ${title} from Continue Watching`}
+          >
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </>
+      ) : (
+        // Mouse users remove from the hover preview; keyboard users get this button when they Tab to it.
+        <button
+          type="button"
+          onClick={remove}
+          className="pointer-events-none absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100"
+          aria-label={`Remove ${title} from Continue Watching`}
+        >
+          <CloseIcon className="h-4 w-4" />
+        </button>
       )}
     </div>
   );

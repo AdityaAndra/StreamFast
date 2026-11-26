@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { SearchResult } from '../types';
-import { useCachedData } from '../utils/useCachedData';
+import { loadCached, useCachedData } from '../utils/useCachedData';
 import { tmdbGet } from '../services/tmdb';
 import { tmdbImage, titlePath } from '../utils/media';
 import { Link, goBack } from '../utils/router';
@@ -119,12 +119,15 @@ const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; compact?: bo
     return sortRows(list, sort);
   }, [rows, dept, sort, q]);
 
+  // Top Credits: their main department, or (after the Movies/TV toggle leaves it empty) the first one that has credits.
+  const topDept = depts.some(([d]) => d === person.known_for_department) ? person.known_for_department : depts[0]?.[0];
+
   if (!rows.length) return <p className="py-8 text-netflix-muted">No {media === 'movie' ? 'movie' : media === 'tv' ? 'TV' : ''} credits listed.</p>;
 
   if (compact) {
     return (
       <>
-        <ol>{sortRows(rows.filter((r) => r.dept === (person.known_for_department || depts[0]?.[0])), 'popular').slice(0, 8).map((r) => <CreditItem key={r.key} row={r} />)}</ol>
+        <ol>{sortRows(rows.filter((r) => r.dept === topDept), 'popular').slice(0, 8).map((r) => <CreditItem key={r.key} row={r} />)}</ol>
         {onSeeAll && (
           <div className="mt-4">
             <MoreLink onClick={onSeeAll}>See all {rows.length} credits</MoreLink>
@@ -323,7 +326,8 @@ const VideosPanel: React.FC<{ person: PersonDetails; media: Media }> = ({ person
     const lists = await Promise.all(
       titles.map(async (t) => {
         try {
-          const v = await tmdbGet(`/${t.media_type}/${t.id}/videos`);
+          // Cached per title, so switching Movies/TV or coming back doesn't fetch the same videos again.
+          const v = await loadCached<any>(`videos:${t.media_type}:${t.id}`, () => tmdbGet(`/${t.media_type}/${t.id}/videos`));
           const yt = (v.results || []).filter((x: any) => x.site === 'YouTube' && ['Trailer', 'Teaser', 'Clip', 'Featurette'].includes(x.type));
           yt.sort((a: any, b: any) => Number(b.official) - Number(a.official) || (a.type === 'Trailer' ? -1 : 1));
           return yt.slice(0, 2).map((x: any) => ({ key: x.key, name: x.name, title: (t as any).title || (t as any).name, titleItem: t }));

@@ -4,18 +4,42 @@ import { useCallback, useEffect, useState } from 'react';
  * App-wide data cache. Pages render instantly from cache when you come back to them
  * (which also lets "Back" restore your exact scroll position).
  */
-const store = new Map<string, unknown>();
+// Entries expire after a while (so long sessions see fresh data) and the oldest go first past MAX_ENTRIES.
+const TTL_MS = 30 * 60 * 1000;
+const MAX_ENTRIES = 200;
+const store = new Map<string, { value: unknown; at: number }>();
 const inflight = new Map<string, Promise<unknown>>();
 
-export const peekCache = <T,>(key: string): T | undefined => store.get(key) as T | undefined;
+const fresh = (key: string) => {
+  const entry = store.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.at > TTL_MS) {
+    store.delete(key);
+    return undefined;
+  }
+  return entry;
+};
+
+const put = (key: string, value: unknown) => {
+  store.delete(key);
+  store.set(key, { value, at: Date.now() });
+  while (store.size > MAX_ENTRIES) {
+    const oldest = store.keys().next().value;
+    if (oldest === undefined) break;
+    store.delete(oldest);
+  }
+};
+
+export const peekCache = <T,>(key: string): T | undefined => fresh(key)?.value as T | undefined;
 
 export function loadCached<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
-  if (store.has(key)) return Promise.resolve(store.get(key) as T);
+  const hit = fresh(key);
+  if (hit) return Promise.resolve(hit.value as T);
   let p = inflight.get(key) as Promise<T> | undefined;
   if (!p) {
     p = fetcher().then(
       (value) => {
-        store.set(key, value);
+        put(key, value);
         inflight.delete(key);
         return value;
       },

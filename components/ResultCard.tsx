@@ -78,7 +78,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
     srcSet = item.poster_path ? `${tmdbImage(item.poster_path, 'w185')} 185w, ${tmdbImage(item.poster_path, 'w342')} 342w, ${tmdbImage(item.poster_path, 'w500')} 500w` : undefined;
   }
 
-  return (
+  const card = (
     <Link
       ref={ref}
       to={titlePath(item)}
@@ -125,21 +125,24 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
       {isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
       <span className="nf-card-hover" />
 
-      {onRemove && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            onRemove(item);
-          }}
-          className="absolute right-1.5 top-1.5 hidden h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white [@media(hover:none)]:flex"
-          aria-label={`Remove ${title} from My List`}
-        >
-          <TrashIcon className="h-4 w-4" />
-        </button>
-      )}
     </Link>
+  );
+  if (!onRemove) return card;
+
+  // The Remove button sits beside the card link, not inside it (a button inside a link is invalid HTML
+  // and confuses screen readers). Always shown on touch screens; on desktop it appears when focused.
+  return (
+    <div className="relative">
+      {card}
+      <button
+        type="button"
+        onClick={() => onRemove(item)}
+        className="pointer-events-none absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-black/60 text-white opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100"
+        aria-label={`Remove ${title} from My List`}
+      >
+        <TrashIcon className="h-4 w-4" />
+      </button>
+    </div>
   );
 };
 

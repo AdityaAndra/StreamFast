@@ -1,0 +1,19 @@
+# Type-checks the app (tsc --noEmit) on every push and pull request.
+# The Vercel build doesn't type-check, so this is where TypeScript errors show up.
+name: Typecheck
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - run: npm run typecheck

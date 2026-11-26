@@ -13,12 +13,14 @@ import InAppPlayer from './InAppPlayer';
 interface EmbedLinkModalProps {
   item: SearchResult;
   onClose: () => void;
-  onUpdateFromLink: (url: string) => void;
   initialProgress?: WatchProgress;
   initialTab?: 'episodes' | 'watch' | 'actions';
 }
 
-const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdateFromLink, initialProgress, initialTab }) => {
+/** Dark box shown when TMDB has no poster or still (instead of a random stock photo). */
+const PLACEHOLDER = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 2 3'><rect width='2' height='3' fill='%23232323'/></svg>";
+
+const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialProgress, initialTab }) => {
   const { saveItem, removeItem, playerTheme, continueWatchingList, myList, toggleMyListItem } = useAppContext();
 
   const [tvDetails, setTvDetails] = useState<TVDetails | null>(null);
@@ -47,7 +49,24 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
 
   const isMovie = item.media_type === 'movie';
   const title = isMovie ? item.title : item.name;
-  const posterUrl = item.poster_path ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}` : `https://picsum.photos/seed/${item.id}/500/750`;
+  const posterUrl = item.poster_path ? `${TMDB_IMAGE_BASE_URL}${item.poster_path}` : PLACEHOLDER;
+
+  // A real dialog: Escape closes it, focus moves into it on open and back where it was on close.
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    dialogRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      before?.focus?.();
+    };
+  }, []);
 
   const availableSeasons = useMemo(() => {
     if (!tvDetails) return [];
@@ -151,9 +170,9 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
   };
 
   const handleOpenAndSave = () => {
-    if (cleanPosterPath === null && item.media_type === 'tv') return; // Don't save if poster isn't resolved yet
     const progress: WatchProgress = item.media_type === 'tv' ? { season: selectedSeason, episode: selectedEpisode } : {};
-    const posterToSave = item.media_type === 'tv' ? cleanPosterPath : item.poster_path;
+    // The clean (textless) TV poster may still be loading: fall back to the normal poster then.
+    const posterToSave = item.media_type === 'tv' ? cleanPosterPath || item.poster_path : item.poster_path;
     saveItem(item, progress, posterToSave);
   };
 
@@ -184,6 +203,11 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
       <div 
         className={`bg-netflix-dark md:rounded-xl shadow-2xl w-full text-white animate-zoom-in flex flex-col md:flex-row relative ${isMovie ? 'md:max-w-4xl' : 'md:max-w-6xl md:h-[90vh] md:max-h-[800px]'}`} 
         onClick={e => e.stopPropagation()}
+        ref={dialogRef}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
       >
         {isMovie ? (
           <>
@@ -192,7 +216,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
               <img src={posterUrl} alt={`Poster for ${title}`} className="w-full h-full object-cover md:rounded-l-xl"/>
             </div>
             <div className="w-full md:w-2/3 p-6 flex flex-col overflow-y-auto">
-              <button onClick={onClose} className="absolute top-3 right-3 z-10 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
+              <button onClick={onClose} aria-label="Close" className="absolute top-3 right-3 z-10 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
                 <CloseIcon className="w-6 h-6" />
               </button>
               {/* Details Section */}
@@ -227,17 +251,17 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
                   <div className="flex flex-col min-h-[300px]">
                     {activeTab === 'actions' && (
                       <div className="flex-grow">
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Generated VidFast Link</label>
+                        <label className="block text-sm font-medium text-neutral-400 mb-2">Player link</label>
                         <div className="flex items-center space-x-2">
                           <input type="text" readOnly value={embedLink} className="flex-grow bg-black/50 text-neutral-300 border border-neutral-700 rounded-md py-2 px-3 text-sm" />
-                          <button onClick={handleCopy} className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`} title={isCopied ? 'Copied!' : 'Copy to clipboard'}>
+                          <button onClick={handleCopy} className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`} aria-label={isCopied ? 'Copied' : 'Copy link'}>
                             <CopyIcon className="w-5 h-5" />
                           </button>
                         </div>
                         <div className="flex flex-col mt-6 space-y-3">
                           <a href={embedLink} target="_blank" rel="noopener noreferrer" onClick={handleOpenAndSave} className="w-full flex items-center justify-center bg-netflix-red hover:bg-netflix-red-dark text-white font-bold py-3 px-4 rounded-md transition-colors text-center text-sm">
                             <BookmarkIcon className="w-5 h-5 mr-2 flex-shrink-0" />
-                            Open Link & Save to Continue Watching
+                            Open player in a new tab & save to Continue Watching
                           </a>
                           <button onClick={handleToggleMyList} className={`w-full flex items-center justify-center font-bold py-3 px-4 rounded-md transition-colors text-center text-sm ${isInMyList ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-neutral-700 hover:bg-neutral-600 text-white'}`}>
                               {isInMyList ? <CheckStaticIcon className="w-5 h-5 mr-2 flex-shrink-0" /> : <PlusIcon className="w-5 h-5 mr-2 flex-shrink-0" />}
@@ -245,7 +269,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
                           </button>
                           <a href={embedLink} target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-center bg-neutral-700 hover:bg-neutral-600 text-white font-bold py-3 px-4 rounded-md transition-colors text-center text-sm">
                             <ExternalLinkIcon className="w-5 h-5 mr-2 flex-shrink-0" />
-                            Open Link in New Tab (without saving)
+                            Open player in a new tab (without saving)
                           </a>
                           {isSaved && (
                             <button onClick={handleRemove} className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm" title="Remove from Continue Watching">
@@ -271,7 +295,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
         ) : (
           <>
             {/* TV SHOW LAYOUT - REDESIGNED */}
-            <button onClick={onClose} className="absolute top-3 right-3 z-30 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
+            <button onClick={onClose} aria-label="Close" className="absolute top-3 right-3 z-30 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
               <CloseIcon className="w-6 h-6" />
             </button>
             {/* Left Pane: Show Info */}
@@ -366,13 +390,23 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
                           </div>
                       )}
                       {seasonDetails?.episodes.map(episode => {
-                          const stillUrl = episode.still_path ? `${TMDB_IMAGE_BASE_URL.replace('w500', 'w300')}${episode.still_path}` : `https://picsum.photos/seed/${episode.id}/300/169`;
+                          const stillUrl = episode.still_path ? `${TMDB_IMAGE_BASE_URL.replace('w500', 'w300')}${episode.still_path}` : PLACEHOLDER;
                           const isSelected = selectedEpisode === episode.episode_number;
                           return (
                               <div 
                                   key={episode.id}
                                   ref={el => { episodeRefs.current[episode.episode_number - 1] = el; }}
                                   onClick={() => setSelectedEpisode(episode.episode_number)}
+                                  role="button"
+                                  tabIndex={0}
+                                  aria-pressed={isSelected}
+                                  aria-label={`Episode ${episode.episode_number}: ${episode.name}`}
+                                  onKeyDown={(e) => {
+                                      if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          setSelectedEpisode(episode.episode_number);
+                                      }
+                                  }}
                                   className={`flex items-start p-2 rounded-lg cursor-pointer transition-all duration-200 border-2 ${isSelected ? 'bg-netflix-red/20 border-netflix-red' : 'bg-neutral-800/80 border-transparent hover:bg-neutral-700/80'}`}
                               >
                                   <div className="w-10 text-center flex-shrink-0 mr-3">
@@ -427,7 +461,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, onUpdate
                     <button
                       onClick={handleCopy}
                       className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`}
-                      title={isCopied ? 'Copied!' : 'Copy to clipboard'}
+                      aria-label={isCopied ? 'Copied' : 'Copy link'}
                     >
                       <CopyIcon className="w-5 h-5" />
                     </button>

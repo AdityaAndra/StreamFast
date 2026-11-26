@@ -38,6 +38,19 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
   const offset = -(shiftItems / perRow) * 100;
   const go = (dir: -1 | 1) => setPage((p) => Math.min(Math.max(p + dir, 0), pages - 1));
 
+  // Keyboard: when Tab reaches a card on a page you can't see, slide the row to that page.
+  const onTrackFocus = (e: React.FocusEvent<HTMLDivElement>) => {
+    if (!CAN_HOVER) return;
+    const items = Array.from(e.currentTarget.children);
+    const index = items.findIndex((el) => el.contains(e.target as Node));
+    if (index < 0) return;
+    const target = Math.min(Math.floor(index / perRow), pages - 1);
+    if (target !== page) setPage(target);
+    // The browser may have scrolled the clipped row to show the card; undo that, the translate handles it.
+    const slider = e.currentTarget.parentElement;
+    if (slider) slider.scrollLeft = 0;
+  };
+
   return (
     <section className="nf-row" aria-label={typeof title === 'string' ? title : undefined}>
       <div className="nf-row-header">
@@ -73,6 +86,7 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
         )}
         <div
           className="nf-track"
+          onFocus={onTrackFocus}
           style={{
             ['--per-row' as any]: CAN_HOVER ? perRow : perRow + 0.3,
             transform: CAN_HOVER ? `translate3d(${offset}%, 0, 0)` : undefined,
