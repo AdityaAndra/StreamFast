@@ -12,6 +12,20 @@ const TMDB_BASE = 'https://api.themoviedb.org/3';
 const RATINGS_URL = 'https://datasets.imdbws.com/title.ratings.tsv.gz';
 const RATINGS_TTL_MS = 12 * 60 * 60 * 1000;
 const MAX_IDS = 40;
+// At most this many TMDB requests at once per call (a card row asks for up to 40 titles).
+const CONCURRENCY = 8;
+
+// Runs fn over items with at most `limit` running at the same time.
+const mapLimit = async (items, limit, fn) => {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+};
 
 let ratingsText = null;
 let ratingsAt = 0;
@@ -65,6 +79,7 @@ const pickTitledBackdrop = (backdrops = []) => {
 export default async function handler(req, res) {
   const apiKey = process.env.TMDB_API_KEY;
   if (!apiKey) {
+    res.setHeader('Cache-Control', 'no-store');
     res.status(500).json({ error: 'TMDB_API_KEY is not configured on the server.' });
     return;
   }
@@ -72,6 +87,7 @@ export default async function handler(req, res) {
   const raw = String((req.query && req.query.ids) || '');
   const ids = [...new Set(raw.split(',').filter((x) => /^(movie|tv):\d+$/.test(x)))].slice(0, MAX_IDS);
   if (!ids.length) {
+    res.setHeader('Cache-Control', 'no-store');
     res.status(400).json({ error: 'No valid ids.' });
     return;
   }
@@ -80,8 +96,7 @@ export default async function handler(req, res) {
   const ratingsPromise = getRatings().catch(() => null);
 
   const out = {};
-  await Promise.all(
-    ids.map(async (key) => {
+  await mapLimit(ids, CONCURRENCY, async (key) => {
       const [type, id] = key.split(':');
       try {
         const r = await fetch(
@@ -101,8 +116,7 @@ export default async function handler(req, res) {
       } catch {
         out[key] = null;
       }
-    })
-  );
+  });
 
   const ratings = await ratingsPromise;
   for (const key of ids) {

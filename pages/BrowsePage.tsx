@@ -21,6 +21,7 @@ interface Loaded {
 /** Remembers loaded pages so Back returns to the same spot instantly. */
 const stateCache = new Map<string, Loaded>();
 const EMPTY: Loaded = { items: [], page: 0, total: 1 };
+const SEARCH_PAGE_CAP = 5;
 
 interface BrowseViewProps {
   search: string;
@@ -44,14 +45,19 @@ export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [
   const live = useRef({ key: fetchKey, state, loading: false, params });
   live.current.params = params;
   const sentinel = useRef<HTMLDivElement>(null);
+  // Requests for an old filter combination (or after leaving the page) are cancelled.
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const loadPage = useCallback(async (n: number) => {
     const key = live.current.key;
     if (live.current.loading) return;
     live.current.loading = true;
     setLoading(true);
+    const ctrl = new AbortController();
+    abortRef.current = ctrl;
     try {
-      const res = await loadCached(`browse:${key}:${n}`, () => fetchBrowsePage(live.current.params, n));
+      const res = await loadCached(`browse:${key}:${n}`, () => fetchBrowsePage(live.current.params, n, ctrl.signal));
       if (live.current.key !== key) return;
       const prev = n === 1 ? [] : live.current.state.items;
       const seen = new Set(prev.map((i) => `${i.media_type}-${i.id}`));
@@ -78,6 +84,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [
 
   // New filter combination: restore from cache or start from page 1.
   useEffect(() => {
+    abortRef.current?.abort();
+    abortRef.current = null;
     live.current.key = fetchKey;
     live.current.loading = false;
     const cached = stateCache.get(fetchKey);
@@ -111,7 +119,8 @@ export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [
     if (loading || !canLoadMore) return;
     const el = sentinel.current;
     const nearBottom = el && el.getBoundingClientRect().top < window.innerHeight + 1400;
-    const searchingNeedsMore = q && visible.length < 24 && state.page < 25;
+    // Searching inside a list loads at most 5 pages; after that we offer a search of the whole site.
+    const searchingNeedsMore = q && visible.length < 24 && state.page < SEARCH_PAGE_CAP;
     if (nearBottom || searchingNeedsMore) loadMore();
   }, [loading, canLoadMore, q, visible.length, state.page, loadMore]);
 
@@ -152,6 +161,14 @@ export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [
       )}
       {error && state.items.length > 0 && (
         <button type="button" onClick={loadMore} className="mx-auto mt-8 block text-netflix-muted underline">Couldn't load more. Tap to retry.</button>
+      )}
+      {q && !loading && state.page >= SEARCH_PAGE_CAP && canLoadMore && visible.length < 24 && (
+        <p className="mt-8 text-center text-netflix-muted">
+          Not finding it?{' '}
+          <button type="button" onClick={() => navigate(`/search?q=${encodeURIComponent(params.q || '')}`)} className="text-white underline">
+            Search all of StreamFast for "{params.q}"
+          </button>
+        </p>
       )}
       <div ref={sentinel} aria-hidden="true" className="h-px" />
     </div>

@@ -29,19 +29,22 @@ const CategoryPage: React.FC<CategoryPageProps> = ({ id, heading, loadHero, rows
   );
   const title = loadHero ? null : <div className="px-[4%] pb-[1.5vw] pt-24 sm:pt-28">{titleRow}</div>;
 
-  if (hero.error) {
-    return (
-      <div className="pt-28">
-        <ErrorState message={`We couldn't load ${heading.toLowerCase()} right now.`} onRetry={hero.reload} />
-      </div>
-    );
-  }
-
+  // If only the banner fails, show the error in its place and keep the rows below it.
   return (
     <div className="relative">
       {title}
-      {loadHero && (hero.data ? <HeroBanner items={hero.data} top={titleRow} /> : <HeroSkeleton top={titleRow} />)}
-      <div className={loadHero ? ROWS_OVERLAP : ''}>
+      {loadHero &&
+        (hero.error ? (
+          <div className="px-[4%] pb-4 pt-24 sm:pt-28">
+            {titleRow}
+            <ErrorState message={`We couldn't load the featured ${heading.toLowerCase()} right now.`} onRetry={hero.reload} />
+          </div>
+        ) : hero.data ? (
+          <HeroBanner items={hero.data} top={titleRow} />
+        ) : (
+          <HeroSkeleton top={titleRow} />
+        ))}
+      <div className={loadHero && !hero.error ? ROWS_OVERLAP : ''}>
         <RowList rows={rows} />
       </div>
     </div>

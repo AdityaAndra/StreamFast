@@ -270,14 +270,9 @@ const MoreCard: React.FC<{ r: SearchResult }> = ({ r }) => {
   const img = tmdbImage(r.backdrop_path, 'w500') || tmdbImage(r.poster_path, 'w500');
   const title = getTitle(r);
   return (
-    <div
-      role="link"
-      tabIndex={0}
-      onClick={() => navigate(titlePath(r))}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(titlePath(r))}
-      className="group/mc cursor-pointer overflow-hidden rounded-[4px] bg-[#2f2f2f] outline-none transition-colors hover:bg-[#383838] focus-visible:ring-2 focus-visible:ring-white"
-      aria-label={title}
-    >
+    <div className="group/mc relative overflow-hidden rounded-[4px] bg-[#2f2f2f] transition-colors hover:bg-[#383838] has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-white">
+      {/* A real link covering the whole card; the My List button sits above it (not inside it). */}
+      <Link to={titlePath(r)} aria-label={title} className="absolute inset-0 z-[1] outline-none" />
       <div className="relative aspect-video overflow-hidden bg-[#232323]">
         {img && <img src={img} alt="" loading="lazy" decoding="async" className={`absolute inset-0 h-full w-full object-cover ${r.backdrop_path ? '' : 'object-[center_25%]'}`} />}
         <span className="nf-card-shade" />
@@ -295,11 +290,10 @@ const MoreCard: React.FC<{ r: SearchResult }> = ({ r }) => {
           </div>
           <button
             type="button"
-            className="nf-circle flex-shrink-0 text-[14px]"
-            onClick={(e) => { e.stopPropagation(); toggleMyListItem(r); }}
+            className="nf-circle relative z-[2] flex-shrink-0 text-[14px]"
+            onClick={() => toggleMyListItem(r)}
             aria-pressed={inList}
             aria-label={inList ? `Remove ${title} from My List` : `Add ${title} to My List`}
-            title={inList ? 'Remove from My List' : 'Add to My List'}
           >
             {inList ? <CheckStaticIcon className="h-[1em] w-[1em]" /> : <PlusIcon className="h-[1.1em] w-[1.1em]" />}
           </button>
@@ -442,7 +436,6 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
               onClick={() => toggleMyListItem(item)}
               aria-pressed={inList}
               aria-label={inList ? 'Remove from My List' : 'Add to My List'}
-              title={inList ? 'Remove from My List' : 'Add to My List'}
             >
               {inList ? <CheckStaticIcon className="h-[1.1em] w-[1.1em]" /> : <PlusIcon className="h-[1.2em] w-[1.2em]" />}
             </button>
@@ -582,11 +575,49 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
 
+  // The close animation timer is kept so it can be cancelled if another title opens or the window unmounts.
+  const closeTimer = useRef<number | undefined>(undefined);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const close = useCallback(() => {
     if (closing) return;
     setClosing(true);
-    window.setTimeout(onClose, 200);
-  }, [closing, onClose]);
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => onCloseRef.current(), 200);
+  }, [closing]);
+  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+
+  // Focus moves into the window when it opens, stays inside while Tab is pressed, and returns on close.
+  const modalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const before = document.activeElement as HTMLElement | null;
+    modalRef.current?.focus({ preventScroll: true });
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !modalRef.current) return;
+      const items = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ).filter((el) => el.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === modalRef.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (!modalRef.current.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', onTab);
+    return () => {
+      window.removeEventListener('keydown', onTab);
+      if (before && document.contains(before)) before.focus?.({ preventScroll: true });
+    };
+  }, []);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setOpen(true));
@@ -602,6 +633,7 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
   // Opening another title from inside the window starts it at the top.
   useEffect(() => {
     scroller.current?.scrollTo({ top: 0 });
+    window.clearTimeout(closeTimer.current);
     setClosing(false);
   }, [mediaType, id]);
 
@@ -624,8 +656,8 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
       data-lenis-prevent
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
-      <div role="dialog" aria-modal="true" aria-label="Title details" className="nf-title-modal">
-        <button type="button" onClick={close} className="nf-title-close" aria-label="Close" title="Close">
+      <div ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Title details" className="nf-title-modal outline-none">
+        <button type="button" onClick={close} className="nf-title-close" aria-label="Close">
           <CloseIcon className="h-5 w-5" />
         </button>
         <TitleContent key={`${mediaType}-${id}`} mediaType={mediaType} id={id} autoPlay={autoPlay} scrollTo={scrollTo} />
