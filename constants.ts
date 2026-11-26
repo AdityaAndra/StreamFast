@@ -14,8 +14,9 @@ export const GENRES: Record<number, string> = {
   10765: 'Sci-Fi & Fantasy', 10766: 'Soap', 10767: 'Talk', 10768: 'War & Politics',
 };
 
-export const VIDFAST_MOVIE_URL = 'https://vidfast.pro/movie/';
-export const VIDFAST_TV_URL = 'https://vidfast.pro/tv/';
+// Same player host the watch page uses (pages/WatchPage.tsx).
+export const VIDFAST_MOVIE_URL = 'https://vidfast.vc/movie/';
+export const VIDFAST_TV_URL = 'https://vidfast.vc/tv/';
 
 // Player Theme Constants
 export const DEFAULT_THEME: ColorInfo = { name: 'Netflix Red', hex: '#E50914' };
