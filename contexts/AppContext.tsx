@@ -1,6 +1,6 @@
 
 
-import React, { createContext, useState, useContext, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import type { WatchProgressItem, SearchResult, WatchProgress, ColorInfo, MyListItem } from '../types';
 import {
     getContinueWatchingList,
@@ -124,20 +124,25 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
         setFeedback("Site has been reset.");
     }, [refreshList]);
 
-    const value = {
-        continueWatchingList,
-        myList,
-        playerTheme,
-        feedbackMessage,
-        saveItem,
-        removeItem,
-        toggleMyListItem,
-        setPlayerTheme,
-        setFeedback,
-        exportList,
-        importList,
-        resetData
-    };
+    // Memoised so screens only re-render when something they read actually changed
+    // (not on every render of this provider).
+    const value = useMemo(
+        () => ({
+            continueWatchingList,
+            myList,
+            playerTheme,
+            feedbackMessage,
+            saveItem,
+            removeItem,
+            toggleMyListItem,
+            setPlayerTheme,
+            setFeedback,
+            exportList,
+            importList,
+            resetData,
+        }),
+        [continueWatchingList, myList, playerTheme, feedbackMessage, saveItem, removeItem, toggleMyListItem, setPlayerTheme, setFeedback, exportList, importList, resetData]
+    );
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 };
