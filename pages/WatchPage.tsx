@@ -106,32 +106,6 @@ const loadServer = () => {
     return '';
   }
 };
-/* Servers VidFast has dropped (or that are down) stop loading videos. A server that doesn't load the
-   video in FAIL_MS is greyed out in our menu for DOWN_FOR_MS and the player falls back to Auto. */
-const DOWN_KEY = 'sf_server_down';
-const DOWN_FOR_MS = 6 * 60 * 60 * 1000;
-const FAIL_MS = 25000;
-const loadDown = (): Record<string, number> => {
-  try {
-    const raw = JSON.parse(localStorage.getItem(DOWN_KEY) || '{}') as Record<string, number>;
-    const now = Date.now();
-    const out: Record<string, number> = {};
-    Object.keys(raw).forEach((k) => {
-      if (SERVERS.includes(k) && now - raw[k] < DOWN_FOR_MS) out[k] = raw[k];
-    });
-    return out;
-  } catch {
-    return {};
-  }
-};
-const saveDown = (d: Record<string, number>) => {
-  try {
-    localStorage.setItem(DOWN_KEY, JSON.stringify(d));
-  } catch {
-    /* ignore */
-  }
-};
-
 const toSearchResult = (d: TitleDetails): SearchResult => {
   const base = {
     id: d.id, poster_path: d.poster_path, backdrop_path: d.backdrop_path, overview: d.overview,
@@ -174,25 +148,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   /* ---------- player src (resume where you left off) ---------- */
   const [defaultServer, setDefaultServer] = useState<string>(loadServer);
-  const [down, setDown] = useState<Record<string, number>>(loadDown);
-  // Start on your default server, unless it isn't working right now (then Auto).
-  const [server, setServer] = useState<string>(() => {
-    const s = loadServer();
-    return s && loadDown()[s] ? '' : s;
-  });
-  const setServerDown = useCallback((name: string, isDown: boolean) => {
-    setDown((prev) => {
-      if (!name || !!prev[name] === isDown) return prev;
-      const next = { ...prev };
-      if (isDown) next[name] = Date.now();
-      else delete next[name];
-      saveDown(next);
-      return next;
-    });
-  }, []);
-  // "Loaded" = the player knows the video's length (works even when autoplay is blocked).
-  const loadedRef = useRef(false);
-  const [loaded, setLoaded] = useState(false);
+  const [server, setServer] = useState<string>(loadServer);
   const [switchAt, setSwitchAt] = useState<number | undefined>(undefined);
   const lastTime = useRef(0);
   const volKey = useRef('');
@@ -265,8 +221,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setPaused(false);
     setChrome(false);
     setStuck(false);
-    loadedRef.current = false;
-    setLoaded(false);
     const t = window.setTimeout(() => setStuck(true), STUCK_MS);
     return () => {
       window.clearTimeout(t);
@@ -274,24 +228,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     };
   }, [src]);
 
-  // A chosen server that doesn't load the video in time: grey it out and fall back to Auto.
-  useEffect(() => {
-    if (!server) return;
-    const name = server;
-    const t = window.setTimeout(() => {
-      if (loadedRef.current) return;
-      setServerDown(name, true);
-      autoAdvanced.current = null;
-      if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
-      setServer('');
-    }, FAIL_MS);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src]);
-  // It loaded: if it was greyed out before, it works again.
-  useEffect(() => {
-    if (loaded && server) setServerDown(server, false);
-  }, [loaded, server, setServerDown]);
 
   /* ---------- progress saving (Continue Watching) ---------- */
   const lastSave = useRef(0);
@@ -338,10 +274,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (e.data.type !== 'PLAYER_EVENT') return;
       const { event: ev, currentTime, duration, season: s, episode: ep, playing } = e.data.data || {};
       if (currentTime > 0) lastTime.current = currentTime;
-      if (duration > 0 && !loadedRef.current) {
-        loadedRef.current = true;
-        setLoaded(true);
-      }
       // Volume / mute keys show VidFast's controls without play / pause / seek: follow those too.
       const { volume: vol, muted: mu } = e.data.data || {};
       if (typeof vol === 'number' || typeof mu === 'boolean') {
@@ -436,7 +368,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setServerMenu(false);
     window.setTimeout(() => iframeRef.current?.focus(), 0);
     if (name === server) return;
-    if (name && down[name]) setServerDown(name, false); // you picked a greyed-out server: try it again
     autoAdvanced.current = null;
     if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
     setServer(name);
@@ -714,7 +645,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
               <div role="menu" className="sf-menu" aria-label="Choose server">
                 {[{ name: '', badge: '', details: 'Best available server' }, ...SERVER_INFO].map((x) => {
                   const on = server === x.name;
-                  const isDown = !!x.name && !!down[x.name];
                   return (
                     <div
                       key={x.name || 'auto'}
@@ -728,15 +658,14 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                           chooseServer(x.name);
                         }
                       }}
-                      className={'sf-menu-row' + (isDown ? ' is-down' : '')}
-                      style={isDown ? { opacity: 0.45 } : undefined}
+                      className="sf-menu-row"
                     >
                       <span className="sf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
                       <span className="min-w-0 flex-1 text-left">
                         <span className="sf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
                           {x.name || 'Auto'}
                         </span>
-                        <span className="sf-menu-details">{isDown ? 'Not working right now · select to try again' : x.details}</span>
+                        <span className="sf-menu-details">{x.details}</span>
                       </span>
                       <button
                         type="button"
