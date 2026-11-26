@@ -1,6 +1,6 @@
 
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import type { ColorInfo } from '../types';
 import { CloseIcon } from './Icons';
 import { PREDEFINED_THEMES, CSS_COLORS } from '../constants';
@@ -25,6 +25,24 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
         );
     }, [searchQuery]);
 
+    // A real dialog: Escape closes it, focus moves in on open and back where it was on close.
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
+    useEffect(() => {
+        if (!isOpen) return;
+        const before = document.activeElement as HTMLElement | null;
+        dialogRef.current?.focus();
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onCloseRef.current();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => {
+            window.removeEventListener('keydown', onKey);
+            before?.focus?.();
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const handleSelectTheme = (theme: ColorInfo) => {
@@ -36,11 +54,16 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
             <div
                 className="bg-netflix-dark rounded-xl shadow-2xl shadow-black/80 ring-1 ring-white/10 w-full max-w-2xl text-white animate-zoom-in flex flex-col h-full sm:h-[90vh] sm:max-h-[700px]"
                 onClick={e => e.stopPropagation()}
+                ref={dialogRef}
+                tabIndex={-1}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="theme-modal-title"
             >
                 {/* Header */}
                 <div className="p-6 flex justify-center items-center border-b border-neutral-700/50 flex-shrink-0 relative">
-                    <h2 className="text-2xl font-bold animated-title">Player Theme</h2>
-                    <button onClick={onClose} className="absolute top-1/2 right-6 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">
+                    <h2 id="theme-modal-title" className="text-2xl font-bold animated-title">Player Theme</h2>
+                    <button onClick={onClose} aria-label="Close" className="absolute top-1/2 right-6 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">
                         <CloseIcon className="w-6 h-6" />
                     </button>
                 </div>
@@ -73,7 +96,6 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
                                     return (
                                     <button
                                         key={theme.hex}
-                                        title={theme.name}
                                         onClick={() => handleSelectTheme(theme)}
                                         className="flex flex-col items-center space-y-2 rounded-lg transition-colors hover:bg-neutral-700/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-netflix-dark focus:ring-netflix-red w-24 sm:w-28"
                                         aria-label={`Select ${theme.name} theme`}
@@ -101,14 +123,18 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             placeholder="Search by name or hex code (e.g., SkyBlue or #87CEEB)"
+                            aria-label="Search colours by name or hex code"
                             className="w-full px-4 py-2 text-base bg-neutral-800 text-white border-2 border-neutral-700 rounded-full focus:outline-none focus:ring-2 focus:ring-netflix-red focus:border-netflix-red transition-colors placeholder:text-center"
                         />
                         <div className="mt-4 space-y-2">
                             {filteredColors.map(color => (
-                                <div
+                                <button
+                                    type="button"
                                     key={color.hex}
                                     onClick={() => handleSelectTheme(color)}
-                                    className="flex items-center p-3 rounded-lg cursor-pointer transition-all duration-200 border border-transparent hover:bg-neutral-700/80 hover:border-neutral-600"
+                                    aria-label={`Select ${color.name} theme`}
+                                    aria-pressed={currentTheme.hex === color.hex}
+                                    className="flex w-full items-center p-3 text-left rounded-lg cursor-pointer transition-all duration-200 border border-transparent hover:bg-neutral-700/80 hover:border-neutral-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-netflix-red"
                                 >
                                     <div 
                                         className="w-6 h-6 rounded-full flex-shrink-0 mr-4 border border-white/20"
@@ -118,7 +144,7 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
                                         <p className="font-semibold text-white">{color.name}</p>
                                     </div>
                                     <p className="text-sm text-neutral-500 font-mono">{color.hex}</p>
-                                </div>
+                                </button>
                             ))}
                             {searchQuery.trim() && filteredColors.length === 0 && (
                                 <p className="text-center text-neutral-500 py-4">No colors found.</p>
