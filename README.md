@@ -16,7 +16,7 @@ Live site: https://streamfast.vercel.app (the old vidfast-link-generator.vercel.
 
 ## Tech
 
-React 19 + TypeScript + Vite, Tailwind (CDN). TMDB requests go through a Vercel serverless function (`api/tmdb.js`) so the API key stays on the server.
+React 19 + TypeScript + Vite, Tailwind (built at build time). TMDB requests go through Vercel serverless functions in `api/` so the API key stays on the server.
 
 ## Setup
 
@@ -34,6 +34,10 @@ npm run build
 
 ```
 api/tmdb.js          Serverless TMDB proxy (keeps the API key secret)
+api/logos.js         Title logos + IMDb ratings for cards
+api/brands.js        Studio / network / streaming-service logos
+api/person.js        Extra person details (awards, birth name) from Wikidata
+data/                VidFast server list for the player's server menu
 App.tsx              App shell, navigation, search, link handling
 components/          UI: AppHeader, HeroBanner, ContentCarousel (rows), Top10Row, HoverPreview, modals…
 contexts/AppContext  Continue Watching, My List, player theme, notifications
