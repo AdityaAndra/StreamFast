@@ -8,14 +8,18 @@ export type Logo = { p: string; r: number } | null;
 export type Meta = { p: string | null; r: number; b?: string | null; imdb?: string | null; ir?: number | null; iv?: number | null } | null;
 export type Imdb = { rating: number; votes: number | null; id: string | null } | null;
 
-const LS_KEY = 'sf_meta_v3';
+const LS_KEY = 'sf_meta_v4';
 const MAX_STORED = 1500;
+// Saved logos / IMDb ratings are refreshed after a week (ratings change, new logos get added).
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const mem = new Map<string, Meta>();
+const savedAt = new Map<string, number>();
 
 try {
   localStorage.removeItem('vf_logos_v1');
     localStorage.removeItem('vf_meta_v2');
   localStorage.removeItem('sf_meta_v2');
+  localStorage.removeItem('sf_meta_v3');
 } catch {
   /* ignore */
 }
@@ -26,10 +30,15 @@ let flushTimer: number | undefined;
 let persistTimer: number | undefined;
 
 try {
-  const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
-  // Skip null entries: those are earlier failed lookups, so they get fetched again.
+  const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}') as Record<string, { v: Meta; t: number }>;
+  const now = Date.now();
+  // Skip failed lookups (null) and anything older than a week: those get fetched again.
   Object.keys(raw).forEach((k) => {
-    if (raw[k]) mem.set(k, raw[k]);
+    const e = raw[k];
+    if (e && e.v && typeof e.t === 'number' && now - e.t < MAX_AGE_MS) {
+      mem.set(k, e.v);
+      savedAt.set(k, e.t);
+    }
   });
 } catch {
   /* ignore */
@@ -40,7 +49,10 @@ const persist = () => {
   persistTimer = window.setTimeout(() => {
     try {
       // Never store failed lookups (null), or those titles would stay without a logo / rating forever.
-      const entries = [...mem.entries()].filter(([, v]) => v !== null).slice(-MAX_STORED);
+      const entries = [...mem.entries()]
+        .filter(([, v]) => v !== null)
+        .slice(-MAX_STORED)
+        .map(([k, v]) => [k, { v, t: savedAt.get(k) ?? Date.now() }] as const);
       localStorage.setItem(LS_KEY, JSON.stringify(Object.fromEntries(entries)));
     } catch {
       /* storage full: ignore */
@@ -59,7 +71,10 @@ const flush = async () => {
     try {
       const res = await fetch(`/api/logos?ids=${chunk.join(',')}`);
       const json = res.ok ? await res.json() : {};
-      chunk.forEach((k) => mem.set(k, json[k] ?? null));
+      chunk.forEach((k) => {
+        mem.set(k, json[k] ?? null);
+        savedAt.set(k, Date.now());
+      });
     } catch {
       chunk.forEach((k) => mem.set(k, null));
     }
