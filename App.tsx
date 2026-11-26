@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import EmbedLinkModal from './components/EmbedLinkModal';
-import HowToUseGuide from './components/HowToUseGuide';
 import ResetConfirmationModal from './components/ResetConfirmationModal';
 import ScrollToTopButton from './components/ScrollToTopButton';
 import ThemeModal from './components/ThemeModal';
@@ -54,7 +53,6 @@ const viewOf = (route: Route): AppView => {
     case 'explore': case 'browse': case 'brands': case 'company': case 'provider': case 'franchise': return 'explore';
     case 'my-list': return 'my-list';
     case 'languages': return 'languages';
-    case 'guide': return 'how-to-use';
     case 'title': return 'title';
     default: return 'other';
   }
@@ -78,7 +76,6 @@ const App: React.FC = () => {
   const [player, setPlayer] = useState<{ item: SearchResult; progress?: WatchProgress; tab?: PlayerTab; key: number } | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
-  const [isGuideClosing, setIsGuideClosing] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
   const lastBrowsePath = useRef('/');
 
@@ -107,12 +104,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let ticking = false;
+    let last = false;
     const onScroll = () => {
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
-        setShowScrollToTop(window.scrollY > 900);
         ticking = false;
+        // Only touch App state (which re-renders the whole page) when the button really appears/disappears.
+        const next = window.scrollY > 900;
+        if (next === last) return;
+        last = next;
+        setShowScrollToTop(next);
       });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -122,7 +124,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!['title', 'company', 'provider', 'franchise', 'person', 'watch'].includes(route.name)) {
       const titles: Partial<Record<Route['name'], string>> = {
-        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse', 'not-found': 'Page not found',
+        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse', 'not-found': 'Page not found',
         login: 'Sign In', signup: 'Sign Up', 'forgot-password': 'Forgot password', 'reset-password': 'Reset password',
       };
       const name = !accountsEnabled && AUTH_ROUTES.includes(route.name) ? 'not-found' : route.name;
@@ -157,18 +159,8 @@ const App: React.FC = () => {
   );
 
   const handleNavigate = useCallback((view: string) => {
-    setIsGuideClosing(false);
     navigate(NAV_PATHS[view] || '/');
   }, []);
-
-  const closeGuide = useCallback(() => {
-    if (isGuideClosing) return;
-    setIsGuideClosing(true);
-    window.setTimeout(() => {
-      setIsGuideClosing(false);
-      navigate('/');
-    }, 500);
-  }, [isGuideClosing]);
 
   const handleConfirmReset = () => {
     resetData();
@@ -219,12 +211,6 @@ const App: React.FC = () => {
         return accountsEnabled ? <ForgotPasswordPage /> : <NotFoundPage />;
       case 'reset-password':
         return accountsEnabled ? <ResetPasswordPage /> : <NotFoundPage />;
-      case 'guide':
-        return (
-          <div className="px-[4%] pt-24 sm:pt-28">
-            <HowToUseGuide onGoBack={closeGuide} isClosing={isGuideClosing} />
-          </div>
-        );
       default:
         return <NotFoundPage />;
     }
@@ -264,7 +250,6 @@ const App: React.FC = () => {
             searchQuery={searchQuery}
             onSearchChange={handleSearchChange}
             onNavigate={handleNavigate as any}
-            onOpenGuide={() => navigate('/guide')}
             onImport={importList}
             onExport={exportList}
             onReset={() => setIsResetModalOpen(true)}
@@ -278,7 +263,7 @@ const App: React.FC = () => {
 
           {route.name === 'title' && <TitlePage mediaType={route.mediaType} id={route.id} autoPlay={route.play} onClose={closeTitleWindow} />}
 
-          {!isWatch && <Footer onOpenGuide={() => navigate('/guide')} onThemeSelect={() => setIsThemeModalOpen(true)} onExport={exportList} onNavigate={handleNavigate as any} />}
+          {!isWatch && <Footer onThemeSelect={() => setIsThemeModalOpen(true)} onExport={exportList} onNavigate={handleNavigate as any} />}
 
           {player && (
             <EmbedLinkModal

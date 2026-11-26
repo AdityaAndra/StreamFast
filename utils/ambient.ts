@@ -1,4 +1,6 @@
 const cache = new Map<string, string>();
+// One sample per artwork, even if several banners ask at once.
+const inflight = new Map<string, Promise<string>>();
 const FALLBACK = '#141414';
 
 const rgbToHsl = (r: number, g: number, b: number): [number, number, number] => {
@@ -22,7 +24,9 @@ export const getAmbient = (path: string | null | undefined): Promise<string> => 
   if (!path) return Promise.resolve(FALLBACK);
   const hit = cache.get(path);
   if (hit) return Promise.resolve(hit);
-  return new Promise((resolve) => {
+  const running = inflight.get(path);
+  if (running) return running;
+  const job = new Promise<string>((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.decoding = 'async';
@@ -58,4 +62,7 @@ export const getAmbient = (path: string | null | undefined): Promise<string> => 
     img.onerror = () => resolve(FALLBACK);
     img.src = `https://image.tmdb.org/t/p/w92${path}`;
   });
+  inflight.set(path, job);
+  job.then(() => inflight.delete(path));
+  return job;
 };

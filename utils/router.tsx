@@ -1,4 +1,5 @@
 import React, { useSyncExternalStore } from 'react';
+import { flushSync } from 'react-dom';
 import { jumpToY, scrollToY } from './smoothScroll';
 
 /**
@@ -12,7 +13,6 @@ export type Route =
   | { name: 'tv' }
   | { name: 'latest' }
   | { name: 'my-list' }
-  | { name: 'guide' }
   | { name: 'search'; q: string }
   | { name: 'title'; mediaType: 'movie' | 'tv'; id: number; play: boolean }
   | { name: 'explore' }
@@ -50,6 +50,35 @@ window.addEventListener('popstate', (e) => {
 
 const isTitleLoc = (loc: string) => /^\/(movie|tv)\/\d+/.test(new URL(loc, window.location.origin).pathname);
 const isWatchLoc = (loc: string) => /^\/watch\//.test(new URL(loc, window.location.origin).pathname);
+const isSearchLoc = (loc: string) => /^\/search/.test(new URL(loc, window.location.origin).pathname);
+
+/* ---------- Page transitions ----------
+ * Page-to-page navigation runs inside the View Transitions API where the browser has it: the old page
+ * fades out and the new one fades/lifts in (GPU snapshots, see index.css). Title windows, the player and
+ * typing in search keep their own behaviour. Browsers without the API just switch pages as before. */
+type ViewTransitionLike = { finished: Promise<unknown>; ready?: Promise<unknown>; updateCallbackDone?: Promise<unknown> };
+let transitionsRunning = 0;
+const withViewTransition = (update: () => void): boolean => {
+  const doc = document as unknown as { startViewTransition?: (cb: () => void) => ViewTransitionLike };
+  if (typeof doc.startViewTransition !== 'function' || document.visibilityState !== 'visible') return false;
+  const root = document.documentElement;
+  transitionsRunning++;
+  root.classList.add('sf-vt');
+  const done = () => {
+    transitionsRunning = Math.max(0, transitionsRunning - 1);
+    if (!transitionsRunning) root.classList.remove('sf-vt');
+  };
+  try {
+    const t = doc.startViewTransition.call(document, () => flushSync(update));
+    t.ready?.catch(() => undefined);
+    t.updateCallbackDone?.catch(() => undefined);
+    t.finished.then(done, done);
+    return true;
+  } catch {
+    done();
+    return false;
+  }
+};
 
 export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boolean } = {}) => {
   if (to === currentLocation()) {
@@ -79,11 +108,19 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
         ? { from: typeof st.bg === 'string' ? st.bg : '/', fromT: typeof st.tStart === 'number' ? st.tStart : idx, fromY: window.scrollY }
         : { from: cur, fromT: nextIdx, fromY: window.scrollY };
   }
+  const from = currentLocation();
   if (opts.replace) window.history.replaceState({ scrollY: 0, idx, ...extra }, '', to);
   else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
   pendingRestoreY = null;
-  emit();
-  if (!keepScroll) scrollToY(0);
+  const update = () => {
+    emit();
+    if (!keepScroll) scrollToY(0);
+  };
+  const pageToPage =
+    !opts.replace && !keepScroll &&
+    !isTitleLoc(to) && !isWatchLoc(to) && !isSearchLoc(to) &&
+    !isTitleLoc(from) && !isWatchLoc(from) && !isSearchLoc(from);
+  if (!pageToPage || !withViewTransition(update)) update();
 };
 
 /** Leave the player for the title's window, shown over the page you were browsing before (Netflix's back). */
@@ -164,7 +201,8 @@ export const parseRoute = (loc: string): Route => {
   if (path === '/tv' || path === '/tv-shows') return { name: 'tv' };
   if (path === '/latest') return { name: 'latest' };
   if (path === '/my-list' || path === '/my-content') return { name: 'my-list' };
-  if (path === '/guide') return { name: 'guide' };
+  // The old How-to-use guide was removed; old links land on Home.
+  if (path === '/guide') return { name: 'home' };
   if (path === '/search') return { name: 'search', q: url.searchParams.get('q') || '' };
   if (path === '/explore' || path === '/categories') return { name: 'explore' };
   if (path === '/languages' || path === '/browse-by-languages') return { name: 'languages', search: url.search };
