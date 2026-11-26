@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       noStore(res);
     }
     res.status(upstream.status).send(body);
-  } catch (err) {
+  } catch {
     noStore(res);
     res.status(502).json({ status_message: 'Could not reach TMDB. Please try again.' });
   }

@@ -56,7 +56,6 @@ export const FRANCHISE_IDS = [
 ];
 
 export const findBrand = (key: string) => [...STUDIOS, ...PRODUCTION_HOUSES].find((b) => b.key === key);
-export const brandKindOf = (key: string): 'studio' | 'production' => (STUDIOS.some((b) => b.key === key) ? 'studio' : 'production');
 
 export interface CompanyInfo { name: string; logo: string | null }
 export interface CollectionInfo { name: string; overview: string; poster: string | null; backdrop: string | null; count: number }

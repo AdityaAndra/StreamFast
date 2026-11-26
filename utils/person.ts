@@ -104,24 +104,6 @@ export const deptLabel = (dept: string, gender?: number) => {
   }
 };
 
-/** Job shown under a person on a title page (crew roles we surface). */
-export const KEY_CREW_JOBS: Record<string, string> = {
-  Director: 'Director',
-  'Original Music Composer': 'Music',
-  Music: 'Music',
-  Composer: 'Music',
-  'Director of Photography': 'Cinematography',
-  Cinematography: 'Cinematography',
-  Screenplay: 'Writer',
-  Writer: 'Writer',
-  Novel: 'Novel',
-  Story: 'Story',
-  Creator: 'Creator',
-  Producer: 'Producer',
-  'Executive Producer': 'Executive Producer',
-  Editor: 'Editor',
-};
-
 /* ---------- credits ---------- */
 
 export const creditDate = (c: Credit) => c.release_date || c.first_air_date || '';
