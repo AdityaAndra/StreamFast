@@ -103,7 +103,12 @@ const NavSearch: React.FC<{ value: string; onChange: (value: string) => void }> 
                         setFocused(true);
                         setRecent(loadRecentSearches());
                     }}
-                    onBlur={() => window.setTimeout(() => setFocused(false), 150)}
+                    onBlur={(e) => {
+                        // Tabbing into the recent-searches list keeps it open.
+                        const to = e.relatedTarget as HTMLElement | null;
+                        if (to && to.closest('[data-search-recent]')) return;
+                        window.setTimeout(() => setFocused(false), 150);
+                    }}
                     onKeyDown={(e) => {
                         if (e.key === 'Escape') {
                             onChange('');
@@ -132,7 +137,15 @@ const NavSearch: React.FC<{ value: string; onChange: (value: string) => void }> 
             </div>
 
             {showRecent && (
-                <div className="absolute right-0 top-full mt-2 w-[min(56vw,17rem)] border border-white/10 bg-black/95 py-2 shadow-2xl animate-dropdown-in">
+                <div
+                    data-search-recent=""
+                    onBlur={(e) => {
+                        const to = e.relatedTarget as HTMLElement | null;
+                        if (to && (to.closest('[data-search-recent]') || to === inputRef.current)) return;
+                        setFocused(false);
+                    }}
+                    className="absolute right-0 top-full mt-2 w-[min(56vw,17rem)] border border-white/10 bg-black/95 py-2 shadow-2xl animate-dropdown-in"
+                >
                     <div className="flex items-center justify-between px-3 pb-1">
                         <p className="text-[11px] uppercase tracking-widest text-[#8c8c8c]">Recent searches</p>
                         <button
