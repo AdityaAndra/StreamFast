@@ -21,7 +21,7 @@ const getRatings = async () => {
   if (ratingsText && Date.now() - ratingsAt < RATINGS_TTL_MS) return ratingsText;
   if (!ratingsLoading) {
     ratingsLoading = (async () => {
-      const r = await fetch(RATINGS_URL);
+      const r = await fetch(RATINGS_URL, { signal: AbortSignal.timeout(20000) });
       if (!r.ok) throw new Error(`IMDb dataset ${r.status}`);
       const buf = Buffer.from(await r.arrayBuffer());
       ratingsText = '\n' + gunzipSync(buf).toString('latin1');
@@ -85,7 +85,8 @@ export default async function handler(req, res) {
       const [type, id] = key.split(':');
       try {
         const r = await fetch(
-          `${TMDB_BASE}/${type}/${id}?append_to_response=images,external_ids&include_image_language=en,null&api_key=${apiKey}`
+          `${TMDB_BASE}/${type}/${id}?append_to_response=images,external_ids&include_image_language=en,null&api_key=${apiKey}`,
+          { signal: AbortSignal.timeout(8000) }
         );
         if (!r.ok) {
           out[key] = null;
@@ -110,6 +111,9 @@ export default async function handler(req, res) {
   }
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  res.setHeader('Cache-Control', ratings ? 'public, s-maxage=86400, stale-while-revalidate=604800' : 'public, s-maxage=600');
+  // Cache a complete answer for a day. If any title failed (null) or IMDb ratings didn't load, cache it
+  // only briefly, so a short TMDB / IMDb hiccup can't leave titles without logos and ratings all day.
+  const complete = !!ratings && ids.every((key) => out[key]);
+  res.setHeader('Cache-Control', complete ? 'public, s-maxage=86400, stale-while-revalidate=604800' : 'public, s-maxage=300');
   res.status(200).json(out);
 }

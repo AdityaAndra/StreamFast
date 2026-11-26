@@ -35,16 +35,13 @@ interface AppContextState {
 const AppContext = createContext<AppContextState | undefined>(undefined);
 
 export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [continueWatchingList, setContinueWatchingList] = useState<WatchProgressItem[]>([]);
-    const [myList, setMyList] = useState<MyListItem[]>([]);
-    const [playerTheme, setPlayerThemeState] = useState<ColorInfo>(DEFAULT_THEME);
+    const [continueWatchingList, setContinueWatchingList] = useState<WatchProgressItem[]>(() => getContinueWatchingList());
+    const [myList, setMyList] = useState<MyListItem[]>(() => getMyList());
+    const [playerTheme, setPlayerThemeState] = useState<ColorInfo>(() => getPlayerTheme());
     const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
     
-    useEffect(() => {
-        setContinueWatchingList(getContinueWatchingList());
-        setMyList(getMyList());
-        setPlayerThemeState(getPlayerTheme());
-    }, []);
+    // Saved lists are read during the first render (not in an effect afterwards), so every page,
+    // including a refreshed /watch link, sees them straight away and resumes where you left off.
 
     useEffect(() => {
         if (feedbackMessage) {
