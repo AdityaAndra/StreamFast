@@ -149,12 +149,13 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
 
 
   const embedLink = useMemo(() => {
-    const themeParam = `&theme=${playerTheme.hex.replace('#', '')}`;
+    // No autoPlay param: VidFast's player currently stalls when it is set (tested Nov 2026).
+    const themeParam = `theme=${playerTheme.hex.replace('#', '')}`;
     if (item.media_type === 'movie') {
-      return `${VIDFAST_MOVIE_URL}${item.id}?autoPlay=true${themeParam}`;
+      return `${VIDFAST_MOVIE_URL}${item.id}?${themeParam}`;
     }
     if (item.media_type === 'tv' && tvDetails) {
-      return `${VIDFAST_TV_URL}${item.id}/${selectedSeason}/${selectedEpisode}?autoPlay=true&nextButton=true&autoNext=true${themeParam}`;
+      return `${VIDFAST_TV_URL}${item.id}/${selectedSeason}/${selectedEpisode}?nextButton=true&autoNext=true&${themeParam}`;
     }
     return '';
   }, [item, tvDetails, selectedSeason, selectedEpisode, playerTheme]);
