@@ -115,7 +115,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!['title', 'company', 'provider', 'franchise', 'person', 'watch'].includes(route.name)) {
       const titles: Partial<Record<Route['name'], string>> = {
-        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse',
+        home: 'Home', movies: 'Movies', tv: 'TV Shows', latest: 'New & Popular', 'my-list': 'My Content', guide: 'How to use', search: 'Search', explore: 'Categories', languages: 'Browse by Languages', browse: 'Browse', brands: 'Browse', 'not-found': 'Page not found',
       };
       document.title = `${titles[route.name] || 'StreamFast'} — StreamFast`;
     }

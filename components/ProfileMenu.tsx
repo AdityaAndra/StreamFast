@@ -12,7 +12,7 @@ interface ProfileMenuProps {
 }
 
 const MenuItem: React.FC<{ onClick: () => void; icon: React.ReactNode; children: React.ReactNode; danger?: boolean }> = ({ onClick, icon, children, danger }) => (
-    <li>
+    <li role="none">
         <button
             type="button"
             onClick={onClick}
@@ -21,7 +21,7 @@ const MenuItem: React.FC<{ onClick: () => void; icon: React.ReactNode; children:
                 danger ? 'text-red-400 hover:bg-red-500/15 hover:text-red-300' : 'text-netflix-text hover:underline'
             }`}
         >
-            <span className={danger ? 'text-red-400' : 'text-netflix-muted'}>{icon}</span>
+            <span className={danger ? 'text-red-400' : 'text-netflix-muted'} aria-hidden="true">{icon}</span>
             {children}
         </button>
     </li>
@@ -90,14 +90,14 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                             <p><span className="font-bold text-white">{myList.length}</span> in My List</p>
                         </div>
                     </div>
-                    <ul className="border-t border-white/10 pt-1.5">
+                    <ul role="none" className="border-t border-white/10 pt-1.5">
                         {onOpenGuide && <MenuItem onClick={run(onOpenGuide)} icon={<BookOpenIcon className="h-4 w-4" />}>How to use StreamFast</MenuItem>}
                         <MenuItem onClick={run(onThemeSelect)} icon={<PaletteIcon className="h-4 w-4" />}>Player theme</MenuItem>
                         <MenuItem onClick={() => fileInputRef.current?.click()} icon={<UploadIcon className="h-4 w-4" />}>Import history</MenuItem>
                         <MenuItem onClick={run(onExport)} icon={<DownloadIcon className="h-4 w-4" />}>Export history</MenuItem>
                     </ul>
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" />
-                    <ul className="mt-1.5 border-t border-white/10 pt-1.5">
+                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" className="hidden" aria-label="Import history file" />
+                    <ul role="none" className="mt-1.5 border-t border-white/10 pt-1.5">
                         <MenuItem onClick={run(onReset)} icon={<TrashIcon className="h-4 w-4" />} danger>Reset site data</MenuItem>
                     </ul>
                 </div>

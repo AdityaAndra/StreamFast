@@ -139,7 +139,7 @@ const FilterBar: React.FC<FilterBarProps> = ({ params, onChange, onReset, locked
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8c8c8c]" />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search in these titles" className="nf-input" />
           {q && (
-            <button type="button" onClick={() => setQ('')} aria-label="Clear" className="absolute right-2 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-white">
+            <button type="button" onClick={() => setQ('')} aria-label="Clear search" className="absolute right-2 top-1/2 -translate-y-1/2 text-[#bbb] hover:text-white">
               <CloseIcon className="h-4 w-4" />
             </button>
           )}

@@ -2,6 +2,7 @@
   "name": "streamfast",
   "private": true,
   "version": "2.0.0",
+  "description": "Netflix-style site to browse and watch movies and TV shows, played through the VidFast player.",
   "type": "module",
   "scripts": {
     "dev": "vite",

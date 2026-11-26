@@ -11,7 +11,6 @@ import { ROWS_OVERLAP } from './HomePage';
 interface CategoryPageProps {
   id: string;
   heading: string;
-  heroEyebrow?: string;
   loadHero?: () => Promise<SearchResult[]>;
   rows: RowDef[];
   mediaType?: 'movie' | 'tv';

@@ -152,7 +152,7 @@ const TrailerOverlay: React.FC<{ videoKey: string; title: string; onClose: () =>
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-label={`${title} video`}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${title} video`}>
       <div className="relative aspect-video w-full max-w-5xl overflow-hidden rounded-md bg-black shadow-2xl animate-zoom-in" onClick={(e) => e.stopPropagation()}>
         <iframe
           className="absolute inset-0 h-full w-full"

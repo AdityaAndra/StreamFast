@@ -7,7 +7,6 @@ import { usePerRow } from '../utils/artwork';
 interface Top10RowProps {
   title: string;
   items: SearchResult[];
-  onSelect?: (item: SearchResult) => void;
 }
 
 /** Top 10 shows 5 tiles from 1400px up (as in the approved version), otherwise one fewer than normal rows. */

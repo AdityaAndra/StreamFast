@@ -4,10 +4,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { SearchResult, TVDetails, WatchProgress, SeasonDetails } from '../types';
 import { getTvDetails, getSeasonDetails, getImages } from '../services/tmdb';
 import { VIDFAST_MOVIE_URL, VIDFAST_TV_URL, TMDB_IMAGE_BASE_URL } from '../constants';
-import { CloseIcon, CopyIcon, ExternalLinkIcon, TrashIcon, BookmarkIcon, SpinnerIcon, PlusIcon, CheckStaticIcon, PlayIcon, BookOpenIcon } from './Icons';
+import { CloseIcon, CopyIcon, ExternalLinkIcon, TrashIcon, BookmarkIcon, SpinnerIcon, PlusIcon, CheckStaticIcon, PlayIcon } from './Icons';
 import { useAppContext } from '../contexts/AppContext';
-import { CodeBlock } from './CodeBlock';
-import { ParameterBadge } from './ParameterBadge';
 import InAppPlayer from './InAppPlayer';
 
 interface EmbedLinkModalProps {
@@ -216,7 +214,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
               <img src={posterUrl} alt={`Poster for ${title}`} className="w-full h-full object-cover md:rounded-l-xl"/>
             </div>
             <div className="w-full md:w-2/3 p-6 flex flex-col overflow-y-auto">
-              <button onClick={onClose} aria-label="Close" className="absolute top-3 right-3 z-10 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
+              <button type="button" onClick={onClose} aria-label="Close" className="absolute top-3 right-3 z-10 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
                 <CloseIcon className="w-6 h-6" />
               </button>
               {/* Details Section */}
@@ -237,11 +235,11 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
               {/* Actions Section / Tabs */}
               <div className="flex-shrink-0 flex flex-col">
                 <div className="flex border-b border-neutral-800 mb-4 overflow-x-auto no-scrollbar">
-                  <button 
+                  <button type="button" 
                     onClick={() => setActiveTab('actions')} 
                     className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'actions' ? 'text-white border-b-2 border-netflix-red' : 'text-neutral-400 hover:text-white'}`}
                   ><ExternalLinkIcon className="w-4 h-4" /> Quick Actions</button>
-                  <button 
+                  <button type="button" 
                     onClick={() => setActiveTab('watch')} 
                     className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'watch' ? 'text-white border-b-2 border-netflix-red' : 'text-neutral-400 hover:text-white'}`}
                   ><PlayIcon className="w-4 h-4" /> Watch Now</button>
@@ -251,10 +249,10 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                   <div className="flex flex-col min-h-[300px]">
                     {activeTab === 'actions' && (
                       <div className="flex-grow">
-                        <label className="block text-sm font-medium text-neutral-400 mb-2">Player link</label>
+                        <label htmlFor="player-link" className="block text-sm font-medium text-neutral-400 mb-2">Player link</label>
                         <div className="flex items-center space-x-2">
-                          <input type="text" readOnly value={embedLink} className="flex-grow bg-black/50 text-neutral-300 border border-neutral-700 rounded-md py-2 px-3 text-sm" />
-                          <button onClick={handleCopy} className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`} aria-label={isCopied ? 'Copied' : 'Copy link'}>
+                          <input id="player-link" type="text" readOnly value={embedLink} className="flex-grow bg-black/50 text-neutral-300 border border-neutral-700 rounded-md py-2 px-3 text-sm" />
+                          <button type="button" onClick={handleCopy} className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`} aria-label={isCopied ? 'Copied' : 'Copy link'}>
                             <CopyIcon className="w-5 h-5" />
                           </button>
                         </div>
@@ -263,7 +261,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                             <BookmarkIcon className="w-5 h-5 mr-2 flex-shrink-0" />
                             Open player in a new tab & save to Continue Watching
                           </a>
-                          <button onClick={handleToggleMyList} className={`w-full flex items-center justify-center font-bold py-3 px-4 rounded-md transition-colors text-center text-sm ${isInMyList ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-neutral-700 hover:bg-neutral-600 text-white'}`}>
+                          <button type="button" onClick={handleToggleMyList} className={`w-full flex items-center justify-center font-bold py-3 px-4 rounded-md transition-colors text-center text-sm ${isInMyList ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-neutral-700 hover:bg-neutral-600 text-white'}`}>
                               {isInMyList ? <CheckStaticIcon className="w-5 h-5 mr-2 flex-shrink-0" /> : <PlusIcon className="w-5 h-5 mr-2 flex-shrink-0" />}
                               {isInMyList ? 'Added to My List' : 'Add to My List'}
                           </button>
@@ -272,7 +270,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                             Open player in a new tab (without saving)
                           </a>
                           {isSaved && (
-                            <button onClick={handleRemove} className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm" title="Remove from Continue Watching">
+                            <button type="button" onClick={handleRemove} className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm" title="Remove from Continue Watching">
                               <TrashIcon className="w-5 h-5 mr-2" />
                               Remove from List
                             </button>
@@ -295,7 +293,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
         ) : (
           <>
             {/* TV SHOW LAYOUT - REDESIGNED */}
-            <button onClick={onClose} aria-label="Close" className="absolute top-3 right-3 z-30 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
+            <button type="button" onClick={onClose} aria-label="Close" className="absolute top-3 right-3 z-30 text-neutral-500 hover:text-white transition-colors bg-black/30 rounded-full p-1">
               <CloseIcon className="w-6 h-6" />
             </button>
             {/* Left Pane: Show Info */}
@@ -368,11 +366,11 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
               
               {/* Tabs */}
               <div className="flex border-b border-neutral-800 bg-neutral-900 overflow-x-auto no-scrollbar flex-shrink-0">
-                  <button 
+                  <button type="button" 
                     onClick={() => setActiveTab('episodes')} 
                     className={`px-4 py-3 font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'episodes' ? 'text-white border-b-2 border-netflix-red bg-neutral-800/50' : 'text-neutral-400 hover:text-white hover:bg-neutral-800/30'}`}
                   ><BookmarkIcon className="w-4 h-4" /> Episodes</button>
-                  <button 
+                  <button type="button" 
                     onClick={() => setActiveTab('watch')} 
                     className={`px-4 py-3 font-medium text-sm transition-colors whitespace-nowrap flex items-center gap-2 ${activeTab === 'watch' ? 'text-white border-b-2 border-netflix-red bg-neutral-800/50' : 'text-neutral-400 hover:text-white hover:bg-neutral-800/30'}`}
                   ><PlayIcon className="w-4 h-4" /> Watch Now</button>
@@ -456,9 +454,10 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                       type="text"
                       readOnly
                       value={embedLink}
+                      aria-label="Player link"
                       className="flex-grow bg-black/50 text-neutral-300 border border-neutral-700 rounded-md py-2 px-3 text-sm"
                     />
-                    <button
+                    <button type="button"
                       onClick={handleCopy}
                       className={`p-2 rounded-md transition-colors ${isCopied ? 'bg-green-600' : 'bg-neutral-700 hover:bg-neutral-600'}`}
                       aria-label={isCopied ? 'Copied' : 'Copy link'}
@@ -477,7 +476,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                         <BookmarkIcon className="w-4 h-4 mr-2 flex-shrink-0" />
                         Open & Save
                       </a>
-                      <button onClick={handleToggleMyList} className={`w-full flex items-center justify-center font-bold py-2 px-4 rounded-md transition-colors text-center text-sm ${isInMyList ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-neutral-700 hover:bg-neutral-600 text-white'}`}>
+                      <button type="button" onClick={handleToggleMyList} className={`w-full flex items-center justify-center font-bold py-2 px-4 rounded-md transition-colors text-center text-sm ${isInMyList ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-neutral-700 hover:bg-neutral-600 text-white'}`}>
                           {isInMyList ? <CheckStaticIcon className="w-4 h-4 mr-2 flex-shrink-0" /> : <PlusIcon className="w-4 h-4 mr-2 flex-shrink-0" />}
                           {isInMyList ? 'In My List' : 'Add to List'}
                       </button>
@@ -491,7 +490,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                         Open (No Save)
                       </a>
                       {isSaved && (
-                        <button
+                        <button type="button"
                             onClick={handleRemove}
                             className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
                             title="Remove from Continue Watching"

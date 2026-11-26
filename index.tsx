@@ -4,6 +4,7 @@ import '@fontsource-variable/inter';
 import './index.css';
 import App from './App';
 import { AppContextProvider } from './contexts/AppContext';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -23,9 +24,11 @@ ready
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <React.StrictMode>
-        <AppContextProvider>
-          <App />
-        </AppContextProvider>
+        <ErrorBoundary>
+          <AppContextProvider>
+            <App />
+          </AppContextProvider>
+        </ErrorBoundary>
       </React.StrictMode>
     );
   });

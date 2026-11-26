@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { SearchResult, WatchProgress } from '../types';
+import type { SearchResult, WatchProgress } from '../types';
 import { useAppContext } from '../contexts/AppContext';
 
 interface InAppPlayerProps {

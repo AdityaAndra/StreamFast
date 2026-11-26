@@ -18,8 +18,6 @@ interface HeroBannerProps {
   items: SearchResult[];
   /** Content shown above the card (e.g. "Movies [Genres]" on category pages). */
   top?: ReactNode;
-  onSelect?: (item: SearchResult) => void;
-  eyebrow?: string;
 }
 
 /* ---------- metadata line: Film • Action • 2009 • 1h 38m • A ---------- */
