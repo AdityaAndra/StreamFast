@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SearchResult, SeasonDetails, WatchProgress } from '../types';
 import { getTitleDetails, getSeasonDetails, TitleDetails } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
@@ -11,6 +11,7 @@ import ErrorState from '../components/ErrorState';
 import { prefetchLogos } from '../utils/artwork';
 import { Link, navigate } from '../utils/router';
 import { personPath } from '../utils/person';
+import { takeTitleOrigin } from '../utils/motion';
 import { PlayIcon, PlusIcon, CheckStaticIcon, LinkIcon, CloseIcon, ChevronDownIcon } from '../components/Icons';
 
 /**
@@ -400,6 +401,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             src={tmdbImage(data.backdrop_path, 'w1280') || ''}
             alt=""
             fetchPriority="high"
+            decoding="async"
             onLoad={() => setHeroLoaded(true)}
             className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
           />
@@ -411,6 +413,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
               <img
                 src={tmdbImage(logo.file_path, 'w500') || ''}
                 alt={title}
+                decoding="async"
                 className={`w-full object-contain object-left drop-shadow-[0_2px_14px_rgba(0,0,0,0.55)] ${logo.aspect_ratio < 1.8 ? 'max-h-[clamp(70px,12vw,170px)]' : 'max-h-[clamp(52px,8vw,120px)]'}`}
               />
             ) : (
@@ -574,6 +577,8 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
   const scroller = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
+  // Opened from a card: the window grows out of that card (and shrinks back into it on close).
+  const [origin] = useState(() => takeTitleOrigin());
 
   // The close animation timer is kept so it can be cancelled if another title opens or the window unmounts.
   const closeTimer = useRef<number | undefined>(undefined);
@@ -619,13 +624,26 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
     };
   }, []);
 
+  // Point the grow animation at the card it came from (before the first paint, in the modal's own coordinates).
+  useLayoutEffect(() => {
+    const modal = modalRef.current;
+    const box = scroller.current;
+    if (!origin || !modal || !box) return;
+    modal.style.transformOrigin = `${Math.round(origin.x - modal.offsetLeft)}px ${Math.round(origin.y - modal.offsetTop + box.scrollTop)}px`;
+  }, [origin]);
+
   useEffect(() => {
-    const raf = requestAnimationFrame(() => setOpen(true));
+    // Two frames, so the start state is painted before the transition begins (smooth on 120 Hz too).
+    let raf2 = 0;
+    const raf = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setOpen(true));
+    });
     const html = document.documentElement;
     const prev = html.style.overflow;
     html.style.overflow = 'hidden';
     return () => {
       cancelAnimationFrame(raf);
+      cancelAnimationFrame(raf2);
       html.style.overflow = prev;
     };
   }, []);
@@ -656,7 +674,7 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
       data-lenis-prevent
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
-      <div ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Title details" className="nf-title-modal outline-none">
+      <div ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Title details" className={`nf-title-modal outline-none ${origin ? 'is-from-card' : ''}`}>
         <button type="button" onClick={close} className="nf-title-close" aria-label="Close">
           <CloseIcon className="h-5 w-5" />
         </button>

@@ -1,7 +1,6 @@
 import React from 'react';
 
 interface FooterProps {
-  onOpenGuide: () => void;
   onThemeSelect: () => void;
   onExport: () => void;
   onNavigate: (view: 'home' | 'tv-shows' | 'movies' | 'my-list') => void;
@@ -15,14 +14,13 @@ const FooterLink: React.FC<{ onClick: () => void; children: React.ReactNode }> =
   </li>
 );
 
-const Footer: React.FC<FooterProps> = ({ onOpenGuide, onThemeSelect, onExport, onNavigate }) => (
+const Footer: React.FC<FooterProps> = ({ onThemeSelect, onExport, onNavigate }) => (
   <footer className="mx-auto max-w-[980px] px-[4%] pb-10 pt-16 text-[13px] text-[#808080]">
     <ul className="mb-8 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4">
       <FooterLink onClick={() => onNavigate('home')}>Home</FooterLink>
       <FooterLink onClick={() => onNavigate('tv-shows')}>TV Shows</FooterLink>
       <FooterLink onClick={() => onNavigate('movies')}>Movies</FooterLink>
       <FooterLink onClick={() => onNavigate('my-list')}>My Content</FooterLink>
-      <FooterLink onClick={onOpenGuide}>How to use StreamFast</FooterLink>
       <FooterLink onClick={onThemeSelect}>Player theme</FooterLink>
       <FooterLink onClick={onExport}>Export history</FooterLink>
       <li>

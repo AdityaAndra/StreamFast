@@ -81,6 +81,7 @@ const FranchisePage: React.FC<{ id: number }> = ({ id }) => {
           <img
             src={tmdbImage(data.backdrop_path, 'w1280') || ''}
             alt=""
+            decoding="async"
             onLoad={() => setHeroLoaded(true)}
             className={`absolute inset-0 h-full w-full object-cover object-[center_25%] transition-opacity duration-700 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
           />

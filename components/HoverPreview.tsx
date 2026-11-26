@@ -11,6 +11,7 @@ import { CAN_HOVER } from '../utils/artwork';
 import { navigate, useLocationString } from '../utils/router';
 import { CardLogo } from './ResultCard';
 import { PlayIcon, PlusIcon, CheckStaticIcon, ChevronDownIcon, TrashIcon, CloseIcon } from './Icons';
+import { setTitleOrigin } from '../utils/motion';
 
 /**
  * Netflix "mini modal": hover a card for a moment and it grows (FLIP, transform-only)
@@ -52,12 +53,19 @@ const HoverPreviewContext = createContext<HoverPreviewApi>({ show: () => {}, can
 export const useHoverPreview = () => useContext(HoverPreviewContext);
 
 const OPEN_DELAY_MS = 330;
+/** Moving straight from one preview to the next card opens the next one sooner (Netflix-like flow). */
+const QUICK_OPEN_MS = 180;
+const QUICK_WINDOW_MS = 700;
+/** Leaving the preview waits a moment, so brushing past its edge doesn't snap it shut. */
+const CLOSE_DELAY_MS = 120;
+const CLOSE_ANIM_MS = 260;
 
 export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [active, setActive] = useState<(PreviewRequest & { key: number }) | null>(null);
   const [closing, setClosing] = useState(false);
   const timer = useRef<number | null>(null);
   const counter = useRef(0);
+  const lastLeave = useRef(0);
   const location = useLocationString();
 
   const clear = () => {
@@ -68,11 +76,12 @@ export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ childr
   const show = useCallback((req: PreviewRequest) => {
     if (!CAN_HOVER) return;
     clear();
+    const delay = Date.now() - lastLeave.current < QUICK_WINDOW_MS ? QUICK_OPEN_MS : OPEN_DELAY_MS;
     timer.current = window.setTimeout(() => {
       if (!req.el.isConnected || !req.el.matches(':hover')) return;
       setClosing(false);
       setActive({ ...req, key: ++counter.current });
-    }, OPEN_DELAY_MS);
+    }, delay);
   }, []);
 
   const cancel = useCallback(() => clear(), []);
@@ -84,6 +93,11 @@ export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ childr
     setActive(null);
     setClosing(false);
   }, []);
+  // The pointer left the preview (not a scroll / Escape close): remember it for the quick re-open.
+  const leave = useCallback(() => {
+    lastLeave.current = Date.now();
+    close();
+  }, [close]);
 
   // Close on scroll, resize, Escape and page change.
   useEffect(() => {
@@ -112,7 +126,7 @@ export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ childr
   return (
     <HoverPreviewContext.Provider value={api}>
       {children}
-      {active && createPortal(<PreviewCard key={active.key} req={active} closing={closing} onClose={close} onClosed={remove} />, document.body)}
+      {active && createPortal(<PreviewCard key={active.key} req={active} closing={closing} onClose={close} onLeave={leave} onClosed={remove} />, document.body)}
     </HoverPreviewContext.Provider>
   );
 };
@@ -148,13 +162,25 @@ const computeLayout = (el: HTMLElement, variant: 'landscape' | 'poster'): Layout
   return { left, top, width, from: `translate3d(${dx}px, ${dy}px, 0) scale(${s})` };
 };
 
-const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: () => void; onClosed: () => void }> = ({ req, closing, onClose, onClosed }) => {
+const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: () => void; onLeave: () => void; onClosed: () => void }> = ({ req, closing, onClose, onLeave, onClosed }) => {
   const { item, el, onRemove, variant = 'landscape', cw } = req;
   const { myList, toggleMyListItem } = useAppContext();
   const { openPlayer } = usePlayer();
   const [layout] = useState(() => computeLayout(el, variant));
   const [open, setOpen] = useState(false);
   const fadeFromCard = variant === 'poster';
+  const rootRef = useRef<HTMLDivElement>(null);
+  const leaveTimer = useRef(0);
+  const cancelLeave = () => {
+    window.clearTimeout(leaveTimer.current);
+    leaveTimer.current = 0;
+  };
+  const scheduleLeave = () => {
+    cancelLeave();
+    leaveTimer.current = window.setTimeout(onLeave, CLOSE_DELAY_MS);
+  };
+  useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
+  const [imgLoaded, setImgLoaded] = useState(false);
 
   useLayoutEffect(() => {
     // Two frames so the browser paints the start state before transitioning (smooth on 120Hz too).
@@ -170,7 +196,8 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
 
   useEffect(() => {
     if (!closing) return;
-    const t = window.setTimeout(onClosed, 230);
+    cancelLeave();
+    const t = window.setTimeout(onClosed, CLOSE_ANIM_MS);
     return () => window.clearTimeout(t);
   }, [closing, onClosed]);
 
@@ -178,7 +205,9 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
   const year = getYear(item);
   const genres = getGenres(item, 3);
   const cardImg = el.querySelector('img.nf-art:not([data-titled]), img[data-art]') as HTMLImageElement | null;
-  const backdrop = (variant === 'landscape' && cardImg?.currentSrc) || tmdbImage(item.backdrop_path, 'w780') || tmdbImage(item.poster_path, 'w500');
+  // Landscape cards reuse the picture already on screen (shows instantly); otherwise a new image fades in.
+  const fromCard = variant === 'landscape' ? cardImg?.currentSrc || '' : '';
+  const backdrop = fromCard || tmdbImage(item.backdrop_path, 'w780') || tmdbImage(item.poster_path, 'w500');
   const inList = myList.some((i) => i.media.id === item.id && i.media.media_type === item.media_type);
   const expanded = open && !closing;
 
@@ -191,6 +220,7 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
   const timeText = cw ? progressLabel(cw.progress) : '';
 
   const goToTitle = () => {
+    setTitleOrigin(rootRef.current);
     onClose();
     navigate(titlePath(item));
   };
@@ -204,8 +234,10 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
   return (
     <div
       role="dialog"
+      ref={rootRef}
       aria-label={`${title} preview`}
-      onMouseLeave={onClose}
+      onMouseEnter={cancelLeave}
+      onMouseLeave={scheduleLeave}
       className={`nf-preview ${closing ? 'is-closing' : ''}`}
       style={{
         left: layout.left,
@@ -222,7 +254,12 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
         aria-label={cw ? `Resume ${title}` : `Play ${title}`}
         title={cw ? 'Resume' : 'Play'}
       >
-        {backdrop && <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+        {backdrop &&
+          (fromCard ? (
+            <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <img src={backdrop} alt="" decoding="async" onLoad={() => setImgLoaded(true)} className={`nf-art ${imgLoaded ? 'is-loaded' : ''}`} />
+          ))}
         <span className="nf-card-shade" />
         <CardLogo item={item} />
         {percent !== null && (

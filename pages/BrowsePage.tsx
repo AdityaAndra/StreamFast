@@ -185,7 +185,7 @@ const BrandHeader: React.FC<{ logo: string | null | undefined; name: string; sub
     <div className="mb-[2vw] flex items-center gap-[clamp(14px,1.6vw,28px)] animate-fade-in">
       <div className={`nf-brand !w-[clamp(120px,13vw,230px)] flex-shrink-0 !cursor-default hover:!transform-none hover:!shadow-none ${dark ? 'is-dark' : ''}`}>
         {logo ? (
-          <img src={tmdbImage(logo, dark ? 'w185' : 'w300') || ''} alt="" onLoad={() => setLoaded(true)} className={`${loaded ? 'is-loaded' : ''} ${dark ? '!mb-0' : ''}`} />
+          <img src={tmdbImage(logo, dark ? 'w185' : 'w300') || ''} alt="" decoding="async" onLoad={() => setLoaded(true)} className={`${loaded ? 'is-loaded' : ''} ${dark ? '!mb-0' : ''}`} />
         ) : (
           <span className="nf-brand-name">{name}</span>
         )}

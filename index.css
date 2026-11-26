@@ -8,6 +8,17 @@
   --nf-gap: 4px;
   --nf-ease: cubic-bezier(0.5, 0, 0.1, 1);
   --nf-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Row paging: Netflix's curve with a slightly softer start, so the row starts moving the moment you click. */
+  --nf-slide: cubic-bezier(0.38, 0, 0.12, 1);
+  /* Spring curves (critically damped / gentle bounce). Browsers without linear() keep the cubic fallbacks. */
+  --sf-spring: cubic-bezier(0.2, 0.85, 0.25, 1);
+  --sf-spring-soft: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --sf-spring: linear(0, 0.128, 0.248, 0.358, 0.457, 0.544, 0.621, 0.686, 0.743, 0.791, 0.831, 0.864, 0.892, 0.915, 0.933, 0.948, 0.96, 0.97, 0.978, 0.984, 0.988, 0.992, 0.994, 0.997, 1);
+    --sf-spring-soft: linear(0, 0.098, 0.314, 0.557, 0.77, 0.93, 1.031, 1.081, 1.095, 1.085, 1.065, 1.042, 1.021, 1.006, 0.997, 0.992, 0.991, 0.992, 0.994, 0.996, 1);
+  }
 }
 
 html {
@@ -75,7 +86,7 @@ img { -webkit-user-drag: none; }
 .nf-row-title a { color: inherit; }
 
 .nf-slider { position: relative; padding: 0 var(--nf-gutter); }
-.nf-track { display: flex; transition: transform 0.75s var(--nf-ease); }
+.nf-track { display: flex; transition: transform 0.72s var(--nf-slide); }
 .nf-row:hover .nf-track { will-change: transform; }
 .nf-item { flex: 0 0 auto; box-sizing: border-box; padding: 0 var(--nf-gap); width: calc(100% / var(--per-row, 6)); }
 
@@ -154,7 +165,8 @@ img { -webkit-user-drag: none; }
 .nf-top10-poster .nf-recent-badge { font-size: max(10px, 0.78vw); padding: 0.3em 0.7em; }
 
 /* ============ Billboard ============ */
-.nf-billboard-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; opacity: 0; transition: opacity 1.2s ease; will-change: opacity; }
+.nf-billboard-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; opacity: 0; transition: opacity 1.2s ease; will-change: opacity; backface-visibility: hidden; }
+.nf-billboard-img.is-active { will-change: opacity, transform; }
 .nf-billboard-img.is-active { opacity: 1; }
 .nf-billboard-img.is-active.is-loaded { animation: nf-kenburns 14s ease-out both; }
 @keyframes nf-kenburns { from { transform: scale(1.06); } to { transform: scale(1); } }
@@ -178,16 +190,16 @@ img { -webkit-user-drag: none; }
   position: fixed; z-index: 45; overflow: hidden; border-radius: 6px; background: #181818;
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.75);
   transform-origin: 0 0; will-change: transform, opacity; backface-visibility: hidden;
-  transition: transform 0.3s cubic-bezier(0.2, 0.85, 0.25, 1), opacity 0.2s ease;
+  transition: transform 0.46s var(--sf-spring), opacity 0.2s ease;
 }
-.nf-preview.is-closing { transition: transform 0.2s cubic-bezier(0.4, 0, 1, 1), opacity 0.2s ease-in; pointer-events: none; }
+.nf-preview.is-closing { transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease-in; pointer-events: none; }
 .nf-circle {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
   width: 2.4em; height: 2.4em; border-radius: 9999px; border: 2px solid rgba(255,255,255,0.5);
-  background: rgba(42, 42, 42, 0.6); color: #fff; transition: border-color 0.15s, background-color 0.15s, transform 0.15s;
+  background: rgba(42, 42, 42, 0.6); color: #fff; transition: border-color 0.15s, background-color 0.15s, transform 0.45s var(--sf-spring-soft);
 }
 .nf-circle:hover { border-color: #fff; background: rgba(255,255,255,0.1); }
-.nf-circle:active { transform: scale(0.94); }
+.nf-circle:active { transform: scale(0.92); transition-duration: 0.15s, 0.15s, 0.08s; }
 .nf-circle.is-primary { background: #fff; border-color: #fff; color: #000; }
 .nf-circle.is-primary:hover { background: rgba(255,255,255,0.8); }
 
@@ -196,9 +208,9 @@ img { -webkit-user-drag: none; }
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
   height: max(42px, 3.3vw); padding: 0 1.5em; border-radius: 9999px;
   font-weight: 600; line-height: 1; white-space: nowrap; font-size: max(15px, 1.15vw); letter-spacing: -0.005em;
-  transition: background-color 0.2s ease, transform 0.15s ease;
+  transition: background-color 0.2s ease, transform 0.45s var(--sf-spring-soft);
 }
-.nf-btn:active { transform: scale(0.97); }
+.nf-btn:active { transform: scale(0.96); transition-duration: 0.2s, 0.08s; }
 .nf-btn svg { width: 1.3em; height: 1.3em; margin-left: -0.2em; }
 .nf-btn-white { background: #fff; color: #000; }
 .nf-btn-white:hover { background: rgba(255, 255, 255, 0.82); }
@@ -207,6 +219,21 @@ img { -webkit-user-drag: none; }
 
 /* Motion is intentionally kept on even when the OS asks to reduce it (user preference). */
 
+
+/* ============ Page transitions (View Transitions API; browsers without it just switch pages) ============ */
+.sf-header { view-transition-name: sf-header; }
+::view-transition-old(root) { animation: sf-vt-out 0.2s cubic-bezier(0.4, 0, 1, 1) both; }
+::view-transition-new(root) { animation: sf-vt-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+::view-transition-group(sf-header) { animation-duration: 0.25s; }
+@keyframes sf-vt-out { to { opacity: 0; } }
+@keyframes sf-vt-in { from { opacity: 0; transform: translate3d(0, 10px, 0); } to { opacity: 1; transform: none; } }
+/* The view transition already fades the new page in: don't fade it twice. (Only the duration is changed, so the
+   page's own fade never restarts when this class comes off.) */
+html.sf-vt .page-in { animation-duration: 0.01ms; }
+
+/* Toast leaving */
+.sf-toast-out { animation: sf-toast-out 0.22s cubic-bezier(0.4, 0, 1, 1) both; }
+@keyframes sf-toast-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translate3d(0, 12px, 0) scale(0.98); } }
 
 /* ============ Lenis smooth scrolling ============ */
 html.lenis, html.lenis body { height: auto; }
@@ -274,9 +301,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 /* ============ Netflix 2026 billboard: inset rounded card + ambient tint ============ */
 .nf-hero { position: relative; padding: calc(4.9rem + 0.5vw) var(--nf-gutter) 0; }
 @media (max-width: 639px) { .nf-hero { padding-top: calc(4.25rem + 6px); } }
+/* Tint changes cross-fade two solid layers (GPU opacity) instead of repainting a huge masked box every frame. */
+.nf-ambient > i { position: absolute; inset: 0; }
+.nf-ambient > i.is-in { animation: nf-ambient-in 1.4s ease both; }
+@keyframes nf-ambient-in { from { opacity: 0; } to { opacity: 1; } }
 .nf-ambient {
   position: absolute; left: 0; right: 0; top: 0; height: calc(100% + 24vw); z-index: 0; pointer-events: none;
-  transition: background-color 1.4s ease;
   -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,0.85) 40%, rgba(0,0,0,0.35) 72%, transparent 100%);
   mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,0.85) 40%, rgba(0,0,0,0.35) 72%, transparent 100%);
 }
@@ -324,8 +354,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .nf-card.has-badge .nf-card-logo, .nf-card.has-badge .nf-card-title { bottom: 18%; }
 
 /* ============ Logo ============ */
-.sf-logo { display: block; height: clamp(22px, 1.75vw, 31px); width: auto; overflow: visible; filter: drop-shadow(0 2px 10px rgba(229, 9, 20, 0.28)); transition: transform 0.35s var(--nf-out), filter 0.35s ease; }
-.sf-logo-btn:hover .sf-logo { transform: scale(1.04); filter: drop-shadow(0 2px 14px rgba(229, 9, 20, 0.5)) brightness(1.08); }
+.sf-logo { display: block; height: clamp(19px, 1.5vw, 26px); width: auto; overflow: visible; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.45)); transition: transform 0.35s var(--nf-out), filter 0.35s ease; }
+.sf-logo-btn:hover .sf-logo { transform: scale(1.04); filter: drop-shadow(0 2px 12px rgba(229, 9, 20, 0.35)) brightness(1.06); }
 
 /* ============ IMDb badge ============ */
 .nf-imdb { display: inline-flex; align-items: center; gap: 0.42em; line-height: 1; white-space: nowrap; vertical-align: middle; font-weight: 700; color: #fff; }
@@ -360,22 +390,29 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 /* ============ Title window (Netflix "jbv" modal) ============ */
 .nf-title-overlay {
   position: fixed; inset: 0; z-index: 45; overflow-y: auto; overscroll-behavior: contain;
-  padding: 2rem 0 3rem; background: rgba(0,0,0,0); transition: background-color 0.3s ease;
+  padding: 2rem 0 3rem;
 }
-.nf-title-overlay.is-open { background: rgba(0,0,0,0.7); }
+/* The dim behind the window fades on its own GPU layer (opacity) instead of repainting the whole screen. */
+.nf-title-overlay::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none;
+  background: rgba(0,0,0,0.7); opacity: 0; transition: opacity 0.3s ease; will-change: opacity;
+}
+.nf-title-overlay.is-open::before { opacity: 1; }
 .nf-title-modal {
   position: relative; margin: 0 auto; width: min(94vw, 850px); overflow: hidden; border-radius: 8px;
   background: #181818; color: #fff; box-shadow: rgba(0,0,0,0.75) 0 3px 10px;
   opacity: 0; transform: translate3d(0, 28px, 0) scale(0.96); transform-origin: 50% 0;
   transition: opacity 0.22s ease, transform 0.45s var(--nf-out);
 }
+/* Opened from a card: grows out of that card (transform-origin is set to the card's position). */
+.nf-title-modal.is-from-card { transform: scale(0.82); }
 .nf-title-overlay.is-open .nf-title-modal { opacity: 1; transform: none; }
 .nf-title-close {
   position: absolute; right: 1em; top: 1em; z-index: 5; display: flex; height: 36px; width: 36px; align-items: center; justify-content: center;
-  border-radius: 9999px; background: #181818; color: #fff; transition: background-color 0.2s, transform 0.15s;
+  border-radius: 9999px; background: #181818; color: #fff; transition: background-color 0.2s, transform 0.45s var(--sf-spring-soft);
 }
 .nf-title-close:hover { background: #2a2a2a; }
-.nf-title-close:active { transform: scale(0.92); }
+.nf-title-close:active { transform: scale(0.9); transition-duration: 0.2s, 0.08s; }
 .nf-season-select {
   cursor: pointer; border-radius: 4px; border: 1px solid #4d4d4d; background: #242424; padding: 0.55em 1em;
   font-size: 16px; font-weight: 700; color: #fff; transition: border-color 0.2s;

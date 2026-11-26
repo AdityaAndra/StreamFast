@@ -5,6 +5,8 @@ import { useLogo, useCardArt, isTop10 } from '../utils/artwork';
 import { Link } from '../utils/router';
 import { useHoverPreview } from './HoverPreview';
 import { TrashIcon } from './Icons';
+import { setTitleOrigin } from '../utils/motion';
+import { prefetchTitle, schedulePrefetch } from '../utils/prefetch';
 
 interface ResultCardProps {
   item: SearchResult;
@@ -44,6 +46,13 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
   const [titledFailed, setTitledFailed] = useState(false);
+  // Warm the title window's data + backdrop while the pointer rests on the card.
+  const stopPrefetch = useRef<(() => void) | null>(null);
+  const cancelPrefetch = () => {
+    stopPrefetch.current?.();
+    stopPrefetch.current = null;
+  };
+  useEffect(() => () => stopPrefetch.current?.(), []);
 
   const title = getTitle(item);
   const year = getYear(item);
@@ -81,9 +90,20 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
       ref={ref}
       to={titlePath(item)}
       aria-label={`${title}${year ? ` (${year})` : ''}`}
-      onMouseEnter={() => ref.current && show({ item, el: ref.current, onRemove, variant })}
-      onMouseLeave={cancel}
-      onClick={cancel}
+      onMouseEnter={() => {
+        if (ref.current) show({ item, el: ref.current, onRemove, variant });
+        cancelPrefetch();
+        stopPrefetch.current = schedulePrefetch(item);
+      }}
+      onMouseLeave={() => {
+        cancel();
+        cancelPrefetch();
+      }}
+      onFocus={() => prefetchTitle(item)}
+      onClick={(e) => {
+        cancel();
+        setTitleOrigin(e.currentTarget);
+      }}
       draggable={false}
       className={`nf-card group/card ${isLandscape ? '' : 'is-poster'} ${isLandscape && isRecent(item) ? 'has-badge' : ''}`}
     >
@@ -144,4 +164,5 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
   );
 };
 
-export default ResultCard;
+// Cards only re-render when their own props change (rows full of cards stay idle while others update).
+export default React.memo(ResultCard);

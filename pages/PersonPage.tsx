@@ -357,7 +357,7 @@ const VideosPanel: React.FC<{ person: PersonDetails; media: Media }> = ({ person
         {data.map((v) => (
           <button key={v.key} type="button" onClick={() => setPlaying(v)} className="group text-left">
             <span className="relative block aspect-video overflow-hidden rounded-lg bg-[#232323]">
-              <img src={`https://i.ytimg.com/vi/${v.key}/hqdefault.jpg`} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 ease-out-expo group-hover:scale-105" />
+              <img src={`https://i.ytimg.com/vi/${v.key}/hqdefault.jpg`} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-500 ease-out-expo group-hover:scale-105" />
               <span className="absolute inset-0 flex items-center justify-center bg-black/20 transition-colors group-hover:bg-black/35">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-black/50"><PlayIcon className="ml-0.5 h-5 w-5 text-white" /></span>
               </span>
@@ -477,6 +477,7 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
             src={tmdbImage(backdrop, 'w1280') || ''}
             alt=""
             aria-hidden="true"
+            decoding="async"
             onLoad={() => setHeroLoaded(true)}
             className={`absolute inset-0 h-full w-full object-cover object-[center_25%] transition-opacity duration-700 ${heroLoaded ? 'opacity-30' : 'opacity-0'}`}
           />
@@ -488,7 +489,7 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
           </button>
           <div className="w-[clamp(150px,16vw,280px)] flex-shrink-0 animate-fade-in">
             <div className="aspect-[2/3] overflow-hidden rounded-2xl bg-[#232323] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
-              {person.profile_path && <img src={tmdbImage(person.profile_path, 'w500') || ''} alt={person.name} className="h-full w-full object-cover" />}
+              {person.profile_path && <img src={tmdbImage(person.profile_path, 'w500') || ''} alt={person.name} decoding="async" className="h-full w-full object-cover" />}
             </div>
           </div>
           <div className="min-w-0 flex-1 animate-fade-in-up self-end">
@@ -534,7 +535,7 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
       </section>
 
       {/* ---------- tabs + main filter ---------- */}
-      <div ref={tabsRef} className="sticky top-[4.25rem] z-30 border-b border-white/10 bg-[#141414]/95 backdrop-blur-md sm:top-[4.9rem]">
+      <div ref={tabsRef} className="sticky top-[4.25rem] z-30 border-b border-white/10 bg-[#141414]/[0.97] sm:top-[4.9rem]">
         <div className="flex flex-wrap items-center justify-between gap-3 px-[4%] py-2">
           <div className="-mx-1 flex overflow-x-auto scrollbar-hide" role="tablist" aria-label="Profile sections">
             {TABS.map(([t, l]) => (

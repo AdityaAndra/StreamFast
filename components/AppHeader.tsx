@@ -4,7 +4,7 @@ import { StreamFastLogo, NotificationsBell } from './Brand';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
 import { loadRecentSearches, clearRecentSearches } from '../utils/recentSearches';
 
-export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'explore' | 'my-list' | 'languages' | 'how-to-use' | 'title' | 'other';
+export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'explore' | 'my-list' | 'languages' | 'title' | 'other';
 type NavView = 'home' | 'movies' | 'tv-shows' | 'explore' | 'latest' | 'my-list' | 'languages';
 
 const NAV_ITEMS: { id: NavView; label: string }[] = [
@@ -23,7 +23,6 @@ interface AppHeaderProps {
     searchQuery: string;
     onSearchChange: (query: string) => void;
     onNavigate: (view: NavView) => void;
-    onOpenGuide: () => void;
     onImport: (file: File) => void;
     onExport: () => void;
     onReset: () => void;
@@ -223,7 +222,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     searchQuery,
     onSearchChange,
     onNavigate,
-    onOpenGuide,
     onImport,
     onExport,
     onReset,
@@ -233,12 +231,17 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 
     useEffect(() => {
         let ticking = false;
+        let last = false;
         const onScroll = () => {
             if (ticking) return;
             ticking = true;
             requestAnimationFrame(() => {
-                setScrolled(window.scrollY > 10);
                 ticking = false;
+                // Only re-render when the header actually changes state (not on every scrolled frame).
+                const next = window.scrollY > 10;
+                if (next === last) return;
+                last = next;
+                setScrolled(next);
             });
         };
         onScroll();
@@ -247,10 +250,10 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     }, []);
 
     const active: NavView | null = !isSearching && NAV_ITEMS.some((n) => n.id === view) ? (view as NavView) : null;
-    const solid = scrolled || isSearching || ['my-list', 'explore', 'languages', 'how-to-use', 'other'].includes(view);
+    const solid = scrolled || isSearching || ['my-list', 'explore', 'languages', 'other'].includes(view);
 
     return (
-        <header className="fixed inset-x-0 top-0 z-40">
+        <header className="sf-header fixed inset-x-0 top-0 z-40">
             <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-black/10 to-transparent" />
             <div aria-hidden="true" className={`pointer-events-none absolute inset-0 bg-netflix-bg transition-opacity duration-500 ${solid ? 'opacity-100' : 'opacity-0'}`} />
             <div className="relative flex h-[4.25rem] items-center gap-5 px-[4%] sm:h-[4.9rem] lg:gap-6 xl:gap-9">
@@ -280,7 +283,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                     <NavSearch value={searchQuery} onChange={onSearchChange} />
                     <NotificationsBell />
                     <HeaderSignInButton />
-                    <ProfileMenu onImport={onImport} onExport={onExport} onReset={onReset} onThemeSelect={onThemeSelect} onOpenGuide={onOpenGuide} />
+                    <ProfileMenu onImport={onImport} onExport={onExport} onReset={onReset} onThemeSelect={onThemeSelect} />
                 </div>
             </div>
         </header>
