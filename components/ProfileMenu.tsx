@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { DownloadIcon, UploadIcon, TrashIcon, PaletteIcon, ChevronDownIcon, BookOpenIcon, UserIcon, LogOutIcon } from './Icons';
+import { DownloadIcon, UploadIcon, TrashIcon, PaletteIcon, ChevronDownIcon, UserIcon, LogOutIcon } from './Icons';
 import { useAppContext } from '../contexts/AppContext';
 import { useAuth, useSyncStatus } from '../contexts/AuthContext';
 import { AUTH_ROUTES, Link, navigate, signInPath, useRoute } from '../utils/router';
@@ -10,7 +10,6 @@ interface ProfileMenuProps {
     onExport: () => void;
     onReset: () => void;
     onThemeSelect: () => void;
-    onOpenGuide?: () => void;
 }
 
 const MenuItem: React.FC<{ onClick: () => void; icon: React.ReactNode; children: React.ReactNode; danger?: boolean }> = ({ onClick, icon, children, danger }) => (
@@ -57,7 +56,7 @@ const SyncLine: React.FC = () => {
     );
 };
 
-const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, onThemeSelect, onOpenGuide }) => {
+const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, onThemeSelect }) => {
     const { continueWatchingList, myList, setFeedback } = useAppContext();
     const { enabled: accountsEnabled, user, profile, signOut } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
@@ -148,7 +147,6 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                                 <span>Sign in <span className="text-netflix-muted">· sync your devices</span></span>
                             </MenuItem>
                         )}
-                        {onOpenGuide && <MenuItem onClick={run(onOpenGuide)} icon={<BookOpenIcon className="h-4 w-4" />}>How to use StreamFast</MenuItem>}
                         <MenuItem onClick={run(onThemeSelect)} icon={<PaletteIcon className="h-4 w-4" />}>Player theme</MenuItem>
                         <MenuItem onClick={() => fileInputRef.current?.click()} icon={<UploadIcon className="h-4 w-4" />}>Import history</MenuItem>
                         <MenuItem onClick={run(onExport)} icon={<DownloadIcon className="h-4 w-4" />}>Export history</MenuItem>

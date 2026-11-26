@@ -23,20 +23,97 @@ interface RowShellProps {
 /**
  * Netflix row: on mouse devices it pages with a GPU translate (0.75s Netflix easing) and
  * edge arrows; on touch devices it falls back to native momentum swiping.
+ * Trackpads: a two-finger sideways swipe drags the row 1:1 (with the trackpad's own momentum),
+ * rubber-bands at the ends and then settles on the nearest card.
  */
+const SWIPE_SETTLE_MS = 140;
+const EDGE_GIVE = 0.4; // how far (in cards) the row may stretch past either end while swiping
+
 export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: perRowOverride, actions, viewAll, children }) => {
   const basePerRow = usePerRow();
   const perRow = perRowOverride ?? basePerRow;
   const pages = Math.max(1, Math.ceil(itemCount / perRow));
-  const [page, setPage] = useState(0);
+  const maxShift = Math.max(0, itemCount - perRow);
+  // How many cards the row is moved left by (whole numbers once settled).
+  const [shift, setShift] = useState(0);
 
   useEffect(() => {
-    setPage((p) => Math.min(p, pages - 1));
-  }, [pages]);
+    setShift((s) => Math.min(s, maxShift));
+  }, [maxShift]);
 
-  const shiftItems = Math.min(page * perRow, Math.max(0, itemCount - perRow));
-  const offset = -(shiftItems / perRow) * 100;
-  const go = (dir: -1 | 1) => setPage((p) => Math.min(Math.max(p + dir, 0), pages - 1));
+  const atEnd = shift >= maxShift - 0.01;
+  const page = atEnd ? pages - 1 : Math.min(pages - 1, Math.floor(shift / perRow + 1e-6));
+  const offset = -(shift / perRow) * 100;
+
+  const go = (dir: -1 | 1) =>
+    setShift((s) => {
+      const target = dir > 0 ? (Math.floor(s / perRow + 1e-6) + 1) * perRow : (Math.ceil(s / perRow - 1e-6) - 1) * perRow;
+      return Math.min(Math.max(target, 0), maxShift);
+    });
+
+  // ---- Two-finger trackpad swipe ----
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const live = useRef({ shift: 0, swiping: false, timer: 0 });
+  live.current.shift = live.current.swiping ? live.current.shift : shift;
+  const limits = useRef({ perRow, maxShift });
+  limits.current = { perRow, maxShift };
+
+  useEffect(() => {
+    const slider = sliderRef.current;
+    const track = trackRef.current;
+    if (!CAN_HOVER || !slider || !track) return;
+    const state = live.current;
+
+    const paint = (s: number) => {
+      track.style.transform = `translate3d(${-(s / limits.current.perRow) * 100}%, 0, 0)`;
+    };
+
+    const settle = () => {
+      state.timer = 0;
+      const { maxShift: max } = limits.current;
+      const snapped = Math.min(Math.max(Math.round(state.shift), 0), max);
+      state.swiping = false;
+      track.style.transition = ''; // back to the normal Netflix easing for the snap
+      state.shift = snapped;
+      paint(snapped);
+      setShift(snapped);
+    };
+
+    const onWheel = (e: WheelEvent) => {
+      // Only sideways gestures; vertical scrolling (and pinch-zoom) carry on as normal.
+      if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      const { perRow: per, maxShift: max } = limits.current;
+      if (max <= 0) return; // everything already fits
+      e.preventDefault(); // also stops the browser's back/forward swipe while over a row
+      e.stopPropagation();
+
+      const px = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaMode === 2 ? e.deltaX * track.clientWidth : e.deltaX;
+      const cardPx = track.clientWidth / per || 1;
+      if (!state.swiping) {
+        state.swiping = true;
+        track.style.transition = 'none';
+      }
+      let next = state.shift + px / cardPx;
+      // Rubber-band past the ends: movement gets heavier the further you pull.
+      if (next < 0) next = Math.max(-EDGE_GIVE, state.shift < 0 ? state.shift + (px / cardPx) * 0.3 : next * 0.3);
+      else if (next > max) next = Math.min(max + EDGE_GIVE, state.shift > max ? state.shift + (px / cardPx) * 0.3 : max + (next - max) * 0.3);
+      state.shift = next;
+      paint(next);
+
+      if (state.timer) window.clearTimeout(state.timer);
+      state.timer = window.setTimeout(settle, SWIPE_SETTLE_MS);
+    };
+
+    slider.addEventListener('wheel', onWheel, { passive: false });
+    return () => {
+      slider.removeEventListener('wheel', onWheel);
+      if (state.timer) window.clearTimeout(state.timer);
+      state.timer = 0;
+      state.swiping = false;
+      track.style.transition = '';
+    };
+  }, []);
 
   // Keyboard: when Tab reaches a card on a page you can't see, slide the row to that page.
   const onTrackFocus = (e: React.FocusEvent<HTMLDivElement>) => {
@@ -44,8 +121,10 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
     const items = Array.from(e.currentTarget.children);
     const index = items.findIndex((el) => el.contains(e.target as Node));
     if (index < 0) return;
-    const target = Math.min(Math.floor(index / perRow), pages - 1);
-    if (target !== page) setPage(target);
+    if (index < shift || index >= shift + perRow) {
+      const target = Math.min(Math.floor(index / perRow) * perRow, maxShift);
+      setShift(target);
+    }
     // The browser may have scrolled the clipped row to show the card; undo that, the translate handles it.
     const slider = e.currentTarget.parentElement;
     if (slider) slider.scrollLeft = 0;
@@ -78,13 +157,14 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
           )}
         </div>
       </div>
-      <div className={`nf-slider ${CAN_HOVER ? '' : 'is-touch'}`}>
-        {CAN_HOVER && page > 0 && (
+      <div ref={sliderRef} className={`nf-slider ${CAN_HOVER ? '' : 'is-touch'}`}>
+        {CAN_HOVER && shift > 0.01 && (
           <button type="button" className="nf-arrow left" onClick={() => go(-1)} aria-label="Previous titles">
             <ChevronLeftIcon />
           </button>
         )}
         <div
+          ref={trackRef}
           className="nf-track"
           onFocus={onTrackFocus}
           style={{
@@ -94,7 +174,7 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
         >
           {children}
         </div>
-        {CAN_HOVER && page < pages - 1 && (
+        {CAN_HOVER && !atEnd && (
           <button type="button" className="nf-arrow right" onClick={() => go(1)} aria-label="More titles">
             <ChevronRightIcon />
           </button>

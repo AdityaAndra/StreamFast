@@ -4,7 +4,7 @@ import { StreamFastLogo, NotificationsBell } from './Brand';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
 import { loadRecentSearches, clearRecentSearches } from '../utils/recentSearches';
 
-export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'explore' | 'my-list' | 'languages' | 'how-to-use' | 'title' | 'other';
+export type AppView = 'home' | 'movies' | 'tv-shows' | 'latest' | 'explore' | 'my-list' | 'languages' | 'title' | 'other';
 type NavView = 'home' | 'movies' | 'tv-shows' | 'explore' | 'latest' | 'my-list' | 'languages';
 
 const NAV_ITEMS: { id: NavView; label: string }[] = [
@@ -23,7 +23,6 @@ interface AppHeaderProps {
     searchQuery: string;
     onSearchChange: (query: string) => void;
     onNavigate: (view: NavView) => void;
-    onOpenGuide: () => void;
     onImport: (file: File) => void;
     onExport: () => void;
     onReset: () => void;
@@ -223,7 +222,6 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     searchQuery,
     onSearchChange,
     onNavigate,
-    onOpenGuide,
     onImport,
     onExport,
     onReset,
@@ -247,7 +245,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     }, []);
 
     const active: NavView | null = !isSearching && NAV_ITEMS.some((n) => n.id === view) ? (view as NavView) : null;
-    const solid = scrolled || isSearching || ['my-list', 'explore', 'languages', 'how-to-use', 'other'].includes(view);
+    const solid = scrolled || isSearching || ['my-list', 'explore', 'languages', 'other'].includes(view);
 
     return (
         <header className="fixed inset-x-0 top-0 z-40">
@@ -280,7 +278,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                     <NavSearch value={searchQuery} onChange={onSearchChange} />
                     <NotificationsBell />
                     <HeaderSignInButton />
-                    <ProfileMenu onImport={onImport} onExport={onExport} onReset={onReset} onThemeSelect={onThemeSelect} onOpenGuide={onOpenGuide} />
+                    <ProfileMenu onImport={onImport} onExport={onExport} onReset={onReset} onThemeSelect={onThemeSelect} />
                 </div>
             </div>
         </header>

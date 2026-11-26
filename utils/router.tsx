@@ -12,7 +12,6 @@ export type Route =
   | { name: 'tv' }
   | { name: 'latest' }
   | { name: 'my-list' }
-  | { name: 'guide' }
   | { name: 'search'; q: string }
   | { name: 'title'; mediaType: 'movie' | 'tv'; id: number; play: boolean }
   | { name: 'explore' }
@@ -164,7 +163,8 @@ export const parseRoute = (loc: string): Route => {
   if (path === '/tv' || path === '/tv-shows') return { name: 'tv' };
   if (path === '/latest') return { name: 'latest' };
   if (path === '/my-list' || path === '/my-content') return { name: 'my-list' };
-  if (path === '/guide') return { name: 'guide' };
+  // The old How-to-use guide was removed; old links land on Home.
+  if (path === '/guide') return { name: 'home' };
   if (path === '/search') return { name: 'search', q: url.searchParams.get('q') || '' };
   if (path === '/explore' || path === '/categories') return { name: 'explore' };
   if (path === '/languages' || path === '/browse-by-languages') return { name: 'languages', search: url.search };
