@@ -122,6 +122,16 @@ interface WatchPageProps {
 }
 
 /** Netflix-style /watch page: full-screen VidFast player with title overlay, episodes panel and next episode. */
+/** The invisible hover-sync tiles. Memoised so the thousands of tiles are only rebuilt when the grid
+ *  size changes, not on every player re-render (progress saves, control fades, status polls). */
+const Tiles = React.memo(({ count }: { count: number }) => (
+  <>
+    {Array.from({ length: count }, (_, k) => (
+      <i key={k} data-i={k} />
+    ))}
+  </>
+));
+
 const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp, episode: episodeProp, startAt }) => {
   const { data } = useCachedData<TitleDetails>(`title:${mediaType}:${id}`, () => getTitleDetails(mediaType, id));
   const { saveItem, continueWatchingList, playerTheme } = useAppContext();
@@ -146,7 +156,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   /* ---------- player src (resume where you left off) ---------- */
   const [defaultServer, setDefaultServer] = useState<string>(loadServer);
   const [server, setServer] = useState<string>(loadServer);
-  const [switchAt, setSwitchAt] = useState<number | undefined>(undefined);
+  // Where to restart after a server switch, tied to the episode it belongs to, so the next episode's
+  // first render never reuses it (which loaded the player twice).
+  const [switchAt, setSwitchAt] = useState<{ ep: string; t: number } | undefined>(undefined);
+  const epKey = `${season}:${episode}`;
   const lastTime = useRef(0);
   const volKey = useRef('');
   useEffect(() => setSwitchAt(undefined), [season, episode]);
@@ -159,7 +172,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     if (autoAdvanced.current === `${id}:${season}:${episode}` && srcRef.current) return srcRef.current;
     // Our page shows the title and server picker itself (Netflix layout), so hide VidFast's.
     const theme = `&theme=${playerTheme.hex.replace('#', '')}&title=false&hideServer=true${server ? `&server=${server}` : ''}`;
-    let resume = switchAt ?? startAt;
+    let resume = (switchAt && switchAt.ep === epKey ? switchAt.t : undefined) ?? startAt;
     if (resume === undefined && saved?.progress.watched && saved.progress.duration) {
       const same = mediaType === 'movie' || (saved.progress.season === season && saved.progress.episode === episode);
       const nearEnd = saved.progress.watched > saved.progress.duration - 90;
@@ -366,7 +379,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     window.setTimeout(() => iframeRef.current?.focus(), 0);
     if (name === server) return;
     autoAdvanced.current = null;
-    if (lastTime.current > 5) setSwitchAt(Math.floor(lastTime.current));
+    if (lastTime.current > 5) setSwitchAt({ ep: epKey, t: Math.floor(lastTime.current) });
     setServer(name);
   };
   const toggleDefault = (name: string) => {
@@ -451,7 +464,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     // and stay up while paused. So ours only wake on real moves over the video (the tiles), on the pointer
     // arriving / leaving, and on play / pause / seek. Nothing else keeps them up, or they drift out of sync.
     let over = false;
+    // 30ms on purpose: VidFast shows its controls ~30ms after a move, so a slower check lets ours lag.
+    // It's two cheap :hover checks, and it does nothing while the tab is hidden.
     const t = window.setInterval(() => {
+      if (document.hidden) return;
       const f = iframeRef.current;
       const now = (!!f && f.matches(':hover')) || !!gridRef.current?.matches(':hover');
       if (now !== over) {
@@ -498,6 +514,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (e.key !== ' ' || e.ctrlKey || e.metaKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT' || t.tagName === 'TEXTAREA')) return;
+      // Keyboard users: Space presses the focused button (Back, Episodes, Server, an episode row).
+      if (t && t.closest('button, a[href], [role="button"], [role="menuitem"], [role="option"]')) return;
       e.preventDefault();
       setServerMenu(false);
       setPanel(false);
@@ -568,9 +586,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
       {FINE_POINTER && (
         <div ref={gridRef} className="sf-grid" style={{ gridTemplateColumns: `repeat(${grid.cols}, ${grid.size}px)`, gridAutoRows: `${grid.size}px` }} onMouseOver={onCell} aria-hidden="true">
-          {Array.from({ length: grid.cols * grid.rows }, (_, k) => (
-            <i key={k} data-i={k} />
-          ))}
+          <Tiles count={grid.cols * grid.rows} />
         </div>
       )}
 
