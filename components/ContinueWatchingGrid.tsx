@@ -23,7 +23,8 @@ const ContinueWatchingGrid: React.FC<{ onSelect?: (item: WatchProgressItem) => v
     return [...filtered].sort((a, b) => {
       const ta = a.media.media_type === 'movie' ? a.media.title : a.media.name;
       const tb = b.media.media_type === 'movie' ? b.media.title : b.media.name;
-      return ta.localeCompare(tb);
+      // Imported or old saved items can lack a title: sort those last instead of crashing.
+      return (ta || '\uffff').localeCompare(tb || '\uffff');
     });
   }, [items, filter, sort]);
 
