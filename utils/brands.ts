@@ -57,12 +57,12 @@ export const FRANCHISE_IDS = [
 ];
 
 /** Official title logos for the Popular Franchises (TMDB has no logos for collections, so each one uses the
- *  logo of the film that carries the franchise name). Checked by eye; franchises not listed fall back to text. */
+ *  logo of the film that carries the franchise name). Checked by eye; franchises not listed fall back to text
+ *  (James Bond has no franchise-only logo on TMDB: every one carries a film title). */
 export const FRANCHISE_LOGOS: Record<number, string> = {
   86311: '/2VLCNzMOGayRGdiSGyaOD0MzA3Y.png', // The Avengers (from The Avengers)
   1241: '/n7Pj4doQ1yfElCiGTGFTvzoQkpf.png', // Harry Potter (from Harry Potter and the Philosopher's Stone)
   10: '/vswPivs3yuUsk5aW6DbnyeNQ4GX.png', // Star Wars (from Star Wars)
-  645: '/kqKmAtdICZFz7dURG0AGoH7Mbbb.png', // James Bond (from No Time to Die (gold 007))
   9485: '/jCbjdbiG1BtiX4aqhvgf6YdXuIq.png', // The Fast and the Furious (from The Fast and the Furious)
   119: '/87sl6r7n7Qx0fALtLZFxM3mU3KM.png', // The Lord of the Rings (from The Lord of the Rings: The Fellowship of the Ring)
   87359: '/d4Nk4FAlEoHLNEny88SQ7Jk9ZsZ.png', // Mission: Impossible (from Mission: Impossible)
