@@ -107,10 +107,15 @@
           if (tag) {
             var payload = location.hash.slice(tag.length);
             history.replaceState(history.state, '', location.pathname + location.search);
+            /* Only accept moved data when the visitor really came from the old address, so a link
+               someone else made can't add titles to your lists. */
+            var fromOld = (document.referrer || '').indexOf('https://' + OLD) === 0;
+            if (!fromOld) payload = '';
             var kind = payload.slice(0, 2);
             var bytes = unb64(payload.slice(2));
             var decoded =
-              kind === 'z.' && typeof DecompressionStream === 'function' ? pipe(bytes, new DecompressionStream('deflate-raw'))
+              !payload ? Promise.reject(new Error('not from the old address'))
+              : kind === 'z.' && typeof DecompressionStream === 'function' ? pipe(bytes, new DecompressionStream('deflate-raw'))
               : kind === 'j.' ? Promise.resolve(bytes)
               : Promise.reject(new Error('unknown'));
             window.__sfReady = decoded.then(function (b) {
