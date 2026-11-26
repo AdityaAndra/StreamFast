@@ -1,11 +1,14 @@
 <div align="center">
 
-<a href="https://streamfast.vercel.app">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="public/logo.svg">
-    <img src="public/logo-light.svg" alt="StreamFast" width="360">
-  </picture>
-</a>
+<p>
+  <a href="https://streamfast.vercel.app">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="public/logo.svg">
+      <img src="public/logo-light.svg" alt="StreamFast" width="360">
+    </picture>
+  </a>
+</p>
+<br>
 
 **A Netflix-style streaming site for movies and TV shows, built with React.**
 
