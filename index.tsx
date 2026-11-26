@@ -4,6 +4,7 @@ import '@fontsource-variable/inter';
 import './index.css';
 import App from './App';
 import { AppContextProvider } from './contexts/AppContext';
+import { AuthProvider } from './contexts/AuthContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const rootElement = document.getElementById('root');
@@ -26,7 +27,9 @@ ready
       <React.StrictMode>
         <ErrorBoundary>
           <AppContextProvider>
-            <App />
+            <AuthProvider>
+              <App />
+            </AuthProvider>
           </AppContextProvider>
         </ErrorBoundary>
       </React.StrictMode>

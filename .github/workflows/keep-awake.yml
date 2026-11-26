@@ -1,0 +1,112 @@
+# Keeps StreamFast's Supabase project awake and emails you (via a failed run) when something is wrong.
+#
+# Free Supabase projects pause after a week without activity. Every run pings the site's /api/ping,
+# which writes a heartbeat row in the database. If the site doesn't answer, the database is touched
+# directly with the public (publishable) key, so it stays awake either way.
+#   - Database unreachable  -> the run fails (GitHub emails the repo owner): open the Supabase
+#                              dashboard and click Restore.
+#   - Site down, database OK -> warning; the run only fails at 00/06/12/18 UTC (or when started by
+#                              hand), so a short outage doesn't flood your inbox.
+# Run it by hand from the Actions tab; tick "test_alert" to check that the failure email reaches you.
+name: Keep awake
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+    - cron: '53 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      test_alert:
+        description: 'Fail on purpose to test the alert email (nothing is pinged)'
+        type: boolean
+        default: false
+
+permissions: {}
+
+concurrency:
+  group: keep-awake
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Ping site and database
+        env:
+          SITE: https://streamfast.vercel.app
+          SUPABASE_URL: https://nrlwqcasxfkimztomzqw.supabase.co
+          # Public key (it ships in the site's JavaScript anyway); not a secret.
+          SUPABASE_PUBLISHABLE_KEY: sb_publishable_Sc8TEQ2raWEIqigfYvFcaQ_0CkuaNx0
+          DASHBOARD: https://supabase.com/dashboard/project/nrlwqcasxfkimztomzqw
+          TEST_ALERT: ${{ github.event_name == 'workflow_dispatch' && inputs.test_alert }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -u
+          summary() { echo "$*" >> "$GITHUB_STEP_SUMMARY"; }
+          now="$(date -u '+%Y-%m-%d %H:%M UTC')"
+          hour="$(date -u +%H)"
+
+          if [ "$TEST_ALERT" = "true" ]; then
+            msg="TEST ONLY: this run failed on purpose (test_alert) to check that GitHub emails you when the keep-awake check fails. Nothing is wrong with the site or the database."
+            echo "::error title=TEST ONLY::$msg"
+            summary "## 🧪 TEST ONLY"
+            summary "$msg"
+            exit 1
+          fi
+
+          # 1) The site's heartbeat (also writes to the database).
+          site_ok=false
+          for i in 1 2 3 4 5; do
+            if out="$(curl -fsS --max-time 25 "$SITE/api/ping?source=github" 2>&1)"; then
+              site_ok=true
+              echo "Site ping OK (attempt $i): $out"
+              break
+            fi
+            echo "Site ping attempt $i failed: $out"
+            if [ "$i" -lt 5 ]; then sleep $((i * 10)); fi
+          done
+
+          # 2) If the site didn't answer, touch the database directly.
+          db_ok=$site_ok
+          if [ "$site_ok" != true ]; then
+            for i in 1 2 3; do
+              if out="$(curl -fsS --max-time 25 -X POST "$SUPABASE_URL/rest/v1/rpc/username_available" \
+                  -H "apikey: $SUPABASE_PUBLISHABLE_KEY" \
+                  -H "Authorization: Bearer $SUPABASE_PUBLISHABLE_KEY" \
+                  -H "Content-Type: application/json" \
+                  -d '{"u":"keepawake_probe"}' 2>&1)"; then
+                db_ok=true
+                echo "Database OK (attempt $i): $out"
+                break
+              fi
+              echo "Database attempt $i failed: $out"
+              if [ "$i" -lt 3 ]; then sleep $((i * 15)); fi
+            done
+          fi
+
+          if [ "$db_ok" != true ]; then
+            msg="The StreamFast database (Supabase) is not responding. It may be paused: open $DASHBOARD and click Restore. Until then sign-in and sync don't work (the site itself still plays)."
+            echo "::error title=Supabase database unreachable::$msg"
+            summary "## ❌ Database unreachable ($now)"
+            summary "$msg"
+            exit 1
+          fi
+
+          if [ "$site_ok" != true ]; then
+            msg="$SITE/api/ping did not answer after 5 tries, but the database is awake (touched directly)."
+            fail=false
+            case "$hour" in 00|06|12|18) fail=true ;; esac
+            if [ "$EVENT" = "workflow_dispatch" ]; then fail=true; fi
+            summary "## ⚠️ Site not answering ($now)"
+            summary "$msg"
+            if [ "$fail" = true ]; then
+              echo "::error title=Site not answering::$msg Check https://vercel.com (deployments / function logs)."
+              exit 1
+            fi
+            echo "::warning title=Site not answering::$msg This run only warns; the 00/06/12/18 UTC runs fail if it's still down."
+            exit 0
+          fi
+
+          summary "## ✅ Site and database are awake ($now)"
+          summary "Pinged $SITE/api/ping?source=github."

@@ -1,4 +1,5 @@
 import { useCachedData } from './useCachedData';
+import { notifyLocalDataChange } from '../services/storage';
 
 export interface Brand {
   key: string;
@@ -107,6 +108,7 @@ export const getRegion = (): string => {
 export const saveRegion = (region: string) => {
   try {
     localStorage.setItem(REGION_KEY, region);
+    notifyLocalDataChange('region');
   } catch {
     /* ignore */
   }

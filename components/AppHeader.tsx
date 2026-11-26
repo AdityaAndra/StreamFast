@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import ProfileMenu from './ProfileMenu';
+import ProfileMenu, { HeaderSignInButton } from './ProfileMenu';
 import { StreamFastLogo, NotificationsBell } from './Brand';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
 import { loadRecentSearches, clearRecentSearches } from '../utils/recentSearches';
@@ -279,6 +279,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                 <div className="flex flex-shrink-0 items-center gap-2 sm:gap-4">
                     <NavSearch value={searchQuery} onChange={onSearchChange} />
                     <NotificationsBell />
+                    <HeaderSignInButton />
                     <ProfileMenu onImport={onImport} onExport={onExport} onReset={onReset} onThemeSelect={onThemeSelect} onOpenGuide={onOpenGuide} />
                 </div>
             </div>

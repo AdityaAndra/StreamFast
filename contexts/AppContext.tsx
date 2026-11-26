@@ -14,6 +14,7 @@ import {
     getMyList,
     saveToMyList,
     removeFromMyList,
+    onRemoteDataApplied,
 } from '../services/storage';
 import { DEFAULT_THEME } from '../constants';
 
@@ -54,6 +55,17 @@ export const AppContextProvider: React.FC<{ children: ReactNode }> = ({ children
         setContinueWatchingList(getContinueWatchingList());
         setMyList(getMyList());
     }, []);
+
+    // Cloud sync (signed-in users) wrote newer data from another device into storage: show it now,
+    // without a page reload.
+    useEffect(
+        () =>
+            onRemoteDataApplied((keys) => {
+                if (keys.includes('progress') || keys.includes('my_list')) refreshList();
+                if (keys.includes('theme')) setPlayerThemeState(getPlayerTheme());
+            }),
+        [refreshList]
+    );
 
     const saveItem = useCallback((item: SearchResult, progress: WatchProgress, cleanPosterPath: string | null) => {
         saveToContinueWatching(item, progress, cleanPosterPath);
