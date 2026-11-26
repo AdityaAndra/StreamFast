@@ -1,7 +1,8 @@
 import type { SearchResult } from '../types';
 import { GENRES, TMDB_IMG } from '../constants';
 
-export type ImageSize = 'w92' | 'w185' | 'w342' | 'w500' | 'w780' | 'w1280' | 'original';
+// Sizes TMDB serves (w300 is used for backdrops and stills).
+export type ImageSize = 'w92' | 'w185' | 'w300' | 'w342' | 'w500' | 'w780' | 'w1280' | 'original';
 
 export const getTitle = (item: SearchResult): string =>
   item.media_type === 'movie' ? item.title : item.name;
