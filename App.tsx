@@ -83,7 +83,7 @@ const App: React.FC = () => {
   }, []);
 
   // Freeze the page behind any open dialog.
-  const anyModal = isTitle || !!player || isThemeModalOpen || isResetModalOpen || confirmationState.isOpen;
+  const anyModal = isTitle || !!player || isThemeModalOpen || isResetModalOpen;
   useEffect(() => {
     if (anyModal) pauseScroll();
     else resumeScroll();
