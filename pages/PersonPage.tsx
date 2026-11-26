@@ -284,7 +284,7 @@ const Lightbox: React.FC<{ images: string[]; index: number; onClose: () => void;
     return () => window.removeEventListener('keydown', onKey);
   }, [index, images.length, onClose, onIndex]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-label="Photo">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-modal="true" aria-label="Photo">
       <img src={images[index]} alt="" className="max-h-[88vh] max-w-[92vw] rounded-lg object-contain shadow-2xl animate-zoom-in" onClick={(e) => e.stopPropagation()} />
       <button type="button" className="nf-circle absolute right-5 top-5 text-base" onClick={onClose} aria-label="Close"><CloseIcon className="h-5 w-5" /></button>
       {images.length > 1 && (
@@ -368,7 +368,7 @@ const VideosPanel: React.FC<{ person: PersonDetails; media: Media }> = ({ person
         ))}
       </div>
       {playing && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={() => setPlaying(null)} role="dialog" aria-label={playing.name}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={() => setPlaying(null)} role="dialog" aria-modal="true" aria-label={playing.name}>
           <div className="relative aspect-video w-full max-w-5xl overflow-hidden rounded-md bg-black shadow-2xl animate-zoom-in" onClick={(e) => e.stopPropagation()}>
             <iframe className="absolute inset-0 h-full w-full" src={`https://www.youtube-nocookie.com/embed/${playing.key}?autoplay=1&rel=0&modestbranding=1`} title={playing.name} allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen />
             <button type="button" onClick={() => setPlaying(null)} className="nf-circle absolute right-3 top-3 z-10 text-base" aria-label="Close video"><CloseIcon className="h-5 w-5" /></button>
@@ -496,8 +496,8 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
             <h1 className="text-[clamp(2.1rem,4.4vw,4.8rem)] font-black leading-[0.98] tracking-[-0.035em] text-white">{person.name}</h1>
             <div className="mt-[max(10px,0.9vw)] flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[max(14px,1vw)] font-medium text-[#e5e5e5] max-md:justify-center">
               {person.birthday && <span>Born {fmtDate(person.birthday)}{!person.deathday && age !== null ? ` (${age})` : ''}</span>}
-              {person.place_of_birth && <><span className="nf-dot" /><span className="text-[#bcbcbc]">{person.place_of_birth}</span></>}
-              {person.deathday && <><span className="nf-dot" /><span>Died {fmtDate(person.deathday)}</span></>}
+              {person.place_of_birth && <><span className="nf-dot" aria-hidden="true" /><span className="text-[#bcbcbc]">{person.place_of_birth}</span></>}
+              {person.deathday && <><span className="nf-dot" aria-hidden="true" /><span>Died {fmtDate(person.deathday)}</span></>}
             </div>
             <div className="mt-[max(10px,0.9vw)] flex flex-wrap gap-2 max-md:justify-center">
               <span className="rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold text-white">{movieCount} movies</span>

@@ -86,12 +86,6 @@ export const getTvDetails = async (id: number, signal?: AbortSignal): Promise<TV
   return fetchFromTMDB(`/tv/${id}`, {}, signal);
 };
 
-export const getMovieDetails = async (id: number, signal?: AbortSignal): Promise<MovieSearchResult> => {
-    const movie = await fetchFromTMDB(`/movie/${id}`, {}, signal);
-    // Ensure media_type is present for consistency
-    return { ...movie, media_type: 'movie' };
-};
-
 export const getSeasonDetails = async (tvId: number, seasonNumber: number, signal?: AbortSignal): Promise<SeasonDetails> => {
     return fetchFromTMDB(`/tv/${tvId}/season/${seasonNumber}`, {}, signal);
 };

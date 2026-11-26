@@ -5,7 +5,6 @@ import { prefetchLogos } from '../utils/artwork';
 
 interface ResultsGridProps {
   results: SearchResult[];
-  onSelect?: (item: SearchResult) => void;
   onRemove?: (item: SearchResult) => void;
 }
 

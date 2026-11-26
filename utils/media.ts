@@ -12,9 +12,6 @@ export const getYear = (item: SearchResult): string => {
   return date ? date.slice(0, 4) : '';
 };
 
-export const getRating = (item: SearchResult): string | null =>
-  typeof item.vote_average === 'number' && item.vote_average > 0 ? item.vote_average.toFixed(1) : null;
-
 export const getGenres = (item: SearchResult, max = 3): string[] =>
   (item.genre_ids || [])
     .map((id) => GENRES[id])
@@ -23,9 +20,6 @@ export const getGenres = (item: SearchResult, max = 3): string[] =>
 
 export const tmdbImage = (path: string | null | undefined, size: ImageSize = 'w500'): string | null =>
   path ? `${TMDB_IMG}/${size}${path}` : null;
-
-export const isSameMedia = (a: SearchResult, b: SearchResult) =>
-  a.id === b.id && a.media_type === b.media_type;
 
 const slugify = (s: string) =>
   s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
@@ -36,9 +30,6 @@ export const titlePath = (item: Pick<SearchResult, 'id' | 'media_type'> & { titl
   const slug = slugify(name);
   return `/${item.media_type}/${item.id}${slug ? `-${slug}` : ''}`;
 };
-
-export const getMatch = (item: SearchResult): number | null =>
-  typeof item.vote_average === 'number' && item.vote_average > 0 ? Math.min(99, Math.round(item.vote_average * 10 + 2)) : null;
 
 /** Released in the last 30 days (Netflix "Recently added"). */
 export const isRecent = (item: SearchResult): boolean => {

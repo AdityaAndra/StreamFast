@@ -88,12 +88,6 @@ const NfNowBars = () => (
     <rect x="31" y="12" width="4" height="12" />
   </svg>
 );
-const VfNext = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M5 6.27V17.73C5 19.25 6.66 20.2 7.97 19.43L17.08 13.7C18.3 12.94 18.3 11.06 17.08 10.3L7.97 4.57C6.66 3.8 5 4.75 5 6.27Z" />
-    <path d="M20.5 4.5V19.5" />
-  </svg>
-);
 const SERVER_KEY = 'sf_server';
 const loadServer = () => {
   try {

@@ -13,7 +13,7 @@ const Key: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 const Section: React.FC<{ icon: React.ReactNode; title: string; children: React.ReactNode }> = ({ icon, title, children }) => (
     <section className="mb-8">
         <h3 className="mb-3 flex items-center text-xl font-bold text-white sm:text-2xl">
-            <span className="mr-3 flex h-6 w-6 items-center justify-center text-netflix-red">{icon}</span>
+            <span className="mr-3 flex h-6 w-6 items-center justify-center text-netflix-red" aria-hidden="true">{icon}</span>
             {title}
         </h3>
         <div className="ml-0 space-y-2 leading-relaxed text-neutral-300 sm:ml-9">{children}</div>

@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     // Cache a full answer for a week; a partial one (a query failed) only for 5 minutes.
     res.setHeader('Cache-Control', aRows && fRows ? 'public, s-maxage=604800, stale-while-revalidate=2592000' : 'public, s-maxage=300');
     res.status(200).json({ awards, facts });
-  } catch (e) {
+  } catch {
     res.setHeader('Cache-Control', 'no-store');
     res.status(502).json({ error: 'Could not reach Wikidata.' });
   }
