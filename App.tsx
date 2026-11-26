@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import EmbedLinkModal from './components/EmbedLinkModal';
-import ConfirmationModal from './components/ConfirmationModal';
 import HowToUseGuide from './components/HowToUseGuide';
 import ResetConfirmationModal from './components/ResetConfirmationModal';
 import ScrollToTopButton from './components/ScrollToTopButton';
@@ -29,7 +28,6 @@ import { initSmoothScroll, pauseScroll, resumeScroll, scrollToY } from './utils/
 import type { SearchResult, WatchProgress } from './types';
 import { useAppContext } from './contexts/AppContext';
 import { PlayerContext, PlayerTab } from './contexts/PlayerContext';
-import { useLinkUpdater } from './hooks/useLinkUpdater';
 import { consumeScrollRestore, navigate, Route, useLocationString, useRoute, titleBackground, closeTitleWindow, parseRoute } from './utils/router';
 
 const NAV_PATHS: Record<string, string> = {
@@ -69,7 +67,6 @@ const App: React.FC = () => {
     const r = parseRoute(bgLocation);
     return r.name === 'title' || r.name === 'watch' ? { name: 'home' } : r;
   }, [isTitle, route, bgLocation]);
-  const { actuallyUpdateFromLink, confirmationState } = useLinkUpdater();
 
   const [player, setPlayer] = useState<{ item: SearchResult; progress?: WatchProgress; tab?: PlayerTab; key: number } | null>(null);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -199,7 +196,8 @@ const App: React.FC = () => {
       case 'provider':
         return <ProviderPage id={route.id} search={route.search} />;
       case 'franchise':
-        return <FranchisePage id={route.id} />;
+        // key: moving to another franchise starts fresh (no sort / genre / search left over).
+        return <FranchisePage key={route.id} id={route.id} />;
       case 'watch':
         return <WatchPage mediaType={route.mediaType} id={route.id} season={route.season} episode={route.episode} startAt={route.t} />;
       case 'person':
@@ -270,20 +268,11 @@ const App: React.FC = () => {
               key={player.key}
               item={player.item}
               onClose={() => setPlayer(null)}
-              onUpdateFromLink={actuallyUpdateFromLink}
               initialProgress={player.progress}
               initialTab={player.tab}
             />
           )}
 
-          <ConfirmationModal
-            isOpen={confirmationState.isOpen}
-            item={confirmationState.itemToAdd}
-            progress={confirmationState.progressToAdd}
-            episodeDetails={confirmationState.episodeDetails}
-            onConfirm={confirmationState.onConfirm}
-            onCancel={confirmationState.onCancel}
-          />
           <ResetConfirmationModal isOpen={isResetModalOpen} onConfirm={handleConfirmReset} onCancel={() => setIsResetModalOpen(false)} />
           <ThemeModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
 
