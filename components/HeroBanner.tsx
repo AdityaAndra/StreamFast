@@ -152,15 +152,27 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
     };
   }, [current]);
 
+  // Pause button (WCAG 2.2.2) and pause while keyboard focus is inside the banner.
+  const [userPaused, setUserPaused] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
   if (!current) return null;
   const next = () => setIndex((i) => (i + 1) % slides.length);
+  const halted = paused || userPaused || focusInside;
 
   return (
     <section className="nf-hero" aria-roledescription="carousel" aria-label="Featured">
       <div className="nf-ambient" style={{ backgroundColor: ambient }} aria-hidden="true" />
       {top && <div className="nf-hero-top">{top}</div>}
 
-      <div className="nf-hero-card" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(document.hidden)}>
+      <div
+        className="nf-hero-card"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(document.hidden)}
+        onFocus={() => setFocusInside(true)}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setFocusInside(false);
+        }}
+      >
         {slides.map((slide, i) => {
           const near = i === index || i === (index + 1) % slides.length || i === (index - 1 + slides.length) % slides.length;
           if (!near) return null;
@@ -213,13 +225,24 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
                     <span
                       key={`t-${index}`}
                       className="nf-billboard-timer absolute inset-0 origin-left bg-white"
-                      style={{ ['--dur' as any]: `${SLIDE_MS}ms`, animationPlayState: paused ? 'paused' : 'running' }}
+                      style={{ ['--dur' as any]: `${SLIDE_MS}ms`, animationPlayState: halted ? 'paused' : 'running' }}
                       onAnimationEnd={next}
                     />
                   )}
                 </span>
               </button>
             ))}
+            <button
+              type="button"
+              onClick={() => setUserPaused((p) => !p)}
+              aria-label={userPaused ? 'Play slideshow' : 'Pause slideshow'}
+              aria-pressed={userPaused}
+              className="ml-1 flex h-6 w-6 items-center justify-center rounded-full text-white/60 transition-colors hover:text-white"
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
+                {userPaused ? <path d="M8 5v14l11-7z" /> : <path d="M7 5h4v14H7zM13 5h4v14h-4z" />}
+              </svg>
+            </button>
           </div>
         )}
       </div>
