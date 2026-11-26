@@ -126,7 +126,7 @@ export const discover = async (type: 'movie' | 'tv', params: Record<string, stri
     { sort_by: 'popularity.desc', include_adult: 'false', 'vote_count.gte': type === 'movie' ? '150' : '60', ...params },
     signal
   );
-  return withArt(type === 'movie' ? asMovies(data) : asTv(data));
+  return type === 'movie' ? withArt(asMovies(data)) : withArt(asTv(data));
 };
 
 export interface TitleDetails {
