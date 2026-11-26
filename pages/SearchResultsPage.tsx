@@ -26,7 +26,8 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   const q = useDebounced(query.trim(), 250);
   const [filter, setFilter] = useState<Filter>('all');
   const { data, error, loading, reload } = useCachedData<SearchResult[]>(q ? `search:${q.toLowerCase()}` : null, () => searchMulti(q));
-  const [last, setLast] = useState<SearchResult[]>([]);
+  // The previous query's results stay on screen while the new ones load, ranked against THEIR query.
+  const [last, setLast] = useState<{ q: string; items: SearchResult[] }>({ q: '', items: [] });
   const peopleRes = useCachedData<PersonSummary[]>(q ? `people:${q.toLowerCase()}` : null, () => searchPeople(q));
   const people: PersonTileData[] = useMemo(
     () =>
@@ -40,13 +41,14 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   );
 
   useEffect(() => {
-    if (data) setLast(data);
-  }, [data]);
+    if (data) setLast({ q, items: data });
+  }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => setFilter('all'), [q]);
 
-  const raw = data || last;
+  const raw = data || last.items;
+  const rankQ = data ? q : last.q;
   // Best matches first, then titles related to the top match, then obscure matches.
-  const ranked = useMemo(() => rankSearch(raw, q), [raw, q]);
+  const ranked = useMemo(() => rankSearch(raw, rankQ), [raw, rankQ]);
   const top = ranked.strong[0];
   const topPerson = peopleRes.data?.[0];
   // Choose between person and title mode only once the people search has answered, and only for this
