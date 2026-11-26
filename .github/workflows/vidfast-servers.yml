@@ -1,0 +1,62 @@
+# Keeps the player's server menu in sync with VidFast.
+# Every 6 hours a headless Chrome opens VidFast's player, reads its server menu, and if a server was added
+# or removed, updates data/vidfast-servers.json on the redesign branch and opens a pull request to main.
+name: VidFast servers
+
+on:
+  schedule:
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [redesign]
+    paths:
+      - scripts/check-vidfast-servers.mjs
+      - .github/workflows/vidfast-servers.yml
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: vidfast-servers
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: redesign
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install headless Chrome
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund playwright@1
+          npx playwright install --with-deps chromium
+      - name: Read VidFast's server menu
+        id: check
+        run: node scripts/check-vidfast-servers.mjs
+      - name: Save the new list and ask to publish it
+        if: steps.check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGES: ${{ steps.check.outputs.summary }}
+          LIST: ${{ steps.check.outputs.list }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898319+github-actions[bot]@users.noreply.github.com"
+          git add data/vidfast-servers.json
+          git commit -m "chore(servers): VidFast $CHANGES"
+          git pull --rebase origin redesign
+          git push origin HEAD:redesign
+          BODY="VidFast's server menu changed: $CHANGES. Servers now: $LIST. The list on the redesign branch is updated; merge into main to put it live."
+          PR=$(gh pr list --base main --head redesign --state open --json number --jq '.[0].number')
+          if [ -n "$PR" ]; then
+            gh pr comment "$PR" --body "$BODY"
+          else
+            gh pr create --base main --head redesign --title "VidFast servers: $CHANGES" --body "$BODY" \
+              || gh issue create --title "VidFast servers: $CHANGES" --body "$BODY Open a pull request from redesign to main to publish it."
+          fi
