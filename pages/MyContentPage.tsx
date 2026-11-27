@@ -3,6 +3,7 @@ import { useAppContext } from '../contexts/AppContext';
 import ContinueWatchingGrid from '../components/ContinueWatchingGrid';
 import ResultsGrid from '../components/ResultsGrid';
 import { PlusIcon, PaletteIcon, DownloadIcon } from '../components/Icons';
+import { AutoplayPreviewsSwitch } from '../components/TrailerPreview';
 
 interface MyContentPageProps {
   onBrowse: () => void;
@@ -25,6 +26,7 @@ const MyContentPage: React.FC<MyContentPageProps> = ({ onBrowse, onThemeSelect, 
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <AutoplayPreviewsSwitch />
           {onThemeSelect && (
             <button type="button" onClick={onThemeSelect} className="nf-btn nf-btn-grey !px-4 !py-2 !text-sm">
               <PaletteIcon />

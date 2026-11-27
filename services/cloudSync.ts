@@ -17,8 +17,9 @@
  *    devices don't bring it back; saving it again later (newer savedAt) wins over the marker.
  *  - recent_searches: union (case-insensitive), newest first, capped at MAX_RECENT; cleared entries
  *    leave markers too.
- *  - notifications: read / already-alerted ids are unioned; the desktop-alerts switch is a setting.
- *  - theme, default_server, region (+ alerts switch): a value changed on this device since the last
+ *  - notifications: read / already-alerted ids are unioned; the desktop-alerts switch and the
+ *    "Autoplay previews" switch (trailer previews) travel in the same row as settings.
+ *  - theme, default_server, region (+ alerts / previews switches): a value changed on this device since the last
  *    sync is uploaded; otherwise the cloud value wins if there is one, else the local one is uploaded.
  *
  * localStorage key names and the shape of what's stored there are unchanged. Sync bookkeeping
@@ -42,6 +43,7 @@ const LS = {
   seen: 'sf_bell_seen', // components/Brand.tsx (notifications read)
   notified: 'sf_bell_notified', // components/Brand.tsx (desktop alerts already shown)
   alerts: 'sf_bell_alerts', // components/Brand.tsx ('1' / '0')
+  previews: 'sf_autoplay_previews', // utils/previews.ts ('1' / '0', synced in the notifications row)
   region: 'sf_region', // utils/brands.ts
 } as const;
 const META_KEY = 'sf_sync_meta';
@@ -58,9 +60,9 @@ const MAX_IDS = 400; // same cap the bell uses
 const MAX_VALUE_CHARS = 400000;
 
 type ListKey = 'progress' | 'my_list' | 'recent_searches';
-type ScalarKey = 'theme' | 'default_server' | 'region' | 'alerts';
+type ScalarKey = 'theme' | 'default_server' | 'region' | 'alerts' | 'previews';
 const LIST_KEYS: readonly ListKey[] = ['progress', 'my_list', 'recent_searches'];
-const SCALAR_KEYS: readonly ScalarKey[] = ['theme', 'default_server', 'region', 'alerts'];
+const SCALAR_KEYS: readonly ScalarKey[] = ['theme', 'default_server', 'region', 'alerts', 'previews'];
 
 interface Meta {
   uid: string;
@@ -335,7 +337,7 @@ const validScalar = (key: ScalarKey, v: unknown): v is string | null => {
     return isObj(t) && typeof t.name === 'string' && typeof t.hex === 'string' && /^#[0-9a-f]{3,8}$/i.test(t.hex);
   }
   if (key === 'region') return /^[A-Z]{2}$/.test(v);
-  if (key === 'alerts') return v === '0' || v === '1';
+  if (key === 'alerts' || key === 'previews') return v === '0' || v === '1';
   return /^[\w .-]{0,40}$/.test(v); // server name ('' / null = Auto)
 };
 
@@ -396,12 +398,19 @@ const mergeNotifications = (exists: boolean, cloudValue: unknown, meta: Meta): M
     }
   }
   const alerts = mergeScalar('alerts', LS.alerts, exists && isObj(cloudValue) && 'alerts' in cloudValue, cloud.alerts, meta);
-  const next = { seen: sets.seen, notified: sets.notified, alerts: alerts.value };
+  const previews = mergeScalar('previews', LS.previews, exists && isObj(cloudValue) && 'previews' in cloudValue, cloud.previews, meta);
+  const next = { seen: sets.seen, notified: sets.notified, alerts: alerts.value, previews: previews.value };
   const upload = !exists || stable(next) !== stable(cloudValue) ? next : undefined;
+  let syncedAfterUpload: Partial<Record<ScalarKey, string | null>> | undefined;
+  if (upload !== undefined && (alerts.upload || previews.upload)) {
+    syncedAfterUpload = {};
+    if (alerts.upload) syncedAfterUpload.alerts = alerts.value;
+    if (previews.upload) syncedAfterUpload.previews = previews.value;
+  }
   return {
-    changed: changed || alerts.changed,
+    changed: changed || alerts.changed || previews.changed,
     upload,
-    syncedAfterUpload: upload !== undefined && alerts.upload ? { alerts: alerts.value } : undefined,
+    syncedAfterUpload,
   };
 };
 
@@ -420,7 +429,7 @@ const mergeKey = (key: SyncKey, exists: boolean, value: unknown, meta: Meta, now
 
 /** Everything that would be uploaded for a key, to skip saves that didn't change anything. */
 const localSignature = (key: SyncKey): string =>
-  key === 'notifications' ? [readRaw(LS.seen), readRaw(LS.notified), readRaw(LS.alerts)].join('\u0000') : String(readRaw(LS[key]));
+  key === 'notifications' ? [readRaw(LS.seen), readRaw(LS.notified), readRaw(LS.alerts), readRaw(LS.previews)].join('\u0000') : String(readRaw(LS[key]));
 
 /* ---------- status (shown in the profile menu) ---------- */
 export type SyncStatus = 'off' | 'syncing' | 'synced' | 'error';

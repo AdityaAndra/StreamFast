@@ -16,7 +16,6 @@ interface SelectProps {
 const Select: React.FC<SelectProps> = ({ label, value, options, onChange, active, disabled }) => (
   <select
     aria-label={label}
-    title={label}
     value={value}
     disabled={disabled}
     onChange={(e) => onChange(e.target.value)}

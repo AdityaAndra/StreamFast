@@ -40,7 +40,8 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 ### 🏠 Browsing, the Netflix way
 - **Billboard banner** with the title's logo, rating, genres and description, a slow zoom, an ambient glow taken from the artwork, and auto-rotating featured titles (with a pause button)
 - **Sliding rows** with edge arrows, page dots and smooth GPU paging; native swiping on phones
-- **Hover preview cards**: the card grows into a mini page with Play, My List, rating, runtime and genres
+- **Hover preview cards**: the card grows into a mini page with Play, My List, rating, runtime and genres, and after a second the title's trailer starts playing in it (muted, with a sound button)
+- **Trailer previews** like Netflix: the billboard fades from the artwork into the muted trailer after a moment (sound and replay buttons), and pauses when you scroll away, open a title or switch tabs. Turn **Autoplay previews** on or off in the account menu or on My Content
 - **Top 10** rows with big outlined rank numbers, plus *Recently added* and *New episode* badges
 - **Title logos and IMDb ratings** on cards, like Netflix shows them
 - **Pages for everything**: Home, Movies, TV Shows, Categories, New & Popular, My Content and Browse by Languages
@@ -54,7 +55,7 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 - Searching a person ("Christopher Nolan") shows their work first
 
 ### 🎞️ Title window
-- Opens over the page you were on, like Netflix's *More Info*: trailer-style backdrop, logo, cast, genres, maturity rating and description
+- Opens over the page you were on, like Netflix's *More Info*: the trailer plays behind the logo and buttons (muted, with sound and replay buttons), plus cast, genres, maturity rating and description
 - **Episodes** list per season with stills, descriptions, air dates and your progress on each episode
 - **More Like This**, trailers and full cast
 
@@ -140,7 +141,7 @@ StreamFast is a Netflix replica: the same dark look, billboard banner, sliding r
 The `VITE_` values are baked into the build, so redeploy after changing them. Leave the three Supabase variables out and the site runs without accounts.
 
 ### Accounts & sync setup (Supabase)
-- Database: tables `profiles` (username, display name), `user_data` (one row per account per synced item: `progress`, `my_list`, `theme`, `default_server`, `recent_searches`, `notifications`, `region`) and `heartbeat`, all with row-level security, plus the `username_available` check.
+- Database: tables `profiles` (username, display name), `user_data` (one row per account per synced item: `progress`, `my_list`, `theme`, `default_server`, `recent_searches`, `notifications` (also carries the desktop-alerts and autoplay-previews switches), `region`) and `heartbeat`, all with row-level security, plus the `username_available` check.
 - Authentication → URL Configuration: set **Site URL** to `https://streamfast.vercel.app` and add `https://streamfast.vercel.app/reset-password` (plus `http://localhost:3000/reset-password` for local testing) to **Redirect URLs**, so password-reset links land on the site.
 - Password-reset emails use Supabase's built-in mailer unless you add your own SMTP server (Authentication → Emails). The built-in one is heavily rate-limited and may only deliver to your project team's addresses, so set up custom SMTP before relying on password resets.
 

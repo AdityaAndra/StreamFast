@@ -4,6 +4,8 @@ import { useAppContext } from '../contexts/AppContext';
 import { useAuth, useSyncStatus } from '../contexts/AuthContext';
 import { AUTH_ROUTES, Link, navigate, signInPath, useRoute } from '../utils/router';
 import { Avatar } from './Brand';
+import { PreviewsIcon, SwitchKnob } from './TrailerPreview';
+import { useAutoplayPreviews } from '../utils/previews';
 
 interface ProfileMenuProps {
     onImport: (file: File) => void;
@@ -28,6 +30,26 @@ const MenuItem: React.FC<{ onClick: () => void; icon: React.ReactNode; children:
     </li>
 );
 
+/** "Autoplay previews" on / off (trailers on the billboard, hover cards and title windows). The menu stays open. */
+const AutoplayPreviewsItem: React.FC = () => {
+    const [on, setOn] = useAutoplayPreviews();
+    return (
+        <li role="none">
+            <button
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={on}
+                onClick={() => setOn(!on)}
+                className="flex w-full items-center gap-3 px-4 py-2 text-left text-[13px] text-netflix-text transition-colors hover:bg-white/[0.06]"
+            >
+                <span className="text-netflix-muted" aria-hidden="true"><PreviewsIcon className="h-4 w-4" /></span>
+                <span className="flex-1">Autoplay previews</span>
+                <SwitchKnob on={on} />
+            </button>
+        </li>
+    );
+};
+
 /** Netflix-style red "Sign In" button in the header (signed out only; hidden on the account pages). */
 export const HeaderSignInButton: React.FC = () => {
     const { enabled, user, loading } = useAuth();
@@ -49,7 +71,7 @@ const SyncLine: React.FC = () => {
     const label = status === 'error' ? 'Not synced yet · will retry' : status === 'synced' ? 'Synced' : 'Syncing…';
     const dot = status === 'error' ? 'bg-amber-400' : status === 'synced' ? 'bg-netflix-green' : 'animate-pulse bg-[#b3b3b3]';
     return (
-        <p className="flex items-center gap-1.5" title={status === 'error' ? 'Your changes are saved here and will sync when the connection is back.' : undefined}>
+        <p className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dot}`} aria-hidden="true" />
             {label}
         </p>
@@ -129,7 +151,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                         <div className="flex items-center gap-3 px-4 pb-2.5 pt-1">
                             <Avatar />
                             <div className="min-w-0 text-[12px] leading-tight text-netflix-muted">
-                                <p className="truncate text-[14px] font-bold text-white" title={accountName}>{accountName}</p>
+                                <p className="truncate text-[14px] font-bold text-white">{accountName}</p>
                                 <SyncLine />
                             </div>
                         </div>
@@ -147,6 +169,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                                 <span>Sign in <span className="text-netflix-muted">· sync your devices</span></span>
                             </MenuItem>
                         )}
+                        <AutoplayPreviewsItem />
                         <MenuItem onClick={run(onThemeSelect)} icon={<PaletteIcon className="h-4 w-4" />}>Player theme</MenuItem>
                         <MenuItem onClick={() => fileInputRef.current?.click()} icon={<UploadIcon className="h-4 w-4" />}>Import history</MenuItem>
                         <MenuItem onClick={run(onExport)} icon={<DownloadIcon className="h-4 w-4" />}>Export history</MenuItem>
