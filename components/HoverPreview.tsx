@@ -16,6 +16,8 @@ import { isScrolling } from '../utils/smoothScroll';
 import { useTrailer } from '../utils/trailer';
 import { holdPreviews, PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
 import { PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from './TrailerPreview';
+import { QualityPill } from './ReleaseBadge';
+import { useRelease } from '../utils/release';
 
 /**
  * Netflix "mini modal": hover a card for a moment and it grows (FLIP, transform-only)
@@ -230,6 +232,8 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
 
   const title = getTitle(item);
   const year = getYear(item);
+  // Not out yet: no Play button (there's nothing to play); the pill shows its date instead.
+  const notOut = useRelease(item) === 'soon';
   const genres = getGenres(item, 3);
   const cardImg = el.querySelector('img.nf-art:not([data-titled]), img[data-art]') as HTMLImageElement | null;
   // Landscape cards reuse the picture already on screen (shows instantly); otherwise a new image fades in.
@@ -319,14 +323,16 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
         style={{ opacity: expanded ? 1 : 0, transform: expanded ? 'none' : 'translate3d(0, 6px, 0)', transitionDelay: expanded ? '90ms' : '0ms' }}
       >
         <div className="mb-[0.9em] flex items-center gap-[0.5em] text-[15px]">
-          <button
-            type="button"
-            className="nf-circle is-primary"
-            aria-label={cw ? `Resume ${title}` : `Play ${title}`}
-            onClick={play}
-          >
-            <PlayIcon className="ml-[2px] h-[1.05em] w-[1.05em]" />
-          </button>
+          {!notOut && (
+            <button
+              type="button"
+              className="nf-circle is-primary"
+              aria-label={cw ? `Resume ${title}` : `Play ${title}`}
+              onClick={play}
+            >
+              <PlayIcon className="ml-[2px] h-[1.05em] w-[1.05em]" />
+            </button>
+          )}
           {cw ? (
             <>
               <button
@@ -390,7 +396,7 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
           <ImdbRating item={item} size="sm" />
           <span className="border border-white/40 px-[0.4em] text-[11px] leading-[1.6] text-[#bcbcbc]">{item.media_type === 'movie' ? 'Movie' : 'Series'}</span>
           {year && <span className="text-[#bcbcbc]">{year}</span>}
-          <span className="rounded-[3px] border border-white/40 px-[0.3em] text-[10px] font-bold leading-[1.5] text-[#bcbcbc]">HD</span>
+          <QualityPill item={item} className="rounded-[3px] border border-white/40 px-[0.3em] text-[10px] font-bold leading-[1.5] text-[#bcbcbc]" />
         </div>
 
         {genres.length > 0 && (
