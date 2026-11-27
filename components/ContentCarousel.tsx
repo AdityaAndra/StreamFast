@@ -7,6 +7,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
 import { CAN_HOVER, prefetchLogos, setTop10, usePerRow } from '../utils/artwork';
 import { peekCache, useCachedData } from '../utils/useCachedData';
 import type { RowDef } from '../utils/rows';
+import { onlyOut, onlySoon } from '../utils/release';
 import { Link } from '../utils/router';
 
 interface RowShellProps {
@@ -272,7 +273,11 @@ export const LazyRow: React.FC<{ def: RowDef; eager?: boolean }> = ({ def, eager
     return () => io.disconnect();
   }, [visible]);
 
-  const { data, error } = useCachedData<SearchResult[]>(visible && def.load ? key : null, def.load || (async () => []));
+  // Coming-soon titles only show in Coming Soon rows; every other row (Top 10s included) leaves them out.
+  const { data, error } = useCachedData<SearchResult[]>(visible && def.load ? key : null, async () => {
+    const items = def.load ? await def.load() : [];
+    return def.soon ? onlySoon(items) : onlyOut(items);
+  });
 
   useEffect(() => {
     if (data && def.kind === 'top10') setTop10(data);
