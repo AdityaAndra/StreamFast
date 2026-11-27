@@ -24,7 +24,8 @@ import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import { watchPath } from './utils/media';
+import { titlePath, watchPath } from './utils/media';
+import { releaseOf } from './utils/release';
 import { BrowsePage, CompanyPage, ProviderPage } from './pages/BrowsePage';
 import { BrandGridPage } from './components/BrandRow';
 import { initSmoothScroll, pauseScroll, resumeScroll, scrollToY } from './utils/smoothScroll';
@@ -140,6 +141,11 @@ const App: React.FC = () => {
 
   const openPlayer = useCallback(
     (item: SearchResult, opts: { progress?: WatchProgress; tab?: PlayerTab } = {}) => {
+      // Not out yet: there's nothing to play (the player would show a 404), so open its page instead.
+      if (releaseOf(item) === 'soon') {
+        navigate(titlePath(item));
+        return;
+      }
       const saved = continueWatchingList.find((cw) => cw.media.id === item.id && cw.media.media_type === item.media_type);
       const progress = opts.progress ?? saved?.progress;
       // "Play" opens the in-site player page (like Netflix); other tabs ("Get Link", episodes) open the link panel.
