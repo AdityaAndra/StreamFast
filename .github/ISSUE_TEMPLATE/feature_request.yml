@@ -1,0 +1,20 @@
+name: Feature idea
+description: Suggest something new or a change for StreamFast.
+title: "[Idea]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What would you like StreamFast to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it would help
+  - type: input
+    id: page
+    attributes:
+      label: Page (optional)
