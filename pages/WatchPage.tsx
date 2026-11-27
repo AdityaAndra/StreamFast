@@ -7,7 +7,7 @@ import { notifyLocalDataChange } from '../services/storage';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { PlayIcon } from '../components/Icons';
-import { comingDate, seedRelease, useRelease } from '../utils/release';
+import { comingSentence, seedRelease, useRelease } from '../utils/release';
 import VIDFAST_SERVERS from '../data/vidfast-servers.json';
 
 const VIDFAST_ORIGINS = [
@@ -772,7 +772,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const pauseDesc = (mediaType === 'tv' ? current?.overview : '') || data?.overview || '';
 
   if (notOut && item) {
-    const when = comingDate(item);
     return (
       <div ref={rootRef} className="nf-watch flex items-center justify-center bg-black">
         {data?.backdrop_path && (
@@ -785,7 +784,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#bcbcbc]">Not out yet</p>
           <h1 className="mt-3 text-[clamp(1.7rem,3.2vw,2.6rem)] font-bold leading-tight text-white">{title}</h1>
           <p className="mt-4 text-[17px] leading-relaxed text-[#d2d2d2]">
-            {when ? `It comes out ${when}.` : "It hasn't come out yet."} Add it to My List and the bell will tell you when it's here.
+            {comingSentence(item)} Add it to My List and the bell will tell you when it's here.
           </p>
           <button type="button" onClick={back} className="nf-btn nf-btn-white mt-7">
             See details
