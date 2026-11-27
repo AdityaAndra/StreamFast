@@ -1,0 +1,51 @@
+name: Bug report
+description: Something on StreamFast looks wrong or doesn't work.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping make StreamFast better! A screenshot or screen recording helps a lot.
+        (Videos that won't play are often a problem with the video source: try another server from the cloud button in the player first.)
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+      placeholder: "I opened a person's page, clicked a photo, and the tab bar covered it."
+    validations:
+      required: true
+  - type: input
+    id: page
+    attributes:
+      label: Page
+      description: Filled in for you when you use "Report a problem" on the site.
+      placeholder: https://streamfast.vercel.app/...
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device
+      options:
+        - Desktop / laptop
+        - Phone
+        - Tablet
+        - TV / other
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      description: Filled in for you when you use "Report a problem" on the site.
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: Drag and drop images or videos here.
