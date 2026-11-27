@@ -271,15 +271,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   wakeRef.current = wake;
   const wakeAtRef = useRef(wakeAt);
   wakeAtRef.current = wakeAt;
-  /** VidFast's bar stays up with no timer when its 3s ran out while the video wasn't playing yet (still
-   *  loading): it only hides 3s after you next move the mouse, click or press a key. Ours does the same. */
-  const holdUntilActive = useCallback(() => {
-    show();
-    window.clearTimeout(idle.current);
-    deadline.current = Infinity;
-  }, [show]);
-  const holdRef = useRef(holdUntilActive);
-  holdRef.current = holdUntilActive;
   // When VidFast's player opened (its 3s timer starts then), and whether this video has started yet.
   const vfMountAt = useRef(0);
   const firstStartDone = useRef(false);
@@ -419,10 +410,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       }
       if (typeof playing === 'boolean') {
         if (playing || currentTime > 0) setStarted(true);
-        // First time this video plays (it starts by itself once loaded). VidFast doesn't restart its
-        // timer for that: its 3s run from when the player opened, or from your last move. If those 3s
-        // were already over (a new title that took a while to load), its bar stays up until you next
-        // move the mouse, so ours does too. (Titles that load fast start within the 3s: both hide together.)
+        // First time this video plays (it starts by itself once loaded). If it starts within 3s of the
+        // player opening (or of your last move), both bars hide 3s after that. If it took longer to load,
+        // VidFast's bar hides 3s after playback starts, so ours does too (it used to wait for a mouse move
+        // and could stay up on its own).
         if (playing && !firstStartDone.current) {
           firstStartDone.current = true;
           firstStartAt.current = performance.now();
@@ -430,8 +421,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           startPending.current = null;
           const now = performance.now();
           const from = Math.max(vfMountAt.current || now, lastHandled.current);
-          if (now < from + IDLE_MS) wakeAtRef.current(from);
-          else holdRef.current();
+          wakeAtRef.current(now < from + IDLE_MS ? from : now);
         }
         // Playback really starting after a play (once the video has loaded): VidFast starts its 3s
         // from that moment, not from the click, so ours does too. Worked out from how far the video
@@ -446,6 +436,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           } else if (performance.now() - pend.at > 20000) startPending.current = null;
         }
         if (!firstStart && firstStartDone.current && playing && pausedRef.current && typeof currentTime === 'number') startPending.current = { ct: currentTime, at: performance.now() };
+        // Never stay up on our own while the video plays: if ours was waiting (its 3s ran out while the
+        // video was loading or paused), it hides 3s after playback is going, like VidFast's.
+        if (playing && deadline.current === Infinity) wakeAtRef.current(performance.now());
         if (pausedRef.current !== !playing) {
           pausedRef.current = !playing;
           setPaused(!playing);
