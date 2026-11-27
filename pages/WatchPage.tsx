@@ -224,6 +224,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const readyRef = useRef(false);
   const loadCount = useRef(0);
   const gotReply = useRef(false);
+  // VidFast's saved progress for this video when we first heard it (see the MEDIA_DATA handler).
+  const mediaBase = useRef<number | null>(null);
   const [stuck, setStuck] = useState(false);
   const [paused, setPaused] = useState(false);
   const [panel, setPanel] = useState(false);
@@ -316,6 +318,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     readyRef.current = false;
     playingRef.current = false;
     gotReply.current = false;
+    mediaBase.current = null;
     loadCount.current = 0;
     vfMountAt.current = 0;
     firstStartDone.current = false;
@@ -378,7 +381,11 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         const now = Date.now();
         if (now - lastSave.current < SAVE_EVERY_MS) return;
         lastSave.current = now;
-        if (pr.watched > lastTime.current + 1) setStarted(true); // progress moving: the video is playing
+        // Progress moving = the video is playing. The first value is only what was saved last time you
+        // watched (it arrives while VidFast is still loading), so it never counts as playing by itself.
+        const firstSeen = mediaBase.current === null;
+        if (firstSeen) mediaBase.current = pr.watched;
+        else if (pr.watched > Math.max(lastTime.current, mediaBase.current) + 1) setStarted(true);
         lastTime.current = pr.watched;
         save(mediaType === 'tv' ? { season: cs, episode: ce, watched: pr.watched, duration: pr.duration } : { watched: pr.watched, duration: pr.duration });
         return;
