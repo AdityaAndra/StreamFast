@@ -22,11 +22,14 @@ const SAVE_EVERY_MS = 5000;
 const IDLE_MS = 3000;
 /** Pause screen shows this long after pausing (Netflix waits a few seconds; we use 2s). */
 const PAUSE_SCREEN_MS = 2000;
-/** Hover-sync tile size (px): smaller = finer mouse tracking, so even small moves keep our
- *  controls up exactly as long as VidFast's (it restarts its 3s timer on every move). */
-const CELL_PX = 16;
-/** Tiles on each side of the pointer that step aside together (7x7 = ~112px block). */
-const BLOCK = 3;
+/** Hover sync: the open window left around the pointer so its moves reach VidFast (half its width, px).
+ *  VidFast wakes on any move, even a few pixels, so the window is tiny while the mouse is still or slow:
+ *  any nudge of more than ~4px reaches our cover and wakes our controls too. */
+const HOLE_MIN = 4;
+/** While the mouse moves fast the window grows (about 1.5 frames of travel at the current speed), so the
+ *  next move lands inside it and reaches VidFast too, instead of every move stopping at our cover. */
+const HOLE_PER_SPEED = 24; // px of half-width per px/ms
+const HOLE_MAX = 64;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -117,15 +120,6 @@ interface WatchPageProps {
 }
 
 /** Netflix-style /watch page: full-screen VidFast player with title overlay, episodes panel and next episode. */
-/** The invisible hover-sync tiles. Memoised so the thousands of tiles are only rebuilt when the grid
- *  size changes, not on every player re-render (progress saves, control fades, status polls). */
-const Tiles = React.memo(({ count }: { count: number }) => (
-  <>
-    {Array.from({ length: count }, (_, k) => (
-      <i key={k} data-i={k} />
-    ))}
-  </>
-));
 
 const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp, episode: episodeProp, startAt }) => {
   const { data } = useCachedData<TitleDetails>(`title:${mediaType}:${id}`, () => getTitleDetails(mediaType, id));
@@ -394,72 +388,78 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   /* ---------- hover sync ----------
      VidFast's player is its own page inside ours, so mouse moves over it never reach us, and its
      play / pause commands don't work. To see the mouse without ever blocking a click, the video is
-     covered by a grid of invisible tiles: a tile notices the pointer arriving and steps aside at once,
-     so every move after that, and every click and key press, goes straight to VidFast. Each new tile
-     the pointer reaches = "the mouse moved" -> our title / cloud / back arrow show, then fade 3s
-     after the last move, exactly like VidFast's own controls. */
+     covered by an invisible cover with a small open window around the pointer: moves and clicks inside
+     the window go straight to VidFast, and the moment the pointer touches the cover we know where it is,
+     so the window jumps there (the pointer is always inside it, so clicks and keys always reach VidFast).
+     Each touch = "the mouse moved" -> our title / cloud / back arrow show, then fade 3s after the last
+     move, exactly like VidFast's own controls. The window is only a few pixels wide while the mouse is
+     still or slow, so even a tiny nudge wakes ours together with VidFast's. */
   const gridRef = useRef<HTMLDivElement>(null);
-  const lastCell = useRef<HTMLElement | null>(null);
-  const lastRow = useRef(-1);
-  const [grid, setGrid] = useState({ cols: 0, rows: 0, size: CELL_PX });
-  const gridColsRef = useRef(1);
-  gridColsRef.current = Math.max(1, grid.cols);
-  // Tiles that have stepped aside around the pointer (a block, not just one tile): every move inside
-  // the block goes straight to VidFast, so its controls never miss a move because a tile caught it.
-  const blockRef = useRef<HTMLElement[]>([]);
+  const coverRef = useRef<(HTMLElement | null)[]>([]);
+  // Where the open window is (in the cover's own pixels); null = covered everywhere (pointer not over the video).
+  const holeRef = useRef<{ x: number; y: number; h: number } | null>(null);
+  const lastTouch = useRef<{ x: number; y: number; t: number } | null>(null);
+  const layoutCover = useCallback(() => {
+    const box = gridRef.current;
+    const [top, bottom, left, right] = coverRef.current;
+    if (!box || !top || !bottom || !left || !right) return;
+    const W = box.clientWidth;
+    const H = box.clientHeight;
+    const hole = holeRef.current;
+    if (!hole) {
+      top.style.cssText = `left:0;top:0;width:${W}px;height:${H}px`;
+      bottom.style.cssText = left.style.cssText = right.style.cssText = 'display:none';
+      return;
+    }
+    const x0 = Math.max(0, Math.floor(hole.x - hole.h));
+    const x1 = Math.min(W, Math.ceil(hole.x + hole.h));
+    const y0 = Math.max(0, Math.floor(hole.y - hole.h));
+    const y1 = Math.min(H, Math.ceil(hole.y + hole.h));
+    top.style.cssText = `left:0;top:0;width:${W}px;height:${y0}px`;
+    bottom.style.cssText = `left:0;top:${y1}px;width:${W}px;height:${Math.max(0, H - y1)}px`;
+    left.style.cssText = `left:0;top:${y0}px;width:${x0}px;height:${y1 - y0}px`;
+    right.style.cssText = `left:${x1}px;top:${y0}px;width:${Math.max(0, W - x1)}px;height:${y1 - y0}px`;
+  }, []);
+  const closeCover = useCallback(() => {
+    holeRef.current = null;
+    lastTouch.current = null;
+    layoutCover();
+  }, [layoutCover]);
   useEffect(() => {
     const el = gridRef.current;
     if (!el) return;
-    const measure = () => {
-      blockRef.current = [];
-      lastCell.current = null;
-      lastRow.current = -1;
-      // 16px tiles (VidFast restarts its timer on every tiny move), a little bigger on very large
-      // screens so there are never more than ~8,000.
-      const size = Math.max(CELL_PX, Math.ceil(Math.sqrt((el.clientWidth * el.clientHeight) / 8000)));
-      setGrid({ cols: Math.ceil(el.clientWidth / size), rows: Math.ceil(el.clientHeight / size), size });
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
+    layoutCover();
+    const ro = new ResizeObserver(() => layoutCover());
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
-  const onCell = useCallback((e: React.MouseEvent) => {
-    const c = e.target as HTMLElement;
+  }, [layoutCover]);
+  const onCover = useCallback((e: React.MouseEvent) => {
     const box = gridRef.current;
-    if (c.tagName !== 'I' || !box) return;
-    // The pointer reached a tile outside the current block: that one move is ours (wake), then the
-    // 7x7 block of tiles around it steps aside so the following moves all reach VidFast.
-    const cols = gridColsRef.current;
-    const i = Number(c.dataset.i);
-    const r = Math.floor(i / cols);
-    const k = i % cols;
-    const kids = box.children;
-    const next: HTMLElement[] = [];
-    for (let y = r - BLOCK; y <= r + BLOCK; y++) {
-      if (y < 0) continue;
-      for (let x = k - BLOCK; x <= k + BLOCK; x++) {
-        if (x < 0 || x >= cols) continue;
-        const el = kids[y * cols + x] as HTMLElement | undefined;
-        if (el) next.push(el);
-      }
+    if (!box) return;
+    // Only real moves: the browser can also report the pointer "arriving" when the page changes under a still mouse.
+    if (e.type === 'mousemove' && !e.movementX && !e.movementY) return;
+    const r = box.getBoundingClientRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    const t = e.timeStamp;
+    // Size the window from how fast the pointer is going (two touches close together), small after a rest.
+    const prev = lastTouch.current;
+    let h = HOLE_MIN;
+    if (prev && t > prev.t && t - prev.t < 100) {
+      const speed = Math.hypot(x - prev.x, y - prev.y) / (t - prev.t);
+      h = Math.min(HOLE_MAX, Math.max(HOLE_MIN, speed * HOLE_PER_SPEED));
     }
-    const keep = new Set(next);
-    blockRef.current.forEach((el) => {
-      if (!keep.has(el)) el.style.pointerEvents = '';
-    });
-    next.forEach((el) => (el.style.pointerEvents = 'none'));
-    blockRef.current = next;
-    lastCell.current = c;
-    lastRow.current = r;
+    lastTouch.current = { x, y, t };
+    holeRef.current = { x, y, h };
+    layoutCover();
     wakeRef.current();
-  }, []);
+  }, [layoutCover]);
 
   useEffect(() => {
     if (!FINE_POINTER) return;
     // Measured on VidFast's player: controls show on any mouse move or key press, hide exactly 3s after
     // the last one (even with the pointer resting on its control bar, and even after the pointer leaves),
-    // and stay up while paused. So ours only wake on real moves over the video (the tiles), on the pointer
+    // and stay up while paused. So ours only wake on real moves over the video (the cover), on the pointer
     // arriving / leaving, and on play / pause / seek. Nothing else keeps them up, or they drift out of sync.
     let over = false;
     // 30ms on purpose: VidFast shows its controls ~30ms after a move, so a slower check lets ours lag.
@@ -470,17 +470,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       const now = (!!f && f.matches(':hover')) || !!gridRef.current?.matches(':hover');
       if (now !== over) {
         wakeRef.current(); // arriving, or leaving (VidFast's 3s runs from that last move too)
-        if (!now) {
-          blockRef.current.forEach((el) => (el.style.pointerEvents = ''));
-          blockRef.current = [];
-          lastCell.current = null;
-          lastRow.current = -1;
-        }
+        if (!now) closeCover(); // left the video: cover it all, so coming back in is noticed at once
       }
       over = now;
     }, 30);
     return () => window.clearInterval(t);
-  }, []);
+  }, [closeCover]);
 
   // Play / pause state straight from the player (its status reply), checked every second.
   useEffect(() => {
@@ -583,8 +578,15 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       />
 
       {FINE_POINTER && (
-        <div ref={gridRef} className="sf-grid" style={{ gridTemplateColumns: `repeat(${grid.cols}, ${grid.size}px)`, gridAutoRows: `${grid.size}px` }} onMouseOver={onCell} aria-hidden="true">
-          <Tiles count={grid.cols * grid.rows} />
+        <div ref={gridRef} className="sf-grid" onMouseMove={onCover} onMouseDown={onCover} aria-hidden="true">
+          {[0, 1, 2, 3].map((k) => (
+            <i
+              key={k}
+              ref={(el) => {
+                coverRef.current[k] = el;
+              }}
+            />
+          ))}
         </div>
       )}
 
