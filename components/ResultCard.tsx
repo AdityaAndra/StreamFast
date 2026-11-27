@@ -7,6 +7,8 @@ import { useHoverPreview } from './HoverPreview';
 import { TrashIcon } from './Icons';
 import { setTitleOrigin } from '../utils/motion';
 import { prefetchTitle, schedulePrefetch } from '../utils/prefetch';
+import { releaseLabel, useRelease } from '../utils/release';
+import { ReleaseFlags } from './ReleaseBadge';
 
 interface ResultCardProps {
   item: SearchResult;
@@ -57,6 +59,10 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
   const title = getTitle(item);
   const year = getYear(item);
   const isLandscape = variant === 'landscape';
+  // Re-renders when release dates arrive (the flags and the spoken label use them).
+  useRelease(item);
+  const flagLabel = releaseLabel(item);
+  const bottomBadge = isRecent(item);
   const hasBackdrop = !!item.backdrop_path;
 
   // Landscape cards use artwork that already has the title on it (one image, no logo popping in
@@ -89,7 +95,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
     <Link
       ref={ref}
       to={titlePath(item)}
-      aria-label={`${title}${year ? ` (${year})` : ''}`}
+      aria-label={`${title}${year ? ` (${year})` : ''}${flagLabel ? `, ${flagLabel}` : ''}`}
       onMouseEnter={() => {
         if (ref.current) show({ item, el: ref.current, onRemove, variant });
         cancelPrefetch();
@@ -105,7 +111,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
         setTitleOrigin(e.currentTarget);
       }}
       draggable={false}
-      className={`nf-card group/card ${isLandscape ? '' : 'is-poster'} ${isLandscape && isRecent(item) ? 'has-badge' : ''}`}
+      className={`nf-card group/card ${isLandscape ? '' : 'is-poster'} ${isLandscape && bottomBadge ? 'has-badge' : ''}`}
     >
       {src && (titled || !failed) && ready ? (
         <img
@@ -141,6 +147,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
       {!isLandscape && (failed || !src) && <p className="nf-card-title">{title}</p>}
 
       {isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
+      <ReleaseFlags item={item} />
       <span className="nf-card-hover" />
 
     </Link>

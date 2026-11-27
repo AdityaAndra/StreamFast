@@ -432,6 +432,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
   padding: 0.25em 0.65em; border-radius: 2px 2px 0 0; white-space: nowrap; letter-spacing: 0.01em;
 }
 .nf-card.has-badge .nf-card-logo, .nf-card.has-badge .nf-card-title { bottom: 18%; }
+/* Release flags, hanging from the top-right of a card like the TOP 10 flag (sizes in em of the base size):
+   white + ticket = in cinemas on that date, grey + screen = out digitally on that date,
+   red + camera = CAM (cinema recordings only), black "HD" = when a CAM title comes out in 4K/HD. */
+.nf-flags {
+  position: absolute; top: 0; right: 4%; z-index: 3; display: flex; align-items: flex-start; gap: 3px;
+  font-size: max(9px, 0.62vw); pointer-events: none;
+}
+.nf-card.is-poster .nf-flags { font-size: max(8px, 0.5vw); }
+.nf-flag {
+  min-width: 2.7em; min-height: 3.7em; padding: 0.4em 0.3em; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 0 0 2px 2px; font-weight: 800; line-height: 0.92; letter-spacing: -0.02em; text-align: center;
+  box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
+}
+.nf-flag svg { width: 1em; height: 1em; flex: none; margin-bottom: 0.22em; }
+.nf-flag b { font-size: 1.4em; }
+.nf-flag b.is-word { font-size: 0.85em; letter-spacing: 0.04em; }
+.nf-flag small { font-size: 0.65em; letter-spacing: 0.03em; margin-top: 0.12em; white-space: nowrap; }
+.nf-flag i { font-style: normal; font-size: 0.55em; letter-spacing: 0.06em; opacity: 0.85; margin-bottom: 0.15em; }
+.nf-flag.is-cinema { background: #fff; color: #141414; }
+.nf-flag.is-digital { background: #2f2f2f; color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 6px rgba(0, 0, 0, 0.35); }
+.nf-flag.is-cam { background: #e50914; color: #fff; }
+.nf-flag.is-hd { background: #141414; color: #fff; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 6px rgba(0, 0, 0, 0.35); }
 
 /* ============ Logo ============ */
 .sf-logo { display: block; height: clamp(19px, 1.5vw, 26px); width: auto; overflow: visible; filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.45)); transition: transform 0.35s var(--nf-out), filter 0.35s ease; }
