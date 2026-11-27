@@ -17,6 +17,19 @@ const VIDFAST_ORIGINS = [
 const VIDFAST_EMBED_MOVIE = 'https://vidfast.vc/movie/';
 const VIDFAST_EMBED_TV = 'https://vidfast.vc/tv/';
 const STUCK_MS = 15000;
+/** Autoplay guard: autoPlay once made VidFast's player load over and over. If, with autoplay on, the
+ *  player reloads itself this many times, or isn't ready after AUTOPLAY_READY_MS, we turn autoplay off
+ *  (for this visit) and load it the old way, where you press Play once. */
+const AUTOPLAY_MAX_LOADS = 3;
+const AUTOPLAY_READY_MS = 25000;
+const AUTOPLAY_OFF_KEY = 'sf-autoplay-off';
+const autoplayAllowed = () => {
+  try {
+    return sessionStorage.getItem(AUTOPLAY_OFF_KEY) !== '1';
+  } catch {
+    return true;
+  }
+};
 const SAVE_EVERY_MS = 5000;
 // VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
 const IDLE_MS = 3000;
@@ -153,6 +166,17 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // Where to restart after a server switch, tied to the episode it belongs to, so the next episode's
   // first render never reuses it (which loaded the player twice).
   const [switchAt, setSwitchAt] = useState<{ ep: string; t: number } | undefined>(undefined);
+  const [autoplay, setAutoplay] = useState(autoplayAllowed);
+  const turnOffAutoplay = useCallback(() => {
+    try {
+      sessionStorage.setItem(AUTOPLAY_OFF_KEY, '1');
+    } catch {
+      /* private mode */
+    }
+    setAutoplay(false);
+  }, []);
+  const turnOffAutoplayRef = useRef(turnOffAutoplay);
+  turnOffAutoplayRef.current = turnOffAutoplay;
   const epKey = `${season}:${episode}`;
   const lastTime = useRef(0);
   const volKey = useRef('');
@@ -165,9 +189,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const src = useMemo(() => {
     if (autoAdvanced.current === `${id}:${season}:${episode}` && srcRef.current) return srcRef.current;
     // Our page shows the title and server picker itself (Netflix layout), so hide VidFast's.
-    // No autoPlay param: VidFast's player currently stalls on "Loading, one moment" when it is set
-    // (tested Nov 2026), so the viewer presses Play once in the player instead.
-    const theme = `theme=${playerTheme.hex.replace('#', '')}&title=false&hideServer=true${server ? `&server=${server}` : ''}`;
+    // autoPlay: the video starts by itself once loaded (it used to make the player load over and over;
+    // VidFast fixed that, and the guard below turns it off again if it ever comes back).
+    const theme = `theme=${playerTheme.hex.replace('#', '')}&title=false&hideServer=true${server ? `&server=${server}` : ''}${autoplay ? '&autoPlay=true' : ''}`;
     let resume = (switchAt && switchAt.ep === epKey ? switchAt.t : undefined) ?? startAt;
     if (resume === undefined && saved?.progress.watched && saved.progress.duration) {
       const same = mediaType === 'movie' || (saved.progress.season === season && saved.progress.episode === episode);
@@ -180,7 +204,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       : `${VIDFAST_EMBED_TV}${id}/${season}/${episode}?nextButton=true&autoNext=true&${theme}${t}`;
     // Only rebuild when the episode changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt]);
+  }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt, autoplay]);
   srcRef.current = src;
 
   /* ---------- overlay chrome ----------
@@ -189,6 +213,11 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
      play / seek / opening, and while the pointer is over them. The back arrow always stays. */
   const [chrome, setChrome] = useState(false);
   const [started, setStarted] = useState(false);
+  // VidFast's player has loaded the video (it knows its length) but it hasn't played yet: its control
+  // bar is up then (paused), so ours shows with it.
+  const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
+  const loadCount = useRef(0);
   const [stuck, setStuck] = useState(false);
   const [paused, setPaused] = useState(false);
   const [panel, setPanel] = useState(false);
@@ -276,14 +305,24 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
     setStarted(false);
+    setReady(false);
+    readyRef.current = false;
+    loadCount.current = 0;
     vfMountAt.current = 0;
     firstStartDone.current = false;
     setPaused(false);
     setChrome(false);
     setStuck(false);
     const t = window.setTimeout(() => setStuck(true), STUCK_MS);
+    // Autoplay guard: never got ready -> load it again without autoplay.
+    const g = autoplay
+      ? window.setTimeout(() => {
+          if (!readyRef.current) turnOffAutoplayRef.current();
+        }, AUTOPLAY_READY_MS)
+      : 0;
     return () => {
       window.clearTimeout(t);
+      window.clearTimeout(g);
       window.clearTimeout(idle.current);
       window.clearTimeout(restTimer.current);
       deadline.current = 0;
@@ -346,6 +385,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         volKey.current = key;
       }
       let firstStart = false;
+      if (!readyRef.current && typeof duration === 'number' && duration > 0) {
+        readyRef.current = true;
+        setReady(true);
+      }
       if (typeof playing === 'boolean') {
         if (playing || currentTime > 0) setStarted(true);
         // First time this video plays (it starts by itself once loaded). VidFast doesn't restart its
@@ -653,6 +696,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         key={src}
         onLoad={() => {
           vfMountAt.current = performance.now();
+          // The player page reloading itself again and again (the old autoplay problem): turn autoplay off.
+          loadCount.current += 1;
+          if (autoplay && !readyRef.current && loadCount.current >= AUTOPLAY_MAX_LOADS) turnOffAutoplay();
         }}
         src={src}
         aria-label={title ? `${title} player` : 'Player'}
@@ -711,7 +757,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       </button>
 
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
-      <div className={`sf-bottom ${panel || serverMenu || (started && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
+      <div className={`sf-bottom ${panel || serverMenu || ((started || ready) && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
         <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`}>
           <span className="sf-title-main">{title}</span>
           {mediaType === 'tv' && (
