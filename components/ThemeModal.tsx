@@ -3,6 +3,7 @@ import type { ColorInfo } from '../types';
 import { CloseIcon, CheckStaticIcon, SearchIcon, PlayIcon } from './Icons';
 import { PREDEFINED_THEMES, CSS_COLORS, DEFAULT_THEME } from '../constants';
 import { useAppContext } from '../contexts/AppContext';
+import { useCloseOnBack } from '../utils/router';
 
 interface ThemeModalProps {
     isOpen: boolean;
@@ -121,6 +122,7 @@ const ThemeModal: React.FC<ThemeModalProps> = ({ isOpen, onClose }) => {
     const dialogRef = useRef<HTMLDivElement>(null);
     const onCloseRef = useRef(onClose);
     onCloseRef.current = onClose;
+    useCloseOnBack(isOpen, onClose);
     useEffect(() => {
         if (!isOpen) return;
         const before = document.activeElement as HTMLElement | null;

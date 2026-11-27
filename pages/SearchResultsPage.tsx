@@ -5,7 +5,7 @@ import SkeletonGrid from '../components/SkeletonGrid';
 import ErrorState from '../components/ErrorState';
 import { searchMulti } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
-import { Link } from '../utils/router';
+import { Link, useQueryParam } from '../utils/router';
 import { rankSearch, fetchSearchRelated, personExplore, SearchRelated, ExploreLink } from '../utils/searchRelated';
 import { saveRecentSearch } from '../utils/recentSearches';
 import { searchPeople, PersonSummary, deptLabel } from '../utils/person';
@@ -24,7 +24,11 @@ const useDebounced = <T,>(value: T, ms: number) => {
 
 const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   const q = useDebounced(query.trim(), 250);
-  const [filter, setFilter] = useState<Filter>('all');
+  // The tab is in the address (&type=person), so coming Back from a title or person keeps it.
+  // Typing a new search starts again on All (the header writes a fresh address).
+  const [typeParam, setTypeParam] = useQueryParam('type');
+  const filter: Filter = typeParam === 'movie' || typeParam === 'tv' || typeParam === 'person' ? typeParam : 'all';
+  const setFilter = (f: Filter) => setTypeParam(f === 'all' ? '' : f);
   const { data, error, loading, reload } = useCachedData<SearchResult[]>(q ? `search:${q.toLowerCase()}` : null, () => searchMulti(q));
   // The previous query's results stay on screen while the new ones load, ranked against THEIR query.
   const [last, setLast] = useState<{ q: string; items: SearchResult[] }>({ q: '', items: [] });
@@ -43,7 +47,6 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   useEffect(() => {
     if (data) setLast({ q, items: data });
   }, [data]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => setFilter('all'), [q]);
 
   const raw = data || last.items;
   const rankQ = data ? q : last.q;

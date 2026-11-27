@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { AlertTriangleIcon } from './Icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useCloseOnBack } from '../utils/router';
 
 interface ResetConfirmationModalProps {
   isOpen: boolean;
@@ -13,6 +14,7 @@ const ResetConfirmationModal: React.FC<ResetConfirmationModalProps> = ({ isOpen,
   // Escape cancels, like the site's other dialogs.
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
+  useCloseOnBack(isOpen, onCancel);
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {

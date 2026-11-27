@@ -7,6 +7,7 @@ import { VIDFAST_MOVIE_URL, VIDFAST_TV_URL, TMDB_IMAGE_BASE_URL } from '../const
 import { CloseIcon, CopyIcon, ExternalLinkIcon, TrashIcon, BookmarkIcon, SpinnerIcon, PlusIcon, CheckStaticIcon, PlayIcon } from './Icons';
 import { useAppContext } from '../contexts/AppContext';
 import InAppPlayer from './InAppPlayer';
+import { useCloseOnBack } from '../utils/router';
 
 interface EmbedLinkModalProps {
   item: SearchResult;
@@ -53,6 +54,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  useCloseOnBack(true, onClose);
   useEffect(() => {
     const before = document.activeElement as HTMLElement | null;
     dialogRef.current?.focus();

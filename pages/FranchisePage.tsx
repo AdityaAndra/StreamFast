@@ -4,7 +4,7 @@ import { getCollection, CollectionDetails } from '../services/tmdb';
 import { useCachedData } from '../utils/useCachedData';
 import { getTitle, tmdbImage } from '../utils/media';
 import { MOVIE_GENRES } from '../utils/browse';
-import { goBack } from '../utils/router';
+import { goBack, useQueryParam } from '../utils/router';
 import { franchiseLogo } from '../utils/brands';
 import ResultsGrid from '../components/ResultsGrid';
 import SkeletonGrid from '../components/SkeletonGrid';
@@ -26,9 +26,12 @@ const dateOf = (m: any) => m.release_date || '';
 /** /franchise/:id — every movie in a franchise (TMDB collection) with sort, genre and search. */
 const FranchisePage: React.FC<{ id: number }> = ({ id }) => {
   const { data, error, reload } = useCachedData<CollectionDetails>(`collection:${id}`, () => getCollection(id));
-  const [sort, setSort] = useState<FSort>('order');
-  const [genre, setGenre] = useState('');
-  const [q, setQ] = useState('');
+  // Sort, genre and search live in the address, so Back from a person page, a refresh or a shared link keeps them.
+  const [sortParam, setSortParam] = useQueryParam('sort', 'order');
+  const sort: FSort = SORTS.some(([v]) => v === sortParam) ? (sortParam as FSort) : 'order';
+  const setSort = (v: FSort) => setSortParam(v);
+  const [genre, setGenre] = useQueryParam('genre');
+  const [q, setQ] = useQueryParam('q');
   const [heroLoaded, setHeroLoaded] = useState(false);
   const logo = franchiseLogo(id, 'w500');
   const [logoState, setLogoState] = useState<'loading' | 'ok' | 'failed'>('loading');

@@ -4,6 +4,7 @@ import ContinueWatchingCard from './ContinueWatchingCard';
 import { RowShell } from './ContentCarousel';
 import { useAppContext } from '../contexts/AppContext';
 import { usePlayer } from '../contexts/PlayerContext';
+import { readEntryState, saveEntryState } from '../utils/router';
 
 const FILTERS: { id: 'all' | 'movie' | 'tv'; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -14,8 +15,20 @@ const FILTERS: { id: 'all' | 'movie' | 'tv'; label: string }[] = [
 const ContinueWatchingGrid: React.FC<{ onSelect?: (item: WatchProgressItem) => void }> = ({ onSelect }) => {
   const { continueWatchingList: items } = useAppContext();
   const { openPlayer } = usePlayer();
-  const [filter, setFilter] = useState<'all' | 'movie' | 'tv'>('all');
-  const [sort, setSort] = useState<'recent' | 'az'>('recent');
+  // Kept on this page's history step: coming Back to Home / My Content shows the same filter and order.
+  const [filter, setFilterState] = useState<'all' | 'movie' | 'tv'>(() => {
+    const v = readEntryState<string>('cwFilter');
+    return v === 'movie' || v === 'tv' ? v : 'all';
+  });
+  const [sort, setSortState] = useState<'recent' | 'az'>(() => (readEntryState<string>('cwSort') === 'az' ? 'az' : 'recent'));
+  const setFilter = (v: 'all' | 'movie' | 'tv') => {
+    setFilterState(v);
+    saveEntryState({ cwFilter: v });
+  };
+  const setSort = (v: 'recent' | 'az') => {
+    setSortState(v);
+    saveEntryState({ cwSort: v });
+  };
 
   const displayedItems = useMemo(() => {
     const filtered = filter === 'all' ? items : items.filter((item) => item.media.media_type === filter);

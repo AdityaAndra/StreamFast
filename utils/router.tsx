@@ -43,10 +43,104 @@ const emit = () => {
   listeners.forEach((l) => l());
 };
 
+/* ---------- Dialogs and Back ----------
+ * A dialog (trailer, photo viewer, Get Link, player theme, reset) adds a step to the history while it's
+ * open, so Back and the two-finger trackpad swipe close the dialog instead of leaving the page under it.
+ * Closing it any other way (X, Esc, clicking outside) removes that step again. A step whose dialog is
+ * already closed (left behind when a link inside a dialog opened another page) is skipped over. */
+interface Layer { id: number; close: () => void }
+const layers: Layer[] = [];
+let layerSeq = 0;
+let lastIdx = Number(window.history.state?.idx || 0);
+let layerBack = false;
+let layerBackTimer = 0;
+let queuedNav: (() => void) | null = null;
+
+const finishLayerBack = () => {
+  layerBack = false;
+  window.clearTimeout(layerBackTimer);
+  const next = queuedNav;
+  queuedNav = null;
+  next?.();
+};
+
+/** While a dialog's own step is being removed, a navigation waits for it (or it would be undone). */
+const waitForLayerBack = (run: () => void) => {
+  if (!layerBack) return false;
+  queuedNav = run;
+  return true;
+};
+
 window.addEventListener('popstate', (e) => {
-  pendingRestoreY = typeof e.state?.scrollY === 'number' ? e.state.scrollY : 0;
+  const st = (e.state || {}) as Record<string, unknown>;
+  const idx = Number(st.idx || 0);
+  const backwards = idx < lastIdx;
+  lastIdx = idx;
+  const ours = layerBack;
+  const here = typeof st.layer === 'number' ? st.layer : 0;
+  // Close every dialog whose step we just went back past (newest first).
+  const gone = layers.filter((l) => l.id > here);
+  if (gone.length) {
+    gone.forEach((l) => layers.splice(layers.indexOf(l), 1));
+    gone.reverse().forEach((l) => l.close());
+  }
+  // The step of a dialog that is already closed shows nothing new: step over it.
+  if (here && !layers.some((l) => l.id === here)) {
+    window.history.go(backwards ? -1 : 1);
+    return;
+  }
+  const changed = currentLocation() !== snapshot;
+  pendingRestoreY = changed ? (typeof st.scrollY === 'number' ? st.scrollY : 0) : null;
   emit();
+  if (ours) finishLayerBack();
 });
+
+/** Close a dialog with Back / the trackpad swipe (see above). Call it in the dialog with its open state. */
+export const useCloseOnBack = (open: boolean, onClose: () => void) => {
+  const closeRef = React.useRef(onClose);
+  closeRef.current = onClose;
+  const held = React.useRef<{ layer: Layer; timer: number } | null>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    let h = held.current;
+    if (h && h.timer) {
+      // React ran the effect twice (development): keep the step that was already added.
+      window.clearTimeout(h.timer);
+      h.timer = 0;
+    } else {
+      const layer: Layer = { id: ++layerSeq, close: () => closeRef.current() };
+      layers.push(layer);
+      const st = window.history.state || {};
+      const idx = Number(st.idx || 0) + 1;
+      window.history.pushState({ ...st, scrollY: window.scrollY, idx, layer: layer.id }, '');
+      lastIdx = idx;
+      h = held.current = { layer, timer: 0 };
+    }
+    const mine = h;
+    return () => {
+      mine.timer = window.setTimeout(() => {
+        mine.timer = 0;
+        if (held.current === mine) held.current = null;
+        const i = layers.indexOf(mine.layer);
+        if (i < 0) return; // closed by Back: its step is already gone
+        layers.splice(i, 1);
+        if (window.history.state?.layer === mine.layer.id) {
+          layerBack = true;
+          window.clearTimeout(layerBackTimer);
+          layerBackTimer = window.setTimeout(finishLayerBack, 700);
+          window.history.back();
+        }
+      }, 0);
+    };
+  }, [open]);
+};
+
+/** Small view details kept on the current history step (season picked, list expanded, scroll inside the
+ *  title window), so coming Back to that step shows the same thing. They don't change the address. */
+export const saveEntryState = (patch: Record<string, unknown>) => {
+  window.history.replaceState({ ...(window.history.state || {}), ...patch }, '');
+};
+export const readEntryState = <T,>(key: string): T | undefined => (window.history.state || {})[key] as T | undefined;
 
 const isTitleLoc = (loc: string) => /^\/(movie|tv)\/\d+/.test(new URL(loc, window.location.origin).pathname);
 const isWatchLoc = (loc: string) => /^\/watch\//.test(new URL(loc, window.location.origin).pathname);
@@ -81,6 +175,7 @@ const withViewTransition = (update: () => void): boolean => {
 };
 
 export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boolean } = {}) => {
+  if (waitForLayerBack(() => navigate(to, opts))) return;
   if (to === currentLocation()) {
     if (!opts.keepScroll) scrollToY(0);
     return;
@@ -109,8 +204,13 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
         : { from: cur, fromT: nextIdx, fromY: window.scrollY };
   }
   const from = currentLocation();
-  if (opts.replace) window.history.replaceState({ scrollY: 0, idx, ...extra }, '', to);
-  else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
+  // Changing only the address's ?options (tabs, filters, sort) keeps what this step remembers.
+  const samePath = new URL(to, window.location.origin).pathname === new URL(from, window.location.origin).pathname;
+  if (opts.replace) {
+    const { layer: _layer, ...keep } = st as Record<string, unknown>;
+    window.history.replaceState({ ...(samePath ? keep : {}), scrollY: keepScroll ? window.scrollY : 0, idx, ...extra }, '', to);
+  } else window.history.pushState({ scrollY: 0, idx: nextIdx, ...extra }, '', to);
+  lastIdx = nextIdx;
   pendingRestoreY = null;
   const update = () => {
     emit();
@@ -125,6 +225,7 @@ export const navigate = (to: string, opts: { replace?: boolean; keepScroll?: boo
 
 /** Leave the player for the title's window, shown over the page you were browsing before (Netflix's back). */
 export const openTitleFromWatch = (titleLoc: string) => {
+  if (waitForLayerBack(() => openTitleFromWatch(titleLoc))) return;
   const st = window.history.state || {};
   const idx = Number(st.idx || 0);
   const from = typeof st.from === 'string' && !isWatchLoc(st.from) && !isTitleLoc(st.from) ? st.from : '/';
@@ -144,6 +245,7 @@ export const titleBackground = (): string => {
 
 /** Close the title window: go back past every title opened from it, to the page behind. */
 export const closeTitleWindow = () => {
+  if (waitForLayerBack(closeTitleWindow)) return;
   const st = window.history.state || {};
   const idx = Number(st.idx || 0);
   const tStart = typeof st.tStart === 'number' ? st.tStart : 0;
@@ -152,6 +254,7 @@ export const closeTitleWindow = () => {
 };
 
 export const goBack = (fallback = '/') => {
+  if (waitForLayerBack(() => goBack(fallback))) return;
   if (Number(window.history.state?.idx || 0) > 0) window.history.back();
   else navigate(fallback, { replace: true });
 };
@@ -266,6 +369,26 @@ const subscribe = (cb: () => void) => {
 };
 
 export const useLocationString = () => useSyncExternalStore(subscribe, () => snapshot);
+
+/** A view option kept in the page's address (?key=value): tabs, filters, sort orders.
+ *  - Back, Forward and the trackpad swipe step through it. `push: true` makes the change its own step,
+ *    like opening a page (use it for tabs); otherwise the current step is updated (filters, sort).
+ *  - A refresh or a shared link opens the same view, and coming Back to the page restores it.
+ *  An empty value, or the fallback, removes it from the address. */
+export const useQueryParam = (key: string, fallback = ''): [string, (value: string, opts?: { push?: boolean }) => void] => {
+  const loc = useLocationString();
+  const value = React.useMemo(() => new URL(loc, window.location.origin).searchParams.get(key) ?? fallback, [loc, key, fallback]);
+  const set = React.useCallback(
+    (v: string, opts: { push?: boolean } = {}) => {
+      const url = new URL(currentLocation(), window.location.origin);
+      if (!v || v === fallback) url.searchParams.delete(key);
+      else url.searchParams.set(key, v);
+      navigate(url.pathname + url.search, { replace: !opts.push, keepScroll: true });
+    },
+    [key, fallback]
+  );
+  return [value, set];
+};
 export const useRoute = (): Route => {
   const loc = useLocationString();
   return React.useMemo(() => parseRoute(loc), [loc]);

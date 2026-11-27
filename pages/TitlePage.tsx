@@ -9,7 +9,7 @@ import { ImdbRating } from '../components/Imdb';
 import { CardLogo } from '../components/ResultCard';
 import ErrorState from '../components/ErrorState';
 import { prefetchLogos } from '../utils/artwork';
-import { Link, navigate } from '../utils/router';
+import { Link, navigate, readEntryState, saveEntryState, useCloseOnBack } from '../utils/router';
 import { personPath } from '../utils/person';
 import { takeTitleOrigin } from '../utils/motion';
 import { PlayIcon, PlusIcon, CheckStaticIcon, LinkIcon, CloseIcon, ChevronDownIcon } from '../components/Icons';
@@ -73,9 +73,31 @@ interface Person {
   name: string;
   profile_path?: string | null;
   sub?: string;
+  /** Short character name for the cast line ("Lola Tung as Belly"). */
+  role?: string;
   /** Custom link (genres); people link to their person page. */
   to?: string;
 }
+
+/** The short name a character goes by, for "Lola Tung as Belly, Christopher Briney as Conrad":
+ *  a nickname in quotes ("Isabel 'Belly' Conklin" -> Belly), else the first name ("Conrad Fisher" -> Conrad).
+ *  Titles and descriptions stay whole ("Dr. Strange", "Young Belly", "The Narrator"). */
+const TITLE_WORD = /^(dr|mr|mrs|ms|miss|mx|prof|professor|sir|dame|lady|lord|king|queen|prince|princess|captain|capt|agent|detective|det|officer|sergeant|sgt|general|gen|colonel|col|major|lieutenant|lt|commander|admiral|father|mother|sister|brother|uncle|aunt|young|old|little|baby|big|the|a|an|saint|st|judge|coach|nurse|doctor|president|senator|chief|sheriff|deputy|grandma|grandpa|mama|papa|count|duke|baron|reverend|rev|officer)\.?$/i;
+const NAME_PARTICLE = /^(de|da|del|della|di|du|van|von|der|den|la|le|bin|al|el|mac|mc|o)$/i;
+const shortRole = (character?: string | null): string => {
+  if (!character) return '';
+  let c = character.split(/\s+\/\s+|;/)[0];
+  c = c.replace(/\s*\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!c) return '';
+  if (/^(self|himself|herself|themselves|themself)\b/i.test(c)) return 'Self';
+  const nick = c.match(/["\u201c]([^"\u201d]{2,24})["\u201d]/) || c.match(/(?:^|\s)['\u2018]([^'\u2019]{2,24})['\u2019](?:\s|$)/);
+  if (nick) return nick[1].trim();
+  const words = c.split(' ');
+  if (words.length === 1) return c;
+  if (TITLE_WORD.test(words[0])) return words.slice(0, 3).join(' ');
+  if (words.every((w) => /^[A-Z\u00c0-\u024f]/.test(w) || NAME_PARTICLE.test(w))) return words[0];
+  return c.length > 28 ? `${c.slice(0, 26).trim()}\u2026` : c;
+};
 
 /* ---------------------------------------------------------------- small pieces */
 
@@ -90,9 +112,12 @@ const TextCredits: React.FC<{ label: string; items: (string | Person)[]; onMore?
           {typeof it === 'string' ? (
             <span className="text-[#ddd]">{it}</span>
           ) : (
-            <Link to={it.to || personPath(it)} className="text-[#ddd] transition-colors hover:text-white hover:underline">
-              {it.name}
-            </Link>
+            <>
+              <Link to={it.to || personPath(it)} className="text-[#ddd] transition-colors hover:text-white hover:underline">
+                {it.name}
+              </Link>
+              {it.role && <span className="text-[#a3a3a3]"> as {it.role}</span>}
+            </>
           )}
         </React.Fragment>
       ))}
@@ -142,6 +167,7 @@ const ExpandToggle: React.FC<{ open: boolean; onToggle: () => void; label: strin
 );
 
 const TrailerOverlay: React.FC<{ videoKey: string; title: string; onClose: () => void }> = ({ videoKey, title, onClose }) => {
+  useCloseOnBack(true, onClose);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -179,10 +205,14 @@ const Episodes: React.FC<{ item: SearchResult; seasons: TitleDetails['seasons'];
     const regular = all.filter((s) => s.season_number > 0 && s.episode_count > 0);
     return regular.length ? regular : all;
   }, [seasons]);
-  const [season, setSeason] = useState<number>(() =>
-    saved?.season && options.some((s) => s.season_number === saved.season) ? saved.season : options[0]?.season_number ?? 1
-  );
-  const [open, setOpen] = useState(false);
+  // The season you picked and "show all episodes" are kept on this history step, so coming Back
+  // (from a person page, the player…) shows the same season again.
+  const [season, setSeason] = useState<number>(() => {
+    const kept = readEntryState<number>('tSeason');
+    if (typeof kept === 'number' && options.some((s) => s.season_number === kept)) return kept;
+    return saved?.season && options.some((s) => s.season_number === saved.season) ? saved.season : options[0]?.season_number ?? 1;
+  });
+  const [open, setOpen] = useState(() => readEntryState<boolean>('tEpsAll') === true);
   const { data, error, reload } = useCachedData<SeasonDetails>(`season:${item.id}:${season}`, () => getSeasonDetails(item.id, season));
   const episodes = data?.episodes || [];
   const shown = open ? episodes : episodes.slice(0, 10);
@@ -193,7 +223,7 @@ const Episodes: React.FC<{ item: SearchResult; seasons: TitleDetails['seasons'];
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h3 id="nf-episodes" className="text-[24px] font-bold text-white">Episodes</h3>
         {options.length > 1 ? (
-          <select value={season} onChange={(e) => { setSeason(Number(e.target.value)); setOpen(false); }} aria-label="Season" className="nf-season-select">
+          <select value={season} onChange={(e) => { const s = Number(e.target.value); setSeason(s); setOpen(false); saveEntryState({ tSeason: s, tEpsAll: false }); }} aria-label="Season" className="nf-season-select">
             {options.map((s) => (
               <option key={s.season_number} value={s.season_number}>
                 {s.name} ({s.episode_count} Episodes)
@@ -258,7 +288,7 @@ const Episodes: React.FC<{ item: SearchResult; seasons: TitleDetails['seasons'];
           })}
         </ol>
       )}
-      {episodes.length > 10 && <ExpandToggle open={open} onToggle={() => setOpen((o) => !o)} label="episodes" />}
+      {episodes.length > 10 && <ExpandToggle open={open} onToggle={() => { saveEntryState({ tEpsAll: !open }); setOpen(!open); }} label="episodes" />}
     </section>
   );
 };
@@ -320,13 +350,18 @@ const TitleSkeleton: React.FC = () => (
   </div>
 );
 
-const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?: boolean; scrollTo: (elId: string) => void }> = ({ mediaType, id, autoPlay, scrollTo }) => {
+const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?: boolean; scrollTo: (elId: string) => void; onReady?: () => void }> = ({ mediaType, id, autoPlay, scrollTo, onReady }) => {
   const { data, error, reload } = useCachedData<TitleDetails>(`title:${mediaType}:${id}`, () => getTitleDetails(mediaType, id));
+  const hasData = !!data;
+  useEffect(() => {
+    if (hasData) onReady?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasData]);
   const { myList, toggleMyListItem, continueWatchingList } = useAppContext();
   const { openPlayer } = usePlayer();
   const [heroLoaded, setHeroLoaded] = useState(false);
   const [video, setVideo] = useState<string | null>(null);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(() => readEntryState<boolean>('tMore') === true);
 
   const item = useMemo(() => (data ? toSearchResult(data) : null), [data]);
   const saved = continueWatchingList.find((cw) => cw.media.id === id && cw.media.media_type === mediaType);
@@ -376,7 +411,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
   const crew = data.credits?.crew || [];
   const byJobs = (jobs: string[], n = 6): Person[] =>
     uniqPeople(crew.filter((c) => jobs.includes(c.job))).slice(0, n).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, sub: c.job }));
-  const cast: Person[] = uniqPeople(data.credits?.cast || []).slice(0, 15).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, sub: c.character ? `as ${c.character}` : undefined }));
+  const cast: Person[] = uniqPeople(data.credits?.cast || []).slice(0, 15).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, sub: c.character ? `as ${c.character}` : undefined, role: shortRole(c.character) || undefined }));
   const directors = byJobs(['Director']);
   const creators: Person[] = (data.created_by || []).map((c) => ({ id: c.id, name: c.name, profile_path: c.profile_path, sub: 'Creator' }));
   const writers = byJobs(['Screenplay', 'Writer', 'Novel', 'Story', 'Teleplay'], 5);
@@ -497,7 +532,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
           <div className="grid grid-cols-2 gap-[1em] sm:grid-cols-3">
             {shownRecs.map((r) => <MoreCard key={`${r.media_type}-${r.id}`} r={r} />)}
           </div>
-          {recs.length > 9 && <ExpandToggle open={moreOpen} onToggle={() => setMoreOpen((o) => !o)} label="titles" />}
+          {recs.length > 9 && <ExpandToggle open={moreOpen} onToggle={() => { saveEntryState({ tMore: !moreOpen }); setMoreOpen(!moreOpen); }} label="titles" />}
         </section>
       )}
 
@@ -648,12 +683,46 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
     };
   }, []);
 
-  // Opening another title from inside the window starts it at the top.
+  // How far the window is scrolled is kept on its history step: Back (from a person page, the player…)
+  // reopens it at the same spot. Opening another title from inside the window starts that one at the top.
+  const wantY = useRef(0);
+  const restoring = useRef(false);
+  const stopRestore = useRef(false);
+  const restoreScroll = useCallback(() => {
+    const y = wantY.current;
+    if (y <= 0) return;
+    restoring.current = true;
+    stopRestore.current = false;
+    let tries = 0;
+    const step = () => {
+      const box = scroller.current;
+      if (!box || stopRestore.current) return void (restoring.current = false);
+      box.scrollTop = y;
+      // Images and episodes may still be loading in, so try again for a moment until it fits.
+      if (Math.abs(box.scrollTop - y) > 2 && ++tries < 30) window.setTimeout(step, 60);
+      else restoring.current = false;
+    };
+    step();
+  }, []);
+  const saveRaf = useRef(0);
+  const onScroll = useCallback(() => {
+    if (saveRaf.current || restoring.current) return;
+    saveRaf.current = requestAnimationFrame(() => {
+      saveRaf.current = 0;
+      const box = scroller.current;
+      // Only while this title's own step is the current one.
+      if (box && !restoring.current && /^\/(?:title\/)?(movie|tv)\/\d+/.test(window.location.pathname)) saveEntryState({ tY: Math.round(box.scrollTop) });
+    });
+  }, []);
+  useEffect(() => () => cancelAnimationFrame(saveRaf.current), []);
+
   useEffect(() => {
+    wantY.current = Number(readEntryState<number>('tY')) || 0;
     scroller.current?.scrollTo({ top: 0 });
     window.clearTimeout(closeTimer.current);
     setClosing(false);
-  }, [mediaType, id]);
+    restoreScroll();
+  }, [mediaType, id, restoreScroll]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
@@ -672,13 +741,16 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
       ref={scroller}
       className={`nf-title-overlay ${open && !closing ? 'is-open' : ''}`}
       data-lenis-prevent
+      onScroll={onScroll}
+      onWheel={() => (stopRestore.current = true)}
+      onTouchStart={() => (stopRestore.current = true)}
       onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
       <div ref={modalRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Title details" className={`nf-title-modal outline-none ${origin ? 'is-from-card' : ''}`}>
         <button type="button" onClick={close} className="nf-title-close" aria-label="Close">
           <CloseIcon className="h-5 w-5" />
         </button>
-        <TitleContent key={`${mediaType}-${id}`} mediaType={mediaType} id={id} autoPlay={autoPlay} scrollTo={scrollTo} />
+        <TitleContent key={`${mediaType}-${id}`} mediaType={mediaType} id={id} autoPlay={autoPlay} scrollTo={scrollTo} onReady={restoreScroll} />
       </div>
     </div>
   );

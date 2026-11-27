@@ -151,7 +151,20 @@ export const deptCounts = (rows: CreditRow[]) => {
   return DEPT_ORDER.filter((d) => m.has(d)).map((d) => [d, m.get(d)!] as [string, number]);
 };
 
-export type CreditSort = 'newest' | 'oldest' | 'popular' | 'rating' | 'az';
+export type CreditSort = 'released' | 'newest' | 'oldest' | 'popular' | 'rating' | 'votes' | 'episodes' | 'az';
+
+/** Sort options, in menu order. "New releases" is the default: the latest titles that are already out. */
+export const CREDIT_SORTS: [CreditSort, string][] = [
+  ['released', 'New releases'],
+  ['newest', 'Newest (incl. upcoming)'],
+  ['oldest', 'Oldest first'],
+  ['popular', 'Most popular'],
+  ['rating', 'Highest rated'],
+  ['votes', 'Most voted'],
+  ['episodes', 'Most episodes'],
+  ['az', 'Title A–Z'],
+];
+export const isCreditSort = (v: string): v is CreditSort => CREDIT_SORTS.some(([s]) => s === v);
 
 export const sortRows = (rows: CreditRow[], sort: CreditSort) => {
   const list = [...rows];
@@ -164,6 +177,19 @@ export const sortRows = (rows: CreditRow[], sort: CreditSort) => {
       return list.sort((a, b) => v(b) - v(a));
     }
     case 'az': return list.sort((a, b) => creditTitle(a.item).localeCompare(creditTitle(b.item)));
+    case 'votes': return list.sort((a, b) => (b.item.vote_count || 0) - (a.item.vote_count || 0));
+    // TV credits with the most episodes first (movies count as one), then newest.
+    case 'episodes': return list.sort((a, b) => (b.episodes || (b.item.media_type === 'movie' ? 1 : 0)) - (a.episodes || (a.item.media_type === 'movie' ? 1 : 0)) || (creditDate(b.item) || '').localeCompare(creditDate(a.item) || ''));
+    // New releases: released titles newest first, then upcoming ones (soonest first), then undated ones.
+    case 'released': {
+      const group = (r: CreditRow) => (!creditDate(r.item) ? 2 : isUpcoming(r.item) ? 1 : 0);
+      return list.sort((a, b) => {
+        const ga = group(a);
+        const gb = group(b);
+        if (ga !== gb) return ga - gb;
+        return ga === 1 ? d(a).localeCompare(d(b)) : (creditDate(b.item) || '').localeCompare(creditDate(a.item) || '');
+      });
+    }
     // Newest first: undated credits go last, not first.
     default: return list.sort((a, b) => (creditDate(b.item) || '0000').localeCompare(creditDate(a.item) || '0000'));
   }

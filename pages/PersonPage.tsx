@@ -3,14 +3,14 @@ import type { SearchResult } from '../types';
 import { loadCached, useCachedData } from '../utils/useCachedData';
 import { tmdbGet } from '../services/tmdb';
 import { tmdbImage, titlePath } from '../utils/media';
-import { Link, goBack } from '../utils/router';
+import { Link, goBack, readEntryState, saveEntryState, useCloseOnBack, useQueryParam } from '../utils/router';
 import { scrollToY } from '../utils/smoothScroll';
 import ContentCarousel from '../components/ContentCarousel';
 import ErrorState from '../components/ErrorState';
 import { ImdbRating } from '../components/Imdb';
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, PlayIcon, SearchIcon } from '../components/Icons';
 import {
-  PersonDetails, PersonExtra, CreditRow, CreditSort, getPerson, getPersonExtra, buildRows, deptCounts, sortRows, knownFor,
+  PersonDetails, PersonExtra, CreditRow, CreditSort, CREDIT_SORTS, isCreditSort, getPerson, getPersonExtra, buildRows, deptCounts, sortRows, knownFor,
   deptLabel, creditTitle, creditYear, isUpcoming, fmtDate, ageOf, fmtHeight, buildTrivia,
 } from '../utils/person';
 
@@ -25,6 +25,8 @@ const TABS: [Tab, string][] = [
   ['videos', 'Videos'],
 ];
 const PAGE = 40;
+/** How many credits the Overview's "Movies & TV Shows" list shows before "All credits". */
+const PREVIEW = 10;
 
 /* ---------------- small pieces ---------------- */
 
@@ -99,18 +101,34 @@ const CreditItem: React.FC<{ row: CreditRow }> = ({ row }) => {
   );
 };
 
-const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; compact?: boolean; onSeeAll?: () => void }> = ({ person, media, compact, onSeeAll }) => {
+/** Credits list. On the Overview (`preview`) it's "Movies & TV Shows": the first few credits with sort and
+ *  filters and an "All credits" button; on the Credits tab it's everything, by department, with search.
+ *  Department and sort live in the page's address and the list length on its history step, so Back,
+ *  a refresh or a shared link shows the same list. */
+const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; onMedia: (m: Media) => void; preview?: boolean; onSeeAll?: () => void }> = ({ person, media, onMedia, preview, onSeeAll }) => {
   const rows = useMemo(() => buildRows(person, media), [person, media]);
   const depts = useMemo(() => deptCounts(rows), [rows]);
-  const [dept, setDept] = useState<string>(() => person.known_for_department || 'Acting');
-  const [sort, setSort] = useState<CreditSort>('newest');
+  const [deptParam, setDeptParam] = useQueryParam('dept');
+  const [sortParam, setSortParam] = useQueryParam('sort', 'released');
+  const sort: CreditSort = isCreditSort(sortParam) ? sortParam : 'released';
+  // Their main department, or (after the Movies/TV filter leaves it empty) the first one that has credits.
+  const mainDept: string = (depts.some(([d]) => d === person.known_for_department) && person.known_for_department) || depts[0]?.[0] || 'Acting';
+  const dept = depts.some(([d]) => d === deptParam) ? deptParam : mainDept;
+  const setDept = (d: string) => setDeptParam(d === mainDept ? '' : d);
   const [q, setQ] = useState('');
-  const [limit, setLimit] = useState(PAGE);
-
+  const [limit, setLimit] = useState(() => {
+    const kept = readEntryState<number>('cLimit');
+    return typeof kept === 'number' && kept > PAGE ? kept : PAGE;
+  });
+  const firstRun = useRef(true);
   useEffect(() => {
-    if (depts.length && !depts.some(([d]) => d === dept)) setDept(depts[0][0]);
-  }, [depts, dept]);
-  useEffect(() => setLimit(PAGE), [dept, sort, q, media]);
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    setLimit(PAGE);
+    saveEntryState({ cLimit: PAGE });
+  }, [dept, sort, q, media]);
 
   const shown = useMemo(() => {
     let list = rows.filter((r) => r.dept === dept);
@@ -119,23 +137,50 @@ const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; compact?: bo
     return sortRows(list, sort);
   }, [rows, dept, sort, q]);
 
-  // Top Credits: their main department, or (after the Movies/TV toggle leaves it empty) the first one that has credits.
-  const topDept = depts.some(([d]) => d === person.known_for_department) ? person.known_for_department : depts[0]?.[0];
+  const sortSelect = (
+    <select aria-label="Sort credits" value={sort} onChange={(e) => setSortParam(e.target.value)} className={`nf-select ${sort !== 'released' ? 'is-active' : ''}`}>
+      {CREDIT_SORTS.map(([v, l]) => (
+        <option key={v} value={v}>{l}</option>
+      ))}
+    </select>
+  );
+  const none = <p className="py-8 text-netflix-muted">No {media === 'movie' ? 'movie' : media === 'tv' ? 'TV' : ''} credits listed.</p>;
 
-  if (!rows.length) return <p className="py-8 text-netflix-muted">No {media === 'movie' ? 'movie' : media === 'tv' ? 'TV' : ''} credits listed.</p>;
-
-  if (compact) {
+  if (preview) {
     return (
-      <>
-        <ol>{sortRows(rows.filter((r) => r.dept === topDept), 'popular').slice(0, 8).map((r) => <CreditItem key={r.key} row={r} />)}</ol>
-        {onSeeAll && (
+      <div>
+        <div className="mb-[max(12px,1vw)] flex flex-wrap items-center gap-2.5" role="toolbar" aria-label="Sort and filter credits">
+          {sortSelect}
+          <select aria-label="Movies or TV shows" value={media} onChange={(e) => onMedia(e.target.value as Media)} className={`nf-select ${media !== 'all' ? 'is-active' : ''}`}>
+            <option value="all">Movies &amp; TV shows</option>
+            <option value="movie">Movies</option>
+            <option value="tv">TV shows</option>
+          </select>
+          {depts.length > 1 && (
+            <select aria-label="Department" value={dept} onChange={(e) => setDept(e.target.value)} className={`nf-select ${dept !== mainDept ? 'is-active' : ''}`}>
+              {depts.map(([d, n]) => (
+                <option key={d} value={d}>{deptLabel(d, person.gender)} ({n})</option>
+              ))}
+            </select>
+          )}
+          {onSeeAll && (
+            <button type="button" onClick={onSeeAll} className="nf-btn nf-btn-grey !gap-1 !px-3.5 !py-1.5 !text-[13px]">
+              All credits
+              <ChevronRightIcon className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        {shown.length ? <ol>{shown.slice(0, PREVIEW).map((r) => <CreditItem key={r.key} row={r} />)}</ol> : none}
+        {onSeeAll && shown.length > PREVIEW && (
           <div className="mt-4">
-            <MoreLink onClick={onSeeAll}>See all {rows.length} credits</MoreLink>
+            <MoreLink onClick={onSeeAll}>See all {shown.length} credits</MoreLink>
           </div>
         )}
-      </>
+      </div>
     );
   }
+
+  if (!rows.length) return none;
 
   return (
     <div>
@@ -156,13 +201,7 @@ const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; compact?: bo
         ))}
       </div>
       <div className="mb-[max(12px,1vw)] flex flex-wrap items-center gap-2.5">
-        <select aria-label="Sort credits" value={sort} onChange={(e) => setSort(e.target.value as CreditSort)} className={`nf-select ${sort !== 'newest' ? 'is-active' : ''}`}>
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="popular">Most popular</option>
-          <option value="rating">Highest rated</option>
-          <option value="az">Title A–Z</option>
-        </select>
+        {sortSelect}
         <label className="relative min-w-[12rem] flex-1 sm:max-w-[20rem]">
           <span className="sr-only">Search credits</span>
           <SearchIcon className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8c8c8c]" />
@@ -172,7 +211,15 @@ const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; compact?: bo
       </div>
       <ol>{shown.slice(0, limit).map((r) => <CreditItem key={r.key} row={r} />)}</ol>
       {shown.length > limit && (
-        <button type="button" onClick={() => setLimit((l) => l + PAGE)} className="nf-btn nf-btn-grey mx-auto mt-6 flex !text-sm">
+        <button
+          type="button"
+          onClick={() => {
+            const n = limit + PAGE;
+            setLimit(n);
+            saveEntryState({ cLimit: n });
+          }}
+          className="nf-btn nf-btn-grey mx-auto mt-6 flex !text-sm"
+        >
           Show more ({shown.length - limit} left)
         </button>
       )}
@@ -183,7 +230,9 @@ const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; compact?: bo
 /* ---------------- awards ---------------- */
 
 const AwardsPanel: React.FC<{ extra?: PersonExtra; loading: boolean; hasWikidata: boolean; compact?: boolean; onSeeAll?: () => void }> = ({ extra, loading, hasWikidata, compact, onSeeAll }) => {
-  const [filter, setFilter] = useState<'all' | 'won' | 'nom'>('all');
+  const [filterParam, setFilterParam] = useQueryParam('awards');
+  const filter: 'all' | 'won' | 'nom' = filterParam === 'won' || filterParam === 'nom' ? filterParam : 'all';
+  const setFilter = (f: 'all' | 'won' | 'nom') => setFilterParam(f === 'all' ? '' : f);
   const awards = extra?.awards || [];
   const won = awards.filter((a) => a.won).length;
   const groups = useMemo(() => {
@@ -274,6 +323,7 @@ const AwardsPanel: React.FC<{ extra?: PersonExtra; loading: boolean; hasWikidata
 /* ---------------- photos / videos ---------------- */
 
 const Lightbox: React.FC<{ images: string[]; index: number; onClose: () => void; onIndex: (i: number) => void }> = ({ images, index, onClose, onIndex }) => {
+  useCloseOnBack(true, onClose);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -339,6 +389,7 @@ const VideosPanel: React.FC<{ person: PersonDetails; media: Media }> = ({ person
     return lists.flat();
   });
   const [playing, setPlaying] = useState<Video | null>(null);
+  useCloseOnBack(!!playing, () => setPlaying(null));
 
   useEffect(() => {
     if (!playing) return;
@@ -385,8 +436,13 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
   const { data: person, error, reload } = useCachedData<PersonDetails>(`person:${id}`, () => getPerson(id));
   const wd = person?.external_ids?.wikidata_id || null;
   const extra = useCachedData<PersonExtra>(wd ? `person-extra:${wd}` : null, () => getPersonExtra(wd!));
-  const [tab, setTab] = useState<Tab>('overview');
-  const [media, setMedia] = useState<Media>('all');
+  // The tab is part of the address (?tab=credits): each tab is its own step, so Back / the trackpad swipe
+  // goes from "All credits" to the Overview, then to the title or page you came from.
+  const [tabParam, setTabParam] = useQueryParam('tab');
+  const tab: Tab = TABS.some(([t]) => t === tabParam) ? (tabParam as Tab) : 'overview';
+  const [mediaParam, setMediaParam] = useQueryParam('type');
+  const media: Media = mediaParam === 'movie' || mediaParam === 'tv' ? mediaParam : 'all';
+  const setMedia = (m: Media) => setMediaParam(m === 'all' ? '' : m);
   const [bioOpen, setBioOpen] = useState(false);
   const [heroLoaded, setHeroLoaded] = useState(false);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -397,11 +453,13 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
   const backdrop = useMemo(() => (person ? knownFor(person, 'all', 4).find((t) => t.backdrop_path)?.backdrop_path : null), [person]);
 
   useEffect(() => {
-    if (person) document.title = `${person.name} — StreamFast`;
-  }, [person]);
+    if (!person) return;
+    const label = tab === 'overview' ? '' : TABS.find(([t]) => t === tab)?.[1];
+    document.title = `${person.name}${label ? ` · ${label}` : ''} — StreamFast`;
+  }, [person, tab]);
 
   const go = (t: Tab) => {
-    setTab(t);
+    if (t !== tab) setTabParam(t === 'overview' ? '' : t, { push: true });
     const el = tabsRef.current;
     if (el) {
       const top = el.getBoundingClientRect().top + window.scrollY - 70;
@@ -572,8 +630,8 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
             <div className="grid gap-[max(24px,3vw)] px-[4%] lg:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
               <div className="space-y-[max(28px,2.6vw)]">
                 <section>
-                  <SectionTitle action={<MoreLink onClick={() => go('credits')}>All credits</MoreLink>}>Top Credits</SectionTitle>
-                  <CreditsPanel person={person} media={media} compact onSeeAll={() => go('credits')} />
+                  <SectionTitle>Movies &amp; TV Shows</SectionTitle>
+                  <CreditsPanel person={person} media={media} onMedia={setMedia} preview onSeeAll={() => go('credits')} />
                 </section>
                 <section>
                   <SectionTitle>Photos</SectionTitle>
@@ -605,7 +663,7 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
         {tab === 'credits' && (
           <div className="px-[4%]">
             <SectionTitle>Credits</SectionTitle>
-            <CreditsPanel person={person} media={media} />
+            <CreditsPanel person={person} media={media} onMedia={setMedia} />
           </div>
         )}
 
