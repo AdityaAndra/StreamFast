@@ -19,7 +19,7 @@ import { holdPreviews, PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, u
 import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from '../components/TrailerPreview';
 
 /** The hero picture shows this long before the trailer fades in behind the logo and buttons. */
-const TRAILER_DELAY_MS = 1500;
+const TRAILER_DELAY_MS = 600;  // + ~3s of hidden playback (see TrailerFrame) before it shows
 
 /**
  * Netflix-style title window ("jbv" modal): opens over the page you were browsing.

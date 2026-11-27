@@ -19,7 +19,7 @@ import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhas
 const MAX_SLIDES = 6;
 const SLIDE_MS = 10000;
 /** The backdrop shows this long before the trailer crossfades in (Netflix billboard). */
-const TRAILER_DELAY_MS = 2500;
+const TRAILER_DELAY_MS = 900;  // + ~3s of hidden playback (see TrailerFrame) before it shows
 /** How long a trailer takes to fade back out when you move to another slide. */
 const TRAILER_FADE_MS = 900;
 

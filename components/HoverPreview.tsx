@@ -64,7 +64,7 @@ const QUICK_WINDOW_MS = 700;
 const CLOSE_DELAY_MS = 120;
 const CLOSE_ANIM_MS = 260;
 /** The picture shows this long before the trailer fades in over it. */
-const TRAILER_DELAY_MS = 1000;
+const TRAILER_DELAY_MS = 450;  // + ~3s of hidden playback (see TrailerFrame) before it shows
 
 export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [active, setActive] = useState<(PreviewRequest & { key: number }) | null>(null);
@@ -298,6 +298,7 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
             title={`${title} trailer`}
             onPhase={setPhase}
             onSoundBlocked={() => setMuted(true)}
+            zoom={1.6}
           />
         )}
         <div className="pointer-events-none absolute inset-0">

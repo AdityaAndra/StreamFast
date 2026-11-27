@@ -22,8 +22,12 @@ const YT_ORIGIN = 'https://www.youtube-nocookie.com';
 const YT_ORIGIN_RE = /^https:\/\/www\.youtube(-nocookie)?\.com$/;
 /** No picture after this long (while it's meant to play): give up and keep the backdrop. */
 const START_TIMEOUT_MS = 10000;
-/** Fade in a moment after playback starts, so YouTube's black first frames never show. */
-const SHOW_AFTER_MS = 350;
+/** Fade in only after it has played this long: YouTube shows its own title bar and centre buttons
+ *  (pause, skip, "More videos") for the first moments of playback, even with controls off. They hide
+ *  by themselves after ~3s, so until then the picture stays on top and you only ever see clean video. */
+const SHOW_AFTER_MS = 3200;
+/** A short buffering stall doesn't hide the video (only a real pause / wait does). */
+const HIDE_AFTER_STALL_MS = 700;
 /** Stop this many seconds before the end (trailers often end on black or end cards). */
 const END_EARLY_S = 1.2;
 /** A pause right after unMute means the browser refused sound without a click: go back to muted. */
@@ -68,6 +72,15 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
   const showTimer = useRef(0);
   const durationRef = useRef(0);
   const unmutedAt = useRef(0);
+  const stallTimer = useRef(0);
+  // Paused or buffering for a moment: YouTube shows its buttons again, so the picture covers it until it plays on.
+  const [stalled, setStalled] = useState(false);
+  const stalledRef = useRef(false);
+  const unstallTimer = useRef(0);
+  const markStalled = useCallback((v: boolean) => {
+    stalledRef.current = v;
+    setStalled(v);
+  }, []);
 
   const src = useMemo(() => {
     const p = new URLSearchParams({
@@ -82,6 +95,7 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
       disablekb: '1',
       fs: '0',
       cc_load_policy: '0',
+      cc_lang_pref: 'en',
       origin: window.location.origin,
     });
     return `${YT_ORIGIN}/embed/${encodeURIComponent(videoKey)}?${p.toString()}`;
@@ -111,6 +125,8 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
     return () => {
       window.clearInterval(listenTimer.current);
       window.clearTimeout(showTimer.current);
+      window.clearTimeout(stallTimer.current);
+      window.clearTimeout(unstallTimer.current);
     };
   }, []);
 
@@ -140,11 +156,22 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
   useEffect(() => {
     const onState = (state: number) => {
       if (state === 1) {
+        window.clearTimeout(stallTimer.current);
+        stallTimer.current = 0;
+        // Back from a pause / buffering: give YouTube's buttons a moment to hide again before showing.
+        if (stalledRef.current && !unstallTimer.current) {
+          unstallTimer.current = window.setTimeout(() => {
+            unstallTimer.current = 0;
+            markStalled(false);
+          }, 1500);
+        }
         if (!playRef.current) {
           post('pauseVideo');
           return;
         }
         if (phaseRef.current === 'loading' && !showTimer.current) {
+          post('unloadModule', ['captions']);
+          post('unloadModule', ['cc']);
           showTimer.current = window.setTimeout(() => {
             showTimer.current = 0;
             setPhase('playing');
@@ -156,7 +183,17 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
         }
       } else if (state === 0) {
         finish();
-      } else if (state === 2) {
+      } else if (state === 3 || state === 2) {
+        window.clearTimeout(unstallTimer.current);
+        unstallTimer.current = 0;
+        if (!stallTimer.current) {
+          stallTimer.current = window.setTimeout(() => {
+            stallTimer.current = 0;
+            markStalled(true);
+          }, state === 2 ? 0 : HIDE_AFTER_STALL_MS);
+        }
+      }
+      if (state === 2) {
         // The browser paused it when we turned the sound on: play on, muted.
         if (playRef.current && phaseRef.current === 'playing' && !mutedRef.current && Date.now() - unmutedAt.current < SOUND_BLOCK_MS) {
           post('mute');
@@ -187,6 +224,9 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
         post('addEventListener', ['onStateChange']);
         post('addEventListener', ['onError']);
         post('mute');
+        // No subtitles in previews (YouTube shows them if your YouTube account has captions on).
+        post('unloadModule', ['captions']);
+        post('unloadModule', ['cc']);
         if (!playRef.current) post('pauseVideo');
       }
 
@@ -211,7 +251,7 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
 
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [post, setPhase, finish]);
+  }, [post, setPhase, finish, markStalled]);
 
   // Say "listening" until YouTube answers (that's what its own script does).
   const onLoad = () => {
@@ -257,7 +297,7 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
   }, [phase, play, setPhase]);
 
   if (phase === 'error') return null;
-  const on = phase === 'playing' && play;
+  const on = phase === 'playing' && play && !stalled;
   let frameStyle: React.CSSProperties | undefined;
   if (size && size.w > 0 && size.h > 0) {
     const w = Math.max(size.w, (size.h * 16) / 9) * zoom;
