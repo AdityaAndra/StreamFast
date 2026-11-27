@@ -1,5 +1,6 @@
 import type { SearchResult } from '../types';
 import { tmdbGet } from '../services/tmdb';
+import { onlyOut, onlySoon } from './release';
 
 /** Everything a Browse / View-all page can filter by. Serialised in the URL so every view is a shareable link. */
 export interface BrowseParams {
@@ -332,7 +333,13 @@ const matchesTrending = (r: any, p: BrowseParams) => {
   return true;
 };
 
+/** "View all" pages: coming-soon titles only in Upcoming lists, and left out of every other list. */
 export const fetchBrowsePage = async (p: BrowseParams, page: number, signal?: AbortSignal): Promise<BrowsePage> => {
+  const res = await fetchBrowsePageRaw(p, page, signal);
+  return { ...res, results: p.list === 'upcoming' ? await onlySoon(res.results) : await onlyOut(res.results) };
+};
+
+const fetchBrowsePageRaw = async (p: BrowseParams, page: number, signal?: AbortSignal): Promise<BrowsePage> => {
   // Trending can't be narrowed by streaming service / studio / network / keyword, so those views use
   // TMDB's discover instead (most popular first), which supports every filter.
   if (p.list === 'trending' && !(p.provider || p.company || p.network || p.keyword)) {
