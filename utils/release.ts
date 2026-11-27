@@ -183,12 +183,69 @@ export const useRelease = (item: SearchResult | null | undefined): Release | und
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** When a coming-soon title comes out, e.g. "Dec 16" ("Dec 16, 2027" in another year); '' if unknown. */
-export const comingDate = (item: SearchResult): string => {
+/** What a coming-soon title's next date is: its cinema release, a straight-to-digital release, or a show's premiere. */
+export type NextKind = 'cinema' | 'digital' | 'premiere';
+export interface NextDate {
+  kind: NextKind;
+  iso: string;
+}
+
+/**
+ * A coming-soon title's next date, whichever comes first: in cinemas (anywhere) or out digitally (anywhere).
+ * It changes by itself when TMDB adds or moves a date. null when no date is known.
+ */
+export const nextRelease = (item: SearchResult): NextDate | null => {
   const now = todayIso();
-  const r = item.media_type === 'movie' ? dates.get(item.id) : undefined;
-  const next = [r?.t, r?.d, mainDate(item)].filter((x): x is string => !!x && x > now).sort()[0];
-  if (!next) return '';
-  const [y, m, d] = next.split('-').map(Number);
-  return `${MONTHS[m - 1]} ${d}${String(y) !== now.slice(0, 4) ? `, ${y}` : ''}`;
+  if (item.media_type === 'tv') {
+    const m = item.first_air_date;
+    return m && m > now ? { kind: 'premiere', iso: m } : null;
+  }
+  const r = dates.get(item.id);
+  const next: NextDate[] = [];
+  if (r?.t && r.t > now) next.push({ kind: 'cinema', iso: r.t });
+  if (r?.d && r.d > now) next.push({ kind: 'digital', iso: r.d });
+  if (!next.length && item.release_date && item.release_date > now) next.push({ kind: 'cinema', iso: item.release_date });
+  next.sort((a, b) => (a.iso < b.iso ? -1 : a.iso > b.iso ? 1 : 0));
+  return next[0] || null;
+};
+
+/** A CAM title's announced HD date: its first digital release anywhere, once TMDB lists one (null until then). */
+export const hdDate = (item: SearchResult): string | null => {
+  if (item.media_type !== 'movie') return null;
+  const r = dates.get(item.id);
+  return r?.d && r.d > todayIso() ? r.d : null;
+};
+
+/** "2026-12-16" -> { mon: 'DEC', day: '16', year: '' (or '2027' in another year), text: 'Dec 16' (or 'Dec 16, 2027') }. */
+export const dateParts = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const sameYear = String(y) === todayIso().slice(0, 4);
+  return { mon: MONTHS[m - 1].toUpperCase(), day: String(d), year: sameYear ? '' : String(y), text: `${MONTHS[m - 1]} ${d}${sameYear ? '' : `, ${y}`}` };
+};
+
+/** "In cinemas Dec 16", "Digital Dec 2", "Premieres Dec 2" or "Coming soon". */
+export const comingLabel = (item: SearchResult): string => {
+  const n = nextRelease(item);
+  if (!n) return 'Coming soon';
+  const t = dateParts(n.iso).text;
+  return n.kind === 'cinema' ? `In cinemas ${t}` : n.kind === 'digital' ? `Digital ${t}` : `Premieres ${t}`;
+};
+
+/** A sentence for the player page: "It comes out in cinemas on Dec 16." */
+export const comingSentence = (item: SearchResult): string => {
+  const n = nextRelease(item);
+  if (!n) return "It hasn't come out yet.";
+  const t = dateParts(n.iso).text;
+  return n.kind === 'cinema' ? `It comes out in cinemas on ${t}.` : n.kind === 'digital' ? `It comes out to stream on ${t}.` : `It premieres on ${t}.`;
+};
+
+/** A short spoken label for a card: "In cinemas Dec 16", "CAM, 4K/HD available on Jan 13", "CAM" or ''. */
+export const releaseLabel = (item: SearchResult): string => {
+  const r = releaseOf(item);
+  if (r === 'soon') return comingLabel(item);
+  if (r === 'cam') {
+    const d = hdDate(item);
+    return d ? `CAM, 4K/HD available on ${dateParts(d).text}` : 'CAM, cinema recording';
+  }
+  return '';
 };
