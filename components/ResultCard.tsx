@@ -7,7 +7,8 @@ import { useHoverPreview } from './HoverPreview';
 import { TrashIcon } from './Icons';
 import { setTitleOrigin } from '../utils/motion';
 import { prefetchTitle, schedulePrefetch } from '../utils/prefetch';
-import { comingDate, useRelease } from '../utils/release';
+import { releaseLabel, useRelease } from '../utils/release';
+import { ReleaseFlags } from './ReleaseBadge';
 
 interface ResultCardProps {
   item: SearchResult;
@@ -58,9 +59,10 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
   const title = getTitle(item);
   const year = getYear(item);
   const isLandscape = variant === 'landscape';
-  const release = useRelease(item);
-  const soonText = release === 'soon' ? (comingDate(item) ? `Coming ${comingDate(item)}` : 'Coming soon') : '';
-  const bottomBadge = !!soonText || isRecent(item);
+  // Re-renders when release dates arrive (the flags and the spoken label use them).
+  useRelease(item);
+  const flagLabel = releaseLabel(item);
+  const bottomBadge = isRecent(item);
   const hasBackdrop = !!item.backdrop_path;
 
   // Landscape cards use artwork that already has the title on it (one image, no logo popping in
@@ -93,7 +95,7 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
     <Link
       ref={ref}
       to={titlePath(item)}
-      aria-label={`${title}${year ? ` (${year})` : ''}`}
+      aria-label={`${title}${year ? ` (${year})` : ''}${flagLabel ? `, ${flagLabel}` : ''}`}
       onMouseEnter={() => {
         if (ref.current) show({ item, el: ref.current, onRemove, variant });
         cancelPrefetch();
@@ -144,12 +146,8 @@ const ResultCard: React.FC<ResultCardProps> = ({ item, onRemove, variant = 'land
       )}
       {!isLandscape && (failed || !src) && <p className="nf-card-title">{title}</p>}
 
-      {soonText ? <span className="nf-soon-badge">{soonText}</span> : isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
-      {release === 'cam' && (
-        <span className="nf-cam-badge">
-          CAM<span className="sr-only"> (cinema recording, not out in HD yet)</span>
-        </span>
-      )}
+      {isRecent(item) && <span className="nf-recent-badge">Recently added</span>}
+      <ReleaseFlags item={item} />
       <span className="nf-card-hover" />
 
     </Link>
