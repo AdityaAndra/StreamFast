@@ -7,6 +7,7 @@ import { notifyLocalDataChange } from '../services/storage';
 import { getTitle, tmdbImage, titlePath, watchPath } from '../utils/media';
 import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { PlayIcon } from '../components/Icons';
+import { comingDate, seedRelease, useRelease } from '../utils/release';
 import VIDFAST_SERVERS from '../data/vidfast-servers.json';
 
 const VIDFAST_ORIGINS = [
@@ -148,6 +149,11 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const { data } = useCachedData<TitleDetails>(`title:${mediaType}:${id}`, () => getTitleDetails(mediaType, id));
   const { saveItem, continueWatchingList, playerTheme } = useAppContext();
   const item = useMemo(() => (data ? toSearchResult(data) : null), [data]);
+  useEffect(() => {
+    if (data && mediaType === 'movie') seedRelease(id, (data as any).release_dates?.results);
+  }, [data, mediaType, id]);
+  // Not out yet: VidFast has nothing to play (it shows a 404), so this page says when it comes out instead.
+  const notOut = useRelease(item) === 'soon';
   const saved = continueWatchingList.find((cw) => cw.media.id === id && cw.media.media_type === mediaType);
 
   const season = mediaType === 'tv' ? seasonProp || saved?.progress.season || 1 : undefined;
@@ -357,12 +363,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   // Starting to watch puts the title at the front of Continue Watching.
   useEffect(() => {
-    if (!item) return;
+    if (!item || notOut) return;
     const sv = live.current.saved;
     const same = mediaType === 'movie' || (sv?.progress.season === season && sv?.progress.episode === episode);
     save(mediaType === 'tv' ? { season, episode, ...(same ? { watched: sv?.progress.watched, duration: sv?.progress.duration } : {}) } : { ...(sv?.progress || {}) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, season, episode]);
+  }, [item, season, episode, notOut]);
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
@@ -764,6 +770,30 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, [data]);
   const year = (data?.release_date || data?.first_air_date || '').slice(0, 4);
   const pauseDesc = (mediaType === 'tv' ? current?.overview : '') || data?.overview || '';
+
+  if (notOut && item) {
+    const when = comingDate(item);
+    return (
+      <div ref={rootRef} className="nf-watch flex items-center justify-center bg-black">
+        {data?.backdrop_path && (
+          <img src={tmdbImage(data.backdrop_path, 'w1280') || ''} alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
+        )}
+        <button type="button" onClick={back} className="sf-back" aria-label="Back to browse">
+          <VfBack />
+        </button>
+        <div className="relative max-w-[600px] px-6 text-center">
+          <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-[#bcbcbc]">Not out yet</p>
+          <h1 className="mt-3 text-[clamp(1.7rem,3.2vw,2.6rem)] font-bold leading-tight text-white">{title}</h1>
+          <p className="mt-4 text-[17px] leading-relaxed text-[#d2d2d2]">
+            {when ? `It comes out ${when}.` : "It hasn't come out yet."} Add it to My List and the bell will tell you when it's here.
+          </p>
+          <button type="button" onClick={back} className="nf-btn nf-btn-white mt-7">
+            See details
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={rootRef} className={`nf-watch ${HAS_PIP ? 'has-pip' : ''} ${mediaType === 'tv' && next ? 'has-next' : ''} ${started && !paused && !chrome ? 'is-idle' : ''}`}>
