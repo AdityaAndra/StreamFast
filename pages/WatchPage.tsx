@@ -48,6 +48,11 @@ const PAUSE_SCREEN_MS = 2000;
  *  (as the mouse slows down) reach only VidFast, so its controls stayed up while ours had already gone.
  *  Any nudge of more than ~4px reaches our cover and wakes our controls too. */
 const HOLE = 4;
+/** While the mouse moves, the window also stretches ahead of the pointer to where its next move will
+ *  land (one move ahead, a bit more), so that next move reaches VidFast and the one after reaches us:
+ *  both pages keep seeing the mouse, so both bars come up and go together. */
+const LEAD = 1.4;
+const STEP_MAX = 160;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -218,6 +223,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const [ready, setReady] = useState(false);
   const readyRef = useRef(false);
   const loadCount = useRef(0);
+  const gotReply = useRef(false);
   const [stuck, setStuck] = useState(false);
   const [paused, setPaused] = useState(false);
   const [panel, setPanel] = useState(false);
@@ -231,6 +237,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const lastActive = useRef(0);
   // When our controls hide (performance.now() time); a wake only ever moves it later.
   const deadline = useRef(0);
+  // VidFast's video is playing (from its last status reply).
+  const playingRef = useRef(false);
   // A play we've been told about but whose video hasn't started moving yet (still loading).
   const startPending = useRef<{ ct: number; at: number } | null>(null);
   const scheduleHide = useCallback((at: number) => {
@@ -238,7 +246,15 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     if (deadline.current !== Infinity && at <= deadline.current) return;
     deadline.current = at;
     window.clearTimeout(idle.current);
-    idle.current = window.setTimeout(() => setChrome(false), Math.max(0, at - performance.now()));
+    idle.current = window.setTimeout(() => {
+      // VidFast only hides its bar while the video is playing; otherwise it stays up until you next
+      // move the mouse, click or press a key. Ours does the same.
+      if (!playingRef.current) {
+        deadline.current = Infinity;
+        return;
+      }
+      setChrome(false);
+    }, Math.max(0, at - performance.now()));
   }, []);
   const show = useCallback(() => {
     lastActive.current = Date.now();
@@ -307,6 +323,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setStarted(false);
     setReady(false);
     readyRef.current = false;
+    playingRef.current = false;
+    gotReply.current = false;
     loadCount.current = 0;
     vfMountAt.current = 0;
     firstStartDone.current = false;
@@ -385,6 +403,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         volKey.current = key;
       }
       let firstStart = false;
+      // VidFast's player has just opened (its first answer to us): its bar comes up and its 3s start
+      // now, not when the page around it loaded (that's earlier, while it says "Fetching, one moment").
+      if (!gotReply.current) {
+        gotReply.current = true;
+        vfMountAt.current = performance.now();
+        readyRef.current = true;
+        setReady(true);
+        wakeAtRef.current(vfMountAt.current);
+      }
+      if (typeof playing === 'boolean') playingRef.current = playing;
       if (!readyRef.current && typeof duration === 'number' && duration > 0) {
         readyRef.current = true;
         setReady(true);
@@ -527,12 +555,29 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
      the window go straight to VidFast, and the moment the pointer touches the cover we know where it is,
      so the window jumps there (the pointer is always inside it, so clicks and keys always reach VidFast).
      Each touch = "the mouse moved" -> our title / cloud / back arrow show, then fade 3s after the last
-     move, exactly like VidFast's own controls. The window is only a few pixels wide while the mouse is
-     still or slow, so even a tiny nudge wakes ours together with VidFast's. */
+     move, exactly like VidFast's own controls. The window is only a few pixels wide around the pointer,
+     stretched ahead of it while it moves: moves then take turns reaching VidFast and us, so both see the
+     mouse start, keep moving and stop at (almost) the same moment. */
   const gridRef = useRef<HTMLDivElement>(null);
   const coverRef = useRef<(HTMLElement | null)[]>([]);
   // Where the open window is (in the cover's own pixels); null = covered everywhere (pointer not over the video).
-  const holeRef = useRef<{ x: number; y: number; h: number } | null>(null);
+  const holeRef = useRef<{ x: number; y: number; sx: number; sy: number } | null>(null);
+  // Last mouse position we saw, and how long one screen frame is (mouse moves come once per frame).
+  const lastSeen = useRef<{ x: number; y: number; t: number } | null>(null);
+  const frameMs = useRef(16.7);
+  useEffect(() => {
+    const d: number[] = [];
+    let prev = 0;
+    let raf = 0;
+    const step = (ts: number) => {
+      if (prev) d.push(ts - prev);
+      prev = ts;
+      if (d.length < 12) raf = requestAnimationFrame(step);
+      else frameMs.current = Math.min(34, Math.max(4, d.sort((a, b) => a - b)[6]));
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
   const layoutCover = useCallback(() => {
     const box = gridRef.current;
     const [top, bottom, left, right] = coverRef.current;
@@ -545,10 +590,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       bottom.style.cssText = left.style.cssText = right.style.cssText = 'display:none';
       return;
     }
-    const x0 = Math.max(0, Math.floor(hole.x - hole.h));
-    const x1 = Math.min(W, Math.ceil(hole.x + hole.h));
-    const y0 = Math.max(0, Math.floor(hole.y - hole.h));
-    const y1 = Math.min(H, Math.ceil(hole.y + hole.h));
+    // The pointer (always inside, so clicks reach VidFast) plus the stretch to its predicted next move.
+    const side = HOLE + Math.min(12, 0.25 * Math.hypot(hole.sx, hole.sy));
+    const x0 = Math.max(0, Math.floor(Math.min(hole.x, hole.x + hole.sx) - side));
+    const x1 = Math.min(W, Math.ceil(Math.max(hole.x, hole.x + hole.sx) + side));
+    const y0 = Math.max(0, Math.floor(Math.min(hole.y, hole.y + hole.sy) - side));
+    const y1 = Math.min(H, Math.ceil(Math.max(hole.y, hole.y + hole.sy) + side));
     top.style.cssText = `left:0;top:0;width:${W}px;height:${y0}px`;
     bottom.style.cssText = `left:0;top:${y1}px;width:${W}px;height:${Math.max(0, H - y1)}px`;
     left.style.cssText = `left:0;top:${y0}px;width:${x0}px;height:${y1 - y0}px`;
@@ -556,6 +603,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, []);
   const closeCover = useCallback(() => {
     holeRef.current = null;
+    lastSeen.current = null;
     layoutCover();
   }, [layoutCover]);
   useEffect(() => {
@@ -574,9 +622,33 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     const r = box.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
-    holeRef.current = { x, y, h: HOLE };
+    const t = e.timeStamp;
+    // How far the mouse goes in one frame, from the last move we saw (scaled to one frame if that was
+    // a few frames ago; from a standstill, the first step is taken as one frame's worth).
+    let sx = 0;
+    let sy = 0;
+    const prev = lastSeen.current;
+    if (prev && e.type === 'mousemove') {
+      sx = x - prev.x;
+      sy = y - prev.y;
+      const dt = t - prev.t;
+      if (dt > 0 && dt < 100) {
+        const k = frameMs.current / Math.max(dt, frameMs.current);
+        sx *= k;
+        sy *= k;
+      }
+      const len = Math.hypot(sx, sy);
+      if (len > STEP_MAX) {
+        sx *= STEP_MAX / len;
+        sy *= STEP_MAX / len;
+      }
+      sx *= LEAD;
+      sy *= LEAD;
+    }
+    lastSeen.current = { x, y, t };
+    holeRef.current = { x, y, sx, sy };
     layoutCover();
-    mouseActivityRef.current(e.timeStamp);
+    mouseActivityRef.current(t);
   }, [layoutCover]);
 
   useEffect(() => {
@@ -603,7 +675,14 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   // Play / pause state straight from the player (its status reply), checked every second.
   useEffect(() => {
-    const t = window.setInterval(() => iframeRef.current?.contentWindow?.postMessage({ command: 'getStatus' }, '*'), 250);
+    // Every 50ms until the player first answers (so we know when it opened, to the frame), then 250ms.
+    let last = 0;
+    const t = window.setInterval(() => {
+      const now = performance.now();
+      if (gotReply.current && now - last < 240) return;
+      last = now;
+      iframeRef.current?.contentWindow?.postMessage({ command: 'getStatus' }, '*');
+    }, 50);
     return () => window.clearInterval(t);
   }, []);
 
@@ -695,7 +774,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         ref={iframeRef}
         key={src}
         onLoad={() => {
-          vfMountAt.current = performance.now();
           // The player page reloading itself again and again (the old autoplay problem): turn autoplay off.
           loadCount.current += 1;
           if (autoplay && !readyRef.current && loadCount.current >= AUTOPLAY_MAX_LOADS) turnOffAutoplay();
