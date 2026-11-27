@@ -8,6 +8,7 @@ import { getTitle, getYear, tmdbImage, titlePath, watchPath } from '../utils/med
 import { ImdbRating } from '../components/Imdb';
 import { CardLogo } from '../components/ResultCard';
 import ErrorState from '../components/ErrorState';
+import Overlay from '../components/Overlay';
 import { prefetchLogos } from '../utils/artwork';
 import { Link, navigate, readEntryState, saveEntryState, useCloseOnBack } from '../utils/router';
 import { personPath } from '../utils/person';
@@ -184,7 +185,8 @@ const TrailerOverlay: React.FC<{ videoKey: string; title: string; onClose: () =>
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${title} video`}>
+    <Overlay>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/85 p-4 animate-fade-in-fast" onClick={onClose} role="dialog" aria-modal="true" aria-label={`${title} video`}>
       <div className="relative aspect-video w-full max-w-5xl overflow-hidden rounded-md bg-black shadow-2xl animate-zoom-in" onClick={(e) => e.stopPropagation()}>
         <iframe
           className="absolute inset-0 h-full w-full"
@@ -198,6 +200,7 @@ const TrailerOverlay: React.FC<{ videoKey: string; title: string; onClose: () =>
         </button>
       </div>
     </div>
+    </Overlay>
   );
 };
 
