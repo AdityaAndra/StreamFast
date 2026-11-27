@@ -20,16 +20,21 @@ const STUCK_MS = 15000;
 const SAVE_EVERY_MS = 5000;
 // VidFast hides its controls 3s after the last mouse move (measured), with a 250ms fade.
 const IDLE_MS = 3000;
+/** VidFast's idle timer (react-idle-timer) only counts one mouse event per 200ms: the first one, then
+ *  nothing until 200ms have passed. So its 3s can start up to 200ms before your last move. Ours counts
+ *  mouse moves the same way, or ours would stay up to 0.2s longer than VidFast's. */
+const EVENTS_THROTTLE_MS = 200;
+/** When the mouse comes to rest, its last few pixels land in the open window (only VidFast sees them).
+ *  If VidFast's next 200ms slot falls inside that tail, it counts one more move: so do we. */
+const TAIL_MS = 30;
+const REST_MS = 60;
 /** Pause screen shows this long after pausing (Netflix waits a few seconds; we use 2s). */
 const PAUSE_SCREEN_MS = 2000;
 /** Hover sync: the open window left around the pointer so its moves reach VidFast (half its width, px).
- *  VidFast wakes on any move, even a few pixels, so the window is tiny while the mouse is still or slow:
- *  any nudge of more than ~4px reaches our cover and wakes our controls too. */
-const HOLE_MIN = 4;
-/** While the mouse moves fast the window grows (about 1.5 frames of travel at the current speed), so the
- *  next move lands inside it and reaches VidFast too, instead of every move stopping at our cover. */
-const HOLE_PER_SPEED = 24; // px of half-width per px/ms
-const HOLE_MAX = 64;
+ *  Always this small, even when the mouse moves fast: a bigger window let the last part of a fast move
+ *  (as the mouse slows down) reach only VidFast, so its controls stayed up while ours had already gone.
+ *  Any nudge of more than ~4px reaches our cover and wakes our controls too. */
+const HOLE = 4;
 const FINE_POINTER = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 /** VidFast adds a picture-in-picture button when the browser supports it (4 buttons on the right instead of 3). */
 const HAS_PIP = typeof document !== 'undefined' && !!(document as any).pictureInPictureEnabled;
@@ -195,15 +200,53 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const pauseShowRef = useRef(false);
   pauseShowRef.current = pauseShow;
   const lastActive = useRef(0);
-  const wake = useCallback(() => {
+  // When our controls hide (performance.now() time); a wake only ever moves it later.
+  const deadline = useRef(0);
+  // A play we've been told about but whose video hasn't started moving yet (still loading).
+  const startPending = useRef<{ ct: number; at: number } | null>(null);
+  const scheduleHide = useCallback((at: number) => {
+    if (at <= deadline.current) return;
+    deadline.current = at;
+    window.clearTimeout(idle.current);
+    idle.current = window.setTimeout(() => setChrome(false), Math.max(0, at - performance.now()));
+  }, []);
+  const show = useCallback(() => {
     lastActive.current = Date.now();
     if (pauseShowRef.current) setPauseShow(false);
     setChrome(true);
-    window.clearTimeout(idle.current);
-    idle.current = window.setTimeout(() => setChrome(false), IDLE_MS);
   }, []);
+  /** Show now; hide 3s after time `t` (performance.now()), e.g. the moment playback really started. */
+  const wakeAt = useCallback((t: number) => {
+    show();
+    scheduleHide(t + IDLE_MS);
+  }, [show, scheduleHide]);
+  const wake = useCallback(() => wakeAt(performance.now()), [wakeAt]);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
+  const wakeAtRef = useRef(wakeAt);
+  wakeAtRef.current = wakeAt;
+  // Mouse moves, counted the way VidFast's idle timer counts them (see EVENTS_THROTTLE_MS / TAIL_MS).
+  const lastHandled = useRef(-1e9);
+  const lastMove = useRef(0);
+  const restTimer = useRef(0);
+  const mouseActivity = useCallback((t: number) => {
+    show();
+    lastMove.current = t;
+    if (t - lastHandled.current >= EVENTS_THROTTLE_MS || deadline.current <= performance.now()) {
+      lastHandled.current = t;
+      scheduleHide(t + IDLE_MS);
+    }
+    window.clearTimeout(restTimer.current);
+    restTimer.current = window.setTimeout(() => {
+      const slot = lastHandled.current + EVENTS_THROTTLE_MS;
+      if (slot <= lastMove.current + TAIL_MS) {
+        lastHandled.current = slot;
+        scheduleHide(slot + IDLE_MS);
+      }
+    }, REST_MS);
+  }, [show, scheduleHide]);
+  const mouseActivityRef = useRef(mouseActivity);
+  mouseActivityRef.current = mouseActivity;
   const pausedRef = useRef(false);
   pausedRef.current = paused;
   useEffect(() => {
@@ -226,6 +269,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     return () => {
       window.clearTimeout(t);
       window.clearTimeout(idle.current);
+      window.clearTimeout(restTimer.current);
+      deadline.current = 0;
+      lastHandled.current = -1e9;
+      startPending.current = null;
     };
   }, [src]);
 
@@ -284,6 +331,19 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       }
       if (typeof playing === 'boolean') {
         if (playing || currentTime > 0) setStarted(true);
+        // Playback really starting after a play (once the video has loaded): VidFast starts its 3s
+        // from that moment, not from the click, so ours does too. Worked out from how far the video
+        // has played, so it doesn't depend on when the next status reply happens to arrive.
+        const pend = startPending.current;
+        if (!playing) startPending.current = null;
+        else if (pend && typeof currentTime === 'number') {
+          if (currentTime > pend.ct + 0.05) {
+            startPending.current = null;
+            const began = performance.now() - (currentTime - pend.ct) * 1000;
+            if (began > pend.at + 150) wakeAtRef.current(began);
+          } else if (performance.now() - pend.at > 20000) startPending.current = null;
+        }
+        if (playing && pausedRef.current && typeof currentTime === 'number') startPending.current = { ct: currentTime, at: performance.now() };
         if (pausedRef.current !== !playing) {
           pausedRef.current = !playing;
           setPaused(!playing);
@@ -398,7 +458,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const coverRef = useRef<(HTMLElement | null)[]>([]);
   // Where the open window is (in the cover's own pixels); null = covered everywhere (pointer not over the video).
   const holeRef = useRef<{ x: number; y: number; h: number } | null>(null);
-  const lastTouch = useRef<{ x: number; y: number; t: number } | null>(null);
   const layoutCover = useCallback(() => {
     const box = gridRef.current;
     const [top, bottom, left, right] = coverRef.current;
@@ -422,7 +481,6 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, []);
   const closeCover = useCallback(() => {
     holeRef.current = null;
-    lastTouch.current = null;
     layoutCover();
   }, [layoutCover]);
   useEffect(() => {
@@ -441,18 +499,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     const r = box.getBoundingClientRect();
     const x = e.clientX - r.left;
     const y = e.clientY - r.top;
-    const t = e.timeStamp;
-    // Size the window from how fast the pointer is going (two touches close together), small after a rest.
-    const prev = lastTouch.current;
-    let h = HOLE_MIN;
-    if (prev && t > prev.t && t - prev.t < 100) {
-      const speed = Math.hypot(x - prev.x, y - prev.y) / (t - prev.t);
-      h = Math.min(HOLE_MAX, Math.max(HOLE_MIN, speed * HOLE_PER_SPEED));
-    }
-    lastTouch.current = { x, y, t };
-    holeRef.current = { x, y, h };
+    holeRef.current = { x, y, h: HOLE };
     layoutCover();
-    wakeRef.current();
+    mouseActivityRef.current(e.timeStamp);
   }, [layoutCover]);
 
   useEffect(() => {
@@ -469,7 +518,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       const f = iframeRef.current;
       const now = (!!f && f.matches(':hover')) || !!gridRef.current?.matches(':hover');
       if (now !== over) {
-        wakeRef.current(); // arriving, or leaving (VidFast's 3s runs from that last move too)
+        mouseActivityRef.current(performance.now()); // arriving, or leaving (VidFast's 3s runs from that last move too)
         if (!now) closeCover(); // left the video: cover it all, so coming back in is noticed at once
       }
       over = now;
