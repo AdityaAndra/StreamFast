@@ -33,6 +33,7 @@ import { useAppContext } from './contexts/AppContext';
 import { useAuth } from './contexts/AuthContext';
 import { PlayerContext, PlayerTab } from './contexts/PlayerContext';
 import { consumeScrollRestore, navigate, Route, useLocationString, useRoute, titleBackground, closeTitleWindow, parseRoute, AUTH_ROUTES } from './utils/router';
+import { holdPreviews, PREVIEW_LEVEL } from './utils/previews';
 
 const NAV_PATHS: Record<string, string> = {
   home: '/',
@@ -93,6 +94,10 @@ const App: React.FC = () => {
     pauseScroll();
     return resumeScroll;
   }, [anyModal]);
+
+  // Trailer previews (including the title window's) pause under the link panel and the dialogs.
+  const dialogOpen = !!player || isThemeModalOpen || isResetModalOpen;
+  useEffect(() => (dialogOpen ? holdPreviews(PREVIEW_LEVEL.window) : undefined), [dialogOpen]);
 
   // Back/forward: restore scroll position once the page has rendered.
   useLayoutEffect(() => {

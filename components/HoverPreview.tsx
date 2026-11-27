@@ -13,6 +13,9 @@ import { CardLogo } from './ResultCard';
 import { PlayIcon, PlusIcon, CheckStaticIcon, ChevronDownIcon, TrashIcon, CloseIcon } from './Icons';
 import { setTitleOrigin } from '../utils/motion';
 import { isScrolling } from '../utils/smoothScroll';
+import { useTrailer } from '../utils/trailer';
+import { holdPreviews, PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
+import { PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from './TrailerPreview';
 
 /**
  * Netflix "mini modal": hover a card for a moment and it grows (FLIP, transform-only)
@@ -60,6 +63,8 @@ const QUICK_WINDOW_MS = 700;
 /** Leaving the preview waits a moment, so brushing past its edge doesn't snap it shut. */
 const CLOSE_DELAY_MS = 120;
 const CLOSE_ANIM_MS = 260;
+/** The picture shows this long before the trailer fades in over it. */
+const TRAILER_DELAY_MS = 1000;
 
 export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [active, setActive] = useState<(PreviewRequest & { key: number }) | null>(null);
@@ -189,6 +194,20 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
   };
   useEffect(() => () => window.clearTimeout(leaveTimer.current), []);
   const [imgLoaded, setImgLoaded] = useState(false);
+  const expanded = open && !closing;
+
+  // Muted trailer over the picture, a moment after the preview has opened (Netflix).
+  const [autoplay] = useAutoplayPreviews();
+  const [muted, setMuted] = usePreviewMuted();
+  const blocked = usePreviewsBlocked(PREVIEW_LEVEL.page);
+  const tabHidden = usePageHidden();
+  const previewsOn = autoplay && !PREVIEWS_SAVE_DATA;
+  const trailer = useTrailer(item, previewsOn);
+  const armed = useArmAfter(trailer ? `${item.media_type}-${item.id}` : null, TRAILER_DELAY_MS, previewsOn && expanded && !blocked && !tabHidden);
+  const [phase, setPhase] = useState<TrailerPhase>('loading');
+  const showTrailer = armed && previewsOn && !!trailer;
+  // Only one trailer at a time: the billboard pauses while this one plays.
+  useEffect(() => (showTrailer && expanded ? holdPreviews(PREVIEW_LEVEL.billboard) : undefined), [showTrailer, expanded]);
 
   useLayoutEffect(() => {
     // Two frames so the browser paints the start state before transitioning (smooth on 120Hz too).
@@ -217,7 +236,6 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
   const fromCard = variant === 'landscape' ? cardImg?.currentSrc || '' : '';
   const backdrop = fromCard || tmdbImage(item.backdrop_path, 'w780') || tmdbImage(item.poster_path, 'w500');
   const inList = myList.some((i) => i.media.id === item.id && i.media.media_type === item.media_type);
-  const expanded = open && !closing;
 
   // Continue Watching: episode name for "S2:E5 "Title"" (shares the episode-list cache).
   const season = cw && item.media_type === 'tv' ? cw.progress.season : undefined;
@@ -255,31 +273,50 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
         opacity: fadeFromCard ? (expanded ? 1 : 0) : 1,
       }}
     >
-      <button
-        type="button"
-        onClick={play}
-        className="relative block aspect-video w-full cursor-pointer overflow-hidden bg-[#232323]"
-        aria-label={cw ? `Resume ${title}` : `Play ${title}`}
-        title={cw ? 'Resume' : 'Play'}
-      >
-        {backdrop &&
-          (fromCard ? (
-            <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />
-          ) : (
-            <img src={backdrop} alt="" decoding="async" onLoad={() => setImgLoaded(true)} className={`nf-art ${imgLoaded ? 'is-loaded' : ''}`} />
-          ))}
-        <span className="nf-card-shade" />
-        <CardLogo item={item} />
-        {percent !== null && (
-          <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[3px] bg-[#4d4d4d]/80">
-            <span className="block h-full bg-netflix-red" style={{ width: `${percent}%` }} />
-          </span>
+      {/* Picture (click = play), the trailer over it, then the shade / logo / progress on top.
+          The trailer and the overlays never take the pointer, so clicks still reach the picture. */}
+      <div className="relative aspect-video w-full overflow-hidden bg-[#232323]">
+        <button
+          type="button"
+          onClick={play}
+          className="absolute inset-0 block h-full w-full cursor-pointer"
+          aria-label={cw ? `Resume ${title}` : `Play ${title}`}
+          title={cw ? 'Resume' : 'Play'}
+        >
+          {backdrop &&
+            (fromCard ? (
+              <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            ) : (
+              <img src={backdrop} alt="" decoding="async" onLoad={() => setImgLoaded(true)} className={`nf-art ${imgLoaded ? 'is-loaded' : ''}`} />
+            ))}
+        </button>
+        {showTrailer && trailer && (
+          <TrailerFrame
+            videoKey={trailer}
+            play={expanded && !blocked && !tabHidden}
+            muted={muted}
+            title={`${title} trailer`}
+            onPhase={setPhase}
+            onSoundBlocked={() => setMuted(true)}
+          />
         )}
-      </button>
+        <div className="pointer-events-none absolute inset-0">
+          <span className="nf-card-shade" />
+          <CardLogo item={item} />
+          {percent !== null && (
+            <span className="absolute inset-x-0 bottom-0 h-[3px] bg-[#4d4d4d]/80">
+              <span className="block h-full bg-netflix-red" style={{ width: `${percent}%` }} />
+            </span>
+          )}
+        </div>
+        {showTrailer && phase === 'playing' && expanded && (
+          <PreviewSoundButton className="sf-pop-in absolute bottom-[0.75em] right-[0.75em] z-[2] text-[11px]" muted={muted} onToggle={() => setMuted(!muted)} />
+        )}
+      </div>
 
       <div
-        className="px-[1em] pb-[1.1em] pt-[0.9em] text-[13px] transition-opacity duration-200"
-        style={{ opacity: expanded ? 1 : 0, transitionDelay: expanded ? '90ms' : '0ms' }}
+        className="px-[1em] pb-[1.1em] pt-[0.9em] text-[13px] transition-[opacity,transform] duration-300 ease-out-expo"
+        style={{ opacity: expanded ? 1 : 0, transform: expanded ? 'none' : 'translate3d(0, 6px, 0)', transitionDelay: expanded ? '90ms' : '0ms' }}
       >
         <div className="mb-[0.9em] flex items-center gap-[0.5em] text-[15px]">
           <button

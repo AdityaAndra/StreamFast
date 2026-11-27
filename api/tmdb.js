@@ -16,7 +16,9 @@ const ALLOWED_PARAM =
   /^(page|query|language|region|year|timezone|include_adult|include_image_language|include_video_language|append_to_response|sort_by|watch_region|primary_release_year|first_air_date_year|certification|certification_country|(with|without)_[a-z_]+|(primary_release_date|first_air_date|release_date|air_date|vote_count|vote_average|with_runtime|certification)\.(gte|lte))$/;
 const MAX_PARAMS = 20;
 const MAX_VALUE_LENGTH = 300;
-const MAX_APPEND = 4;
+// The title window asks for 6 extras (credits, recommendations, similar, videos, images, ratings) in one call;
+// TMDB itself allows up to 20.
+const MAX_APPEND = 8;
 const TIMEOUT_MS = 10000;
 
 const noStore = (res) => res.setHeader('Cache-Control', 'no-store');

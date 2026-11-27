@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useMemo, useState } from 'react';
+import React, { ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SearchResult } from '../types';
 import { usePlayer } from '../contexts/PlayerContext';
 import { getTitleDetails, TitleDetails } from '../services/tmdb';
@@ -12,9 +12,16 @@ import { setTitleOrigin } from '../utils/motion';
 import { prefetchTitle } from '../utils/prefetch';
 import { PlayIcon } from './Icons';
 import { ImdbRating, useHasImdb } from './Imdb';
+import { loadTrailer, useTrailer } from '../utils/trailer';
+import { PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
+import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from './TrailerPreview';
 
 const MAX_SLIDES = 6;
 const SLIDE_MS = 10000;
+/** The backdrop shows this long before the trailer crossfades in (Netflix billboard). */
+const TRAILER_DELAY_MS = 2500;
+/** How long a trailer takes to fade back out when you move to another slide. */
+const TRAILER_FADE_MS = 900;
 
 interface HeroBannerProps {
   items: SearchResult[];
@@ -157,9 +164,88 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
   // Pause button (WCAG 2.2.2) and pause while keyboard focus is inside the banner.
   const [userPaused, setUserPaused] = useState(false);
   const [focusInside, setFocusInside] = useState(false);
+
+  /* ---- trailer preview ---- */
+  const [autoplay] = useAutoplayPreviews();
+  const [muted, setMuted] = usePreviewMuted();
+  const blocked = usePreviewsBlocked(PREVIEW_LEVEL.billboard);
+  const tabHidden = usePageHidden();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
+  const descRef = useRef<HTMLParagraphElement>(null);
+  // Mostly scrolled out of view: the trailer (and the slideshow) wait.
+  const [inView, setInView] = useState(true);
+  const hasCurrent = !!current;
+  useEffect(() => {
+    const el = cardRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[entries.length - 1];
+        if (e) setInView(e.isIntersecting && e.intersectionRatio >= 0.35);
+      },
+      { threshold: [0, 0.35, 0.6] }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasCurrent]);
+
+  const slideKey = current ? `${current.media_type}-${current.id}` : null;
+  const previewsOn = autoplay && !PREVIEWS_SAVE_DATA;
+  const trailer = useTrailer(current, previewsOn);
+  const canPlay = previewsOn && !blocked && !tabHidden && inView;
+  const armed = useArmAfter(trailer ? slideKey : null, TRAILER_DELAY_MS, canPlay && !!loaded[index]);
+  const [replay, setReplay] = useState(0);
+  useEffect(() => setReplay(0), [slideKey]);
+
+  // Look up the next slide's trailer ahead of time.
+  useEffect(() => {
+    if (previewsOn && slides.length > 1) void loadTrailer(slides[(index + 1) % slides.length]);
+  }, [previewsOn, slides, index]);
+
+  // The mounted trailer. When the slide changes (or previews are switched off) it stays a moment
+  // longer, paused, so it can fade back into the picture instead of cutting out.
+  const live = armed && trailer && slideKey && previewsOn ? `${slideKey}|${trailer}|${replay}` : null;
+  const [frame, setFrame] = useState<{ id: string; video: string } | null>(null);
+  const [fading, setFading] = useState(false);
+  useEffect(() => {
+    if (live && trailer) {
+      setFrame({ id: live, video: trailer });
+      setFading(false);
+      return;
+    }
+    setFading(true);
+    const t = window.setTimeout(() => {
+      setFrame(null);
+      setFading(false);
+    }, TRAILER_FADE_MS);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [live]);
+  const [phaseOf, setPhaseOf] = useState<{ id: string; phase: TrailerPhase } | null>(null);
+  const frameId = frame?.id || null;
+  const phase: TrailerPhase = frameId && phaseOf?.id === frameId ? phaseOf.phase : 'loading';
+  const isLive = !!frame && frame.id === live && !fading;
+  // The slideshow waits while a trailer is loading or playing; it carries on once it has ended.
+  const trailerBusy = isLive && (phase === 'loading' || phase === 'playing');
+  const playing = isLive && phase === 'playing' && canPlay;
+
+  // How far the logo + details move down when the description fades out under a playing trailer.
+  useLayoutEffect(() => {
+    const desc = descRef.current;
+    const head = headRef.current;
+    if (!desc || !head) return;
+    const measure = () => head.style.setProperty('--sf-desc-h', `${desc.offsetHeight ? desc.offsetHeight + 4 : 0}px`);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(desc);
+    return () => ro.disconnect();
+  }, [slideKey]);
+
   if (!current) return null;
   const next = () => setIndex((i) => (i + 1) % slides.length);
-  const halted = paused || userPaused || focusInside;
+  const halted = paused || userPaused || focusInside || !inView || blocked || tabHidden || trailerBusy;
 
   return (
     <section className="nf-hero" aria-roledescription="carousel" aria-label="Featured">
@@ -170,6 +256,7 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
       {top && <div className="nf-hero-top">{top}</div>}
 
       <div
+        ref={cardRef}
         className="nf-hero-card"
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => setPaused(document.hidden)}
@@ -196,14 +283,34 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
             />
           );
         })}
+        {frame && (
+          <TrailerFrame
+            key={frame.id}
+            videoKey={frame.video}
+            play={isLive && canPlay}
+            muted={muted}
+            title={`${getTitle(current)} trailer`}
+            onPhase={(p) => setPhaseOf({ id: frame.id, phase: p })}
+            onSoundBlocked={() => setMuted(true)}
+          />
+        )}
         <div className="nf-hero-shade" />
 
-        <div className="nf-hero-info">
+        <div className={`nf-hero-info ${playing ? 'is-playing' : ''}`}>
           <div key={`${current.media_type}-${current.id}`} className="nf-billboard-swap">
-            <HeroLogo item={current} />
-            <Meta item={current} />
-            <p className="nf-hero-desc">{current.overview}</p>
-            <div className="flex items-center gap-[max(10px,0.8vw)] max-sm:justify-center">
+            {/* Staggered fade-up on every slide: logo, details, description, buttons. */}
+            <div ref={headRef} className="nf-hero-head">
+              <div className="sf-rise nf-hero-logo-wrap">
+                <HeroLogo item={current} />
+              </div>
+              <div className="sf-rise" style={{ ['--d' as any]: 1 }}>
+                <Meta item={current} />
+              </div>
+            </div>
+            <div className="sf-rise" style={{ ['--d' as any]: 2 }}>
+              <p ref={descRef} className="nf-hero-desc">{current.overview}</p>
+            </div>
+            <div className="sf-rise flex items-center gap-[max(10px,0.8vw)] max-sm:justify-center" style={{ ['--d' as any]: 3 }}>
               <button type="button" className="nf-btn nf-btn-white" onClick={() => openPlayer(current, { tab: 'watch' })}>
                 <PlayIcon />
                 Play
@@ -223,6 +330,16 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
             </div>
           </div>
         </div>
+
+        {isLive && (playing || phase === 'ended') && (
+          <div className="nf-hero-sound">
+            {phase === 'ended' ? (
+              <PreviewReplayButton key="replay" className="sf-pop-in" onReplay={() => setReplay((r) => r + 1)} />
+            ) : (
+              <PreviewSoundButton key="sound" className="sf-pop-in" muted={muted} onToggle={() => setMuted(!muted)} />
+            )}
+          </div>
+        )}
 
         {slides.length > 1 && (
           <div className="nf-hero-dots">

@@ -14,6 +14,12 @@ import { Link, navigate, readEntryState, saveEntryState, useCloseOnBack } from '
 import { personPath } from '../utils/person';
 import { takeTitleOrigin } from '../utils/motion';
 import { PlayIcon, PlusIcon, CheckStaticIcon, LinkIcon, CloseIcon, ChevronDownIcon } from '../components/Icons';
+import { useTrailer } from '../utils/trailer';
+import { holdPreviews, PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
+import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from '../components/TrailerPreview';
+
+/** The hero picture shows this long before the trailer fades in behind the logo and buttons. */
+const TRAILER_DELAY_MS = 1500;
 
 /**
  * Netflix-style title window ("jbv" modal): opens over the page you were browsing.
@@ -358,7 +364,7 @@ const TitleSkeleton: React.FC = () => (
   </div>
 );
 
-const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?: boolean; scrollTo: (elId: string) => void; onReady?: () => void }> = ({ mediaType, id, autoPlay, scrollTo, onReady }) => {
+const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?: boolean; closing?: boolean; scrollTo: (elId: string) => void; onReady?: () => void }> = ({ mediaType, id, autoPlay, closing, scrollTo, onReady }) => {
   const { data, error, reload } = useCachedData<TitleDetails>(`title:${mediaType}:${id}`, () => getTitleDetails(mediaType, id));
   const hasData = !!data;
   useEffect(() => {
@@ -396,6 +402,39 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
     if (item && autoPlay) navigate(watchPath(item, saved?.progress), { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, autoPlay]);
+
+  /* ---- trailer preview in the hero (behind the logo and buttons) ---- */
+  const [autoplayPreviews] = useAutoplayPreviews();
+  const [muted, setMuted] = usePreviewMuted();
+  const blocked = usePreviewsBlocked(PREVIEW_LEVEL.window);
+  const tabHidden = usePageHidden();
+  const previewsOn = autoplayPreviews && !PREVIEWS_SAVE_DATA && !autoPlay;
+  const trailer = useTrailer(item, previewsOn);
+  const heroRef = useRef<HTMLDivElement>(null);
+  // Scrolled down past the hero (inside the window): the trailer pauses.
+  const [heroInView, setHeroInView] = useState(true);
+  useEffect(() => {
+    const el = heroRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const e = entries[entries.length - 1];
+        if (e) setHeroInView(e.isIntersecting && e.intersectionRatio >= 0.3);
+      },
+      { threshold: [0, 0.3, 0.6] }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasData]);
+  const heroReady = heroLoaded || (!!data && !data.backdrop_path);
+  // Paused while the trailer / Get Link / another dialog is open over the window, or the window is closing.
+  const canPlay = previewsOn && !blocked && !tabHidden && heroInView && !video && !closing;
+  const armed = useArmAfter(trailer ? `${mediaType}-${id}` : null, TRAILER_DELAY_MS, canPlay && heroReady);
+  const [replay, setReplay] = useState(0);
+  const [phaseOf, setPhaseOf] = useState<{ run: number; phase: TrailerPhase } | null>(null);
+  const phase: TrailerPhase = phaseOf && phaseOf.run === replay ? phaseOf.phase : 'loading';
+  const showTrailer = armed && previewsOn && !!trailer;
+  const trailerPlaying = showTrailer && phase === 'playing' && canPlay;
 
   if (error) {
     return (
@@ -438,7 +477,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
   return (
     <>
       {/* ---- hero ---- */}
-      <div className="relative aspect-video w-full overflow-hidden bg-black">
+      <div ref={heroRef} className="relative aspect-video w-full overflow-hidden bg-black">
         {data.backdrop_path && (
           <img
             src={tmdbImage(data.backdrop_path, 'w1280') || ''}
@@ -449,9 +488,20 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${heroLoaded ? 'opacity-100' : 'opacity-0'}`}
           />
         )}
+        {showTrailer && trailer && (
+          <TrailerFrame
+            key={`${trailer}-${replay}`}
+            videoKey={trailer}
+            play={canPlay}
+            muted={muted}
+            title={`${title} trailer`}
+            onPhase={(p) => setPhaseOf({ run: replay, phase: p })}
+            onSoundBlocked={() => setMuted(true)}
+          />
+        )}
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(0deg,#181818_0%,rgba(24,24,24,0.55)_22%,rgba(24,24,24,0)_50%)]" />
         <div className="absolute inset-x-[5%] bottom-[7%] z-[2]">
-          <div className="mb-[4%] w-[min(42%,380px)] max-sm:w-[60%]">
+          <div className={`sf-rise sf-title-logo mb-[4%] w-[min(42%,380px)] max-sm:w-[60%] ${trailerPlaying ? 'is-small' : ''}`}>
             {logo ? (
               <img
                 src={tmdbImage(logo.file_path, 'w500') || ''}
@@ -471,7 +521,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
               <span className="flex-shrink-0 text-[13px] text-[#ddd]">{pText}</span>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="sf-rise flex flex-wrap items-center gap-2" style={{ ['--d' as any]: 1 }}>
             <button type="button" className="nf-btn nf-btn-white !h-[2.6rem] !px-6 !text-[16px]" onClick={() => openPlayer(item, { tab: 'watch', progress: saved?.progress })}>
               <PlayIcon />
               {playLabel}
@@ -496,10 +546,19 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             </button>
           </div>
         </div>
+        {showTrailer && (trailerPlaying || phase === 'ended') && (
+          <div className="absolute bottom-[7%] right-[5%] z-[3] text-[13px] sm:text-[15px]">
+            {phase === 'ended' ? (
+              <PreviewReplayButton key="replay" className="sf-pop-in" onReplay={() => setReplay((r) => r + 1)} />
+            ) : (
+              <PreviewSoundButton key="sound" className="sf-pop-in" muted={muted} onToggle={() => setMuted(!muted)} />
+            )}
+          </div>
+        )}
       </div>
 
       {/* ---- details ---- */}
-      <div className="grid gap-x-8 gap-y-5 px-[5%] pb-2 pt-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="sf-rise grid gap-x-8 gap-y-5 px-[5%] pb-2 pt-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" style={{ ['--d' as any]: 2 }}>
         <div>
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-[#bcbcbc]">
             <ImdbRating item={item} size="sm" />
@@ -635,6 +694,9 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
   }, [closing]);
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
+  // Trailer previews on the page behind (billboard, hover cards) pause while the window is open.
+  useEffect(() => holdPreviews(PREVIEW_LEVEL.page), []);
+
   // Focus moves into the window when it opens, stays inside while Tab is pressed, and returns on close.
   const modalRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -758,7 +820,7 @@ const TitlePage: React.FC<TitlePageProps> = ({ mediaType, id, autoPlay, onClose 
         <button type="button" onClick={close} className="nf-title-close" aria-label="Close">
           <CloseIcon className="h-5 w-5" />
         </button>
-        <TitleContent key={`${mediaType}-${id}`} mediaType={mediaType} id={id} autoPlay={autoPlay} scrollTo={scrollTo} onReady={restoreScroll} />
+        <TitleContent key={`${mediaType}-${id}`} mediaType={mediaType} id={id} autoPlay={autoPlay} closing={closing} scrollTo={scrollTo} onReady={restoreScroll} />
       </div>
     </div>
   );

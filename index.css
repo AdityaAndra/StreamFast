@@ -182,7 +182,8 @@ img { -webkit-user-drag: none; }
 @media (max-width: 640px) {
   .nf-billboard-vignette { background: linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 30%, rgba(20,20,20,0.4) 65%, #141414 98%); }
 }
-.nf-billboard-swap { animation: nf-swap 0.9s var(--nf-out) both; }
+/* Slide change: the billboard's logo, details, description and buttons fade up one after another (.sf-rise). */
+.nf-billboard-swap { position: relative; }
 @keyframes nf-swap { from { opacity: 0; transform: translate3d(0, 14px, 0); } to { opacity: 1; transform: translate3d(0, 0, 0); } }
 .nf-billboard-timer { animation: nf-timer var(--dur, 10s) linear forwards; }
 @keyframes nf-timer { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -220,6 +221,57 @@ img { -webkit-user-drag: none; }
 .nf-btn-grey:hover { background: rgba(255, 255, 255, 0.3); }
 
 /* Motion is intentionally kept on even when the OS asks to reduce it (user preference). */
+
+/* ============ Premium motion ============ */
+/* Staggered fade-up: give each piece --d: 0, 1, 2… (80ms apart). "backwards" only fills the start, so hover /
+   press transforms on the same element keep working once it has arrived. */
+.sf-rise { animation: nf-swap 0.9s var(--nf-out) backwards; animation-delay: calc(var(--d, 0) * 80ms); }
+/* Small controls popping in (sound / replay buttons). */
+.sf-pop-in { animation: sf-pop-in 0.5s var(--sf-spring-soft) backwards; }
+@keyframes sf-pop-in { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: none; } }
+
+/* Row cards lift a little under the pointer (before the hover preview opens). */
+@media (hover: hover) and (pointer: fine) {
+  a.nf-card { transition: transform 0.45s var(--nf-out), box-shadow 0.45s ease; }
+  a.nf-card:hover { transform: translate3d(0, -3px, 0); box-shadow: 0 14px 28px -14px rgba(0, 0, 0, 0.9); }
+  .nf-top10-poster a.nf-card:hover { box-shadow: -10px 0 22px -6px rgba(0, 0, 0, 0.65), 0 14px 28px -14px rgba(0, 0, 0, 0.9); }
+}
+
+/* ============ Trailer previews (components/TrailerPreview.tsx) ============ */
+/* The video sits over the picture and fades in once it's really playing; it never takes the pointer. */
+.sf-trailer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; opacity: 0; transition: opacity 0.7s ease; }
+.sf-trailer.is-on { opacity: 1; transition-duration: 1s; }
+/* Drawn bigger than the box and centred (sizes come from TrailerFrame): no black bars, YouTube's bars off-screen. */
+.sf-trailer iframe { position: absolute; left: 50%; top: 50%; border: 0; pointer-events: none; transform: translate3d(-50%, -50%, 0); }
+
+/* Netflix's round speaker / replay button. */
+.sf-sound-btn {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 2.75em; height: 2.75em; border-radius: 9999px; color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.7); background: rgba(20, 20, 20, 0.35);
+  transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.45s var(--sf-spring-soft);
+}
+.sf-sound-btn:hover { background: rgba(255, 255, 255, 0.16); border-color: #fff; }
+.sf-sound-btn:active { transform: scale(0.9); transition-duration: 0.2s, 0.2s, 0.08s; }
+.sf-sound-btn svg { width: 54%; height: 54%; }
+
+/* Billboard: the button sits on the right, above the slide dots. */
+.nf-hero-sound { position: absolute; right: 3.2%; bottom: calc(7.5% + 2.6rem); z-index: 3; font-size: max(13px, 1vw); }
+@media (max-width: 639px) { .nf-hero-sound { top: 4.5%; right: 4.5%; bottom: auto; font-size: 12px; } }
+
+/* While the trailer plays the billboard gets out of its way (Netflix): after a moment the description fades out,
+   the logo shrinks and the logo + details glide down into its place (transform / opacity only). */
+.nf-hero-head { transition: transform 0.9s var(--nf-out); }
+.nf-hero-logo-wrap { transform-origin: left bottom; transition: transform 0.9s var(--nf-out); }
+.nf-hero-desc { transition: opacity 0.5s ease, transform 0.7s var(--nf-out); }
+.nf-hero-info.is-playing .nf-hero-head { transform: translate3d(0, var(--sf-desc-h, 0px), 0); transition-delay: 3s; }
+.nf-hero-info.is-playing .nf-hero-logo-wrap { transform: scale(0.8); transition-delay: 3s; }
+.nf-hero-info.is-playing .nf-hero-desc { opacity: 0; transform: translate3d(0, 10px, 0); transition-delay: 2.8s; }
+@media (max-width: 639px) { .nf-hero-logo-wrap { transform-origin: center bottom; } }
+
+/* Title window hero: the logo shrinks a little while the trailer plays. */
+.sf-title-logo { transform-origin: left bottom; transition: transform 0.9s var(--nf-out); }
+.sf-title-logo.is-small { transform: scale(0.74); transition-delay: 2.5s; }
 
 
 /* ============ Page transitions (View Transitions API; browsers without it just switch pages) ============ */
