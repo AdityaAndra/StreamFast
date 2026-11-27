@@ -205,7 +205,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // A play we've been told about but whose video hasn't started moving yet (still loading).
   const startPending = useRef<{ ct: number; at: number } | null>(null);
   const scheduleHide = useCallback((at: number) => {
-    if (at <= deadline.current) return;
+    // Infinity = held up until you next touch the player (see holdUntilActive).
+    if (deadline.current !== Infinity && at <= deadline.current) return;
     deadline.current = at;
     window.clearTimeout(idle.current);
     idle.current = window.setTimeout(() => setChrome(false), Math.max(0, at - performance.now()));
@@ -225,6 +226,19 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   wakeRef.current = wake;
   const wakeAtRef = useRef(wakeAt);
   wakeAtRef.current = wakeAt;
+  /** VidFast's bar stays up with no timer when its 3s ran out while the video wasn't playing yet (still
+   *  loading): it only hides 3s after you next move the mouse, click or press a key. Ours does the same. */
+  const holdUntilActive = useCallback(() => {
+    show();
+    window.clearTimeout(idle.current);
+    deadline.current = Infinity;
+  }, [show]);
+  const holdRef = useRef(holdUntilActive);
+  holdRef.current = holdUntilActive;
+  // When VidFast's player opened (its 3s timer starts then), and whether this video has started yet.
+  const vfMountAt = useRef(0);
+  const firstStartDone = useRef(false);
+  const firstStartAt = useRef(0);
   // Mouse moves, counted the way VidFast's idle timer counts them (see EVENTS_THROTTLE_MS / TAIL_MS).
   const lastHandled = useRef(-1e9);
   const lastMove = useRef(0);
@@ -232,7 +246,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const mouseActivity = useCallback((t: number) => {
     show();
     lastMove.current = t;
-    if (t - lastHandled.current >= EVENTS_THROTTLE_MS || deadline.current <= performance.now()) {
+    if (t - lastHandled.current >= EVENTS_THROTTLE_MS || deadline.current <= performance.now() || deadline.current === Infinity) {
       lastHandled.current = t;
       scheduleHide(t + IDLE_MS);
     }
@@ -262,6 +276,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // New video (or server): hidden while VidFast loads. If nothing plays for a while, offer the server button.
   useEffect(() => {
     setStarted(false);
+    vfMountAt.current = 0;
+    firstStartDone.current = false;
     setPaused(false);
     setChrome(false);
     setStuck(false);
@@ -329,12 +345,27 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         if (volKey.current && volKey.current !== key) wakeRef.current();
         volKey.current = key;
       }
+      let firstStart = false;
       if (typeof playing === 'boolean') {
         if (playing || currentTime > 0) setStarted(true);
+        // First time this video plays (it starts by itself once loaded). VidFast doesn't restart its
+        // timer for that: its 3s run from when the player opened, or from your last move. If those 3s
+        // were already over (a new title that took a while to load), its bar stays up until you next
+        // move the mouse, so ours does too. (Titles that load fast start within the 3s: both hide together.)
+        if (playing && !firstStartDone.current) {
+          firstStartDone.current = true;
+          firstStartAt.current = performance.now();
+          firstStart = true;
+          startPending.current = null;
+          const now = performance.now();
+          const from = Math.max(vfMountAt.current || now, lastHandled.current);
+          if (now < from + IDLE_MS) wakeAtRef.current(from);
+          else holdRef.current();
+        }
         // Playback really starting after a play (once the video has loaded): VidFast starts its 3s
         // from that moment, not from the click, so ours does too. Worked out from how far the video
         // has played, so it doesn't depend on when the next status reply happens to arrive.
-        const pend = startPending.current;
+        const pend = firstStart ? null : startPending.current;
         if (!playing) startPending.current = null;
         else if (pend && typeof currentTime === 'number') {
           if (currentTime > pend.ct + 0.05) {
@@ -343,12 +374,12 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
             if (began > pend.at + 150) wakeAtRef.current(began);
           } else if (performance.now() - pend.at > 20000) startPending.current = null;
         }
-        if (playing && pausedRef.current && typeof currentTime === 'number') startPending.current = { ct: currentTime, at: performance.now() };
+        if (!firstStart && firstStartDone.current && playing && pausedRef.current && typeof currentTime === 'number') startPending.current = { ct: currentTime, at: performance.now() };
         if (pausedRef.current !== !playing) {
           pausedRef.current = !playing;
           setPaused(!playing);
           setServerMenu(false); // you played / paused (e.g. with Space): the server list goes, like VidFast's menus
-          wakeRef.current(); // VidFast shows its controls on play / pause
+          if (!firstStart && firstStartDone.current) wakeRef.current(); // VidFast shows its controls on play / pause
         }
       }
       if (ev === 'playerstatus') return;
@@ -357,7 +388,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (ev === 'play' || ev === 'playing') {
         setPaused(false);
         setServerMenu(false);
-        wakeRef.current();
+        // (The 'play' event of that first start can arrive a moment after the status reply: same start.)
+        if (!firstStart && performance.now() - firstStartAt.current > 1500) wakeRef.current();
       } else if (ev === 'pause' || ev === 'ended') setPaused(true);
       else if (ev === 'seeked') wakeRef.current();
       if (!['timeupdate', 'pause', 'ended', 'seeked'].includes(ev) || !(currentTime > 0)) return;
@@ -542,6 +574,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     const onBlur = () =>
       window.setTimeout(() => {
         if (document.activeElement === iframeRef.current) {
+          mouseActivityRef.current(performance.now()); // a click inside the player: VidFast's timer restarts
           setServerMenu(false);
           setPanel(false);
         }
@@ -618,6 +651,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       <iframe
         ref={iframeRef}
         key={src}
+        onLoad={() => {
+          vfMountAt.current = performance.now();
+        }}
         src={src}
         aria-label={title ? `${title} player` : 'Player'}
         className="absolute inset-0 h-full w-full border-0"
