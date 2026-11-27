@@ -67,6 +67,19 @@ export const getUpcomingMovies = async (signal?: AbortSignal): Promise<MovieSear
     return data.results.map((movie: any) => ({ ...movie, media_type: 'movie' }));
 };
 
+/**
+ * Movies that aren't out anywhere yet, most anticipated first. (TMDB's own "upcoming" list also holds
+ * films that are already out, like Spider-Man: Brand New Day, so Coming Soon doesn't use it.)
+ */
+export const getComingSoonMovies = async (signal?: AbortSignal): Promise<MovieSearchResult[]> => {
+    const d = new Date(Date.now() + 86400000);
+    const tomorrow = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const data = await fetchFromTMDB('/discover/movie', { sort_by: 'popularity.desc', include_adult: 'false', 'primary_release_date.gte': tomorrow }, signal);
+    return (data.results || [])
+      .filter((m: any) => m.backdrop_path || m.poster_path)
+      .map((movie: any) => ({ ...movie, media_type: 'movie' }));
+};
+
 export const getPopularTvShows = async (signal?: AbortSignal): Promise<TVSearchResult[]> => {
     const data = await fetchFromTMDB('/tv/popular', {}, signal);
     return data.results.map((tvShow: any) => ({ ...tvShow, media_type: 'tv' }));
