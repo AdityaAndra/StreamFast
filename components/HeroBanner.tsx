@@ -15,7 +15,7 @@ import { ImdbRating, useHasImdb } from './Imdb';
 import { loadTrailer, useTrailer } from '../utils/trailer';
 import { PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
 import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from './TrailerPreview';
-import { seedRelease, useRelease } from '../utils/release';
+import { dateParts, hdDate, seedRelease, useRelease } from '../utils/release';
 
 const MAX_SLIDES = 6;
 const SLIDE_MS = 10000;
@@ -77,6 +77,7 @@ const Meta: React.FC<{ item: SearchResult }> = ({ item }) => {
   }, [data, item.id, item.media_type]);
   // Only cinema recordings so far: a CAM pill after the details (the cards and title page show it too).
   const cam = useRelease(item) === 'cam';
+  const hd = cam ? hdDate(item) : null;
   return (
     <div className="nf-hero-meta">
       <ImdbRating item={item} size="md" />
@@ -93,6 +94,12 @@ const Meta: React.FC<{ item: SearchResult }> = ({ item }) => {
           <span className="rounded-[3px] border border-white/60 px-[0.35em] text-[0.85em] font-bold leading-[1.4]">
             CAM<span className="sr-only"> (cinema recording, not out in HD yet)</span>
           </span>
+          {hd && (
+            <>
+              <span className="nf-dot" aria-hidden="true" />
+              <span>4K/HD on {dateParts(hd).text}</span>
+            </>
+          )}
         </>
       )}
     </div>
