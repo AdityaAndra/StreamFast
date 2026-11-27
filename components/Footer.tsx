@@ -8,16 +8,23 @@ interface FooterProps {
 
 const REPO = 'https://github.com/AdityaAndra/StreamFast';
 
-/** "Report a problem" opens GitHub's bug form with the page you were on and your browser already filled in. */
-const issueUrl = () => {
-  const q = new URLSearchParams({
-    template: 'bug_report.yml',
-    title: '[Bug]: ',
-    page: window.location.href,
-    browser: navigator.userAgent,
-  });
+/** "Report a problem" / "Request a feature" open GitHub's matching form, with the page you were on
+ *  (and, for problems, your browser) already filled in. */
+const issueUrl = (kind: 'bug' | 'idea') => {
+  const q = new URLSearchParams(
+    kind === 'bug'
+      ? { template: 'bug_report.yml', title: '[Bug]: ', page: window.location.href, browser: navigator.userAgent }
+      : { template: 'feature_request.yml', title: '[Idea]: ', page: window.location.href }
+  );
   return `${REPO}/issues/new?${q.toString()}`;
 };
+
+const IdeaIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18h6M10 21.5h4" />
+    <path d="M12 2.5a6.5 6.5 0 0 0-3.9 11.7c.6.45.9 1.1.9 1.8v.5h6v-.5c0-.7.3-1.35.9-1.8A6.5 6.5 0 0 0 12 2.5Z" />
+  </svg>
+);
 
 const GitHubIcon: React.FC<{ className?: string }> = ({ className = '' }) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className={className} fill="currentColor">
@@ -55,7 +62,7 @@ const Footer: React.FC<FooterProps> = ({ onThemeSelect, onExport, onNavigate }) 
     <div className="mb-9 flex flex-col gap-4 rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-[15px] font-semibold text-white">Found a problem or have an idea?</p>
-        <p className="mt-1 leading-relaxed">StreamFast is open source. Report a bug or suggest a feature on GitHub: the page you're on is added for you.</p>
+        <p className="mt-1 leading-relaxed">StreamFast is open source. Report a problem or request a new feature on GitHub: the page you're on is added for you.</p>
       </div>
       <div className="flex flex-shrink-0 flex-wrap gap-2.5">
         <a
@@ -69,10 +76,23 @@ const Footer: React.FC<FooterProps> = ({ onThemeSelect, onExport, onNavigate }) 
           GitHub
         </a>
         <a
-          href={REPO + '/issues/new'}
+          href={REPO + '/issues/new?template=feature_request.yml'}
           onClick={(e) => {
-            // Fill in the page and browser at click time (the link above is the no-script fallback).
-            e.currentTarget.href = issueUrl();
+            e.currentTarget.href = issueUrl('idea');
+          }}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nf-btn nf-btn-grey !gap-2 !px-4 !py-2 !text-[14px]"
+          aria-label="Request a new feature on GitHub (opens in a new tab)"
+        >
+          <IdeaIcon className="h-[18px] w-[18px]" />
+          Request a feature
+        </a>
+        <a
+          href={REPO + '/issues/new?template=bug_report.yml'}
+          onClick={(e) => {
+            // Fill in the page and browser at click time (the href is the no-script fallback).
+            e.currentTarget.href = issueUrl('bug');
           }}
           target="_blank"
           rel="noopener noreferrer"
