@@ -21,11 +21,16 @@ export type TrailerPhase = 'loading' | 'playing' | 'ended' | 'error';
 const YT_ORIGIN = 'https://www.youtube-nocookie.com';
 const YT_ORIGIN_RE = /^https:\/\/www\.youtube(-nocookie)?\.com$/;
 /** No picture after this long (while it's meant to play): give up and keep the backdrop. */
-const START_TIMEOUT_MS = 10000;
-/** Fade in only after it has played this long: YouTube shows its own title bar and centre buttons
- *  (pause, skip, "More videos") for the first moments of playback, even with controls off. They hide
- *  by themselves after ~3s, so until then the picture stays on top and you only ever see clean video. */
-const SHOW_AFTER_MS = 3200;
+const START_TIMEOUT_MS = 14000;
+/** Fade in only after it has played this long: YouTube draws its own round pause icon, title bar and
+ *  centre buttons over the first ~4s of playback, even with controls off, and the site can't turn them
+ *  off. Until they have gone the picture stays on top, so you only ever see clean video. */
+const SHOW_AFTER_MS = 4300;
+/** After a pause or buffering YouTube shows its buttons again; wait this long before showing again. */
+const RESHOW_AFTER_MS = 4300;
+/** How long the fade-out takes (matches .sf-trailer in index.css). The video keeps playing, hidden,
+ *  until the fade has finished, so YouTube never draws its pause icon while it's still visible. */
+const FADE_OUT_MS = 750;
 /** A short buffering stall doesn't hide the video (only a real pause / wait does). */
 const HIDE_AFTER_STALL_MS = 700;
 /** Stop this many seconds before the end (trailers often end on black or end cards). */
@@ -77,6 +82,7 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
   const [stalled, setStalled] = useState(false);
   const stalledRef = useRef(false);
   const unstallTimer = useRef(0);
+  const pauseTimer = useRef(0);
   const markStalled = useCallback((v: boolean) => {
     stalledRef.current = v;
     setStalled(v);
@@ -127,6 +133,7 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
       window.clearTimeout(showTimer.current);
       window.clearTimeout(stallTimer.current);
       window.clearTimeout(unstallTimer.current);
+      window.clearTimeout(pauseTimer.current);
     };
   }, []);
 
@@ -146,10 +153,12 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
     return () => ro.disconnect();
   }, []);
 
+  // Fade out first, then pause once it's invisible (pausing draws YouTube's pause icon).
   const finish = useCallback(() => {
     window.clearTimeout(showTimer.current);
-    post('pauseVideo');
     setPhase('ended');
+    window.clearTimeout(pauseTimer.current);
+    pauseTimer.current = window.setTimeout(() => post('pauseVideo'), FADE_OUT_MS);
   }, [post, setPhase]);
 
   // Messages from YouTube (only from our own frame).
@@ -163,10 +172,10 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
           unstallTimer.current = window.setTimeout(() => {
             unstallTimer.current = 0;
             markStalled(false);
-          }, 1500);
+          }, RESHOW_AFTER_MS);
         }
         if (!playRef.current) {
-          post('pauseVideo');
+          if (!pauseTimer.current) post('pauseVideo');
           return;
         }
         if (phaseRef.current === 'loading' && !showTimer.current) {
@@ -273,11 +282,36 @@ export const TrailerFrame: React.FC<TrailerFrameProps> = ({ videoKey, play, mute
     listenTimer.current = window.setInterval(hello, 250);
   };
 
-  // Pause / resume (never restarts a finished one).
+  // Pause / resume (never restarts a finished one). A pause waits for the fade-out to finish,
+  // and it has to wait the full warm-up again before it shows (YouTube's buttons come back on pause).
   useEffect(() => {
     if (!readyRef.current || phaseRef.current === 'ended' || phaseRef.current === 'error') return;
-    post(play ? 'playVideo' : 'pauseVideo');
-  }, [play, post]);
+    window.clearTimeout(pauseTimer.current);
+    pauseTimer.current = 0;
+    if (play) {
+      post('playVideo');
+      // Resumed before the pause went out: YouTube may not report "playing" again, so count the wait from now.
+      if (stalledRef.current && !unstallTimer.current) {
+        unstallTimer.current = window.setTimeout(() => {
+          unstallTimer.current = 0;
+          markStalled(false);
+        }, RESHOW_AFTER_MS);
+      }
+      return;
+    }
+    window.clearTimeout(unstallTimer.current);
+    unstallTimer.current = 0;
+    if (phaseRef.current === 'playing') markStalled(true);
+    else {
+      // Still warming up: start the warm-up again when it plays on.
+      window.clearTimeout(showTimer.current);
+      showTimer.current = 0;
+    }
+    pauseTimer.current = window.setTimeout(() => {
+      pauseTimer.current = 0;
+      if (!playRef.current) post('pauseVideo');
+    }, FADE_OUT_MS);
+  }, [play, post, markStalled]);
 
   // Sound on / off.
   useEffect(() => {
