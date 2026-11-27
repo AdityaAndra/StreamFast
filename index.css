@@ -441,7 +441,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 }
 .nf-card.is-poster .nf-flags { font-size: max(8px, 0.5vw); }
 .nf-flag {
-  width: 2.7em; min-height: 3.7em; padding: 0.4em 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 2.7em; min-height: 3.7em; padding: 0.4em 0.3em; display: flex; flex-direction: column; align-items: center; justify-content: center;
   border-radius: 0 0 2px 2px; font-weight: 800; line-height: 0.92; letter-spacing: -0.02em; text-align: center;
   box-shadow: 0 0 6px rgba(0, 0, 0, 0.35);
 }
