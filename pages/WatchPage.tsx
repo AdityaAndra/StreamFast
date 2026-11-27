@@ -394,19 +394,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         volKey.current = key;
       }
       let firstStart = false;
-      // VidFast's player has just opened (its first answer to us): its bar comes up and its 3s start
-      // now, not when the page around it loaded (that's earlier, while it says "Fetching, one moment").
-      if (!gotReply.current) {
-        gotReply.current = true;
-        vfMountAt.current = performance.now();
-        readyRef.current = true;
-        setReady(true);
-        wakeAtRef.current(vfMountAt.current);
-      }
+      gotReply.current = true;
       if (typeof playing === 'boolean') playingRef.current = playing;
+      // VidFast's video has loaded (it knows its length): its "Loading, one moment" screen is gone and its
+      // control bar comes up now, with its 3s starting now. VidFast already answers us while it's still
+      // loading, so only a real length counts. Until then ours stays hidden too (except the back arrow).
       if (!readyRef.current && typeof duration === 'number' && duration > 0) {
         readyRef.current = true;
         setReady(true);
+        vfMountAt.current = performance.now();
+        wakeAtRef.current(vfMountAt.current);
       }
       if (typeof playing === 'boolean') {
         if (playing || currentTime > 0) setStarted(true);
@@ -668,11 +665,11 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   // Play / pause state straight from the player (its status reply), checked every second.
   useEffect(() => {
-    // Every 50ms until the player first answers (so we know when it opened, to the frame), then 250ms.
+    // Every 50ms until the video has loaded (so we know when VidFast's bar comes up, to the frame), then 250ms.
     let last = 0;
     const t = window.setInterval(() => {
       const now = performance.now();
-      if (gotReply.current && now - last < 240) return;
+      if (readyRef.current && now - last < 240) return;
       last = now;
       iframeRef.current?.contentWindow?.postMessage({ command: 'getStatus' }, '*');
     }, 50);
