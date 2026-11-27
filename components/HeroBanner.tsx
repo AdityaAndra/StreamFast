@@ -19,7 +19,7 @@ import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhas
 const MAX_SLIDES = 6;
 const SLIDE_MS = 10000;
 /** The backdrop shows this long before the trailer crossfades in (Netflix billboard). */
-const TRAILER_DELAY_MS = 900;  // + ~3s of hidden playback (see TrailerFrame) before it shows
+const TRAILER_DELAY_MS = 0;  // starts loading at once; it plays hidden for its first ~4s (see TrailerFrame)
 /** How long a trailer takes to fade back out when you move to another slide. */
 const TRAILER_FADE_MS = 900;
 
@@ -194,7 +194,8 @@ const HeroBanner: React.FC<HeroBannerProps> = ({ items, top }) => {
   const previewsOn = autoplay && !PREVIEWS_SAVE_DATA;
   const trailer = useTrailer(current, previewsOn);
   const canPlay = previewsOn && !blocked && !tabHidden && inView;
-  const armed = useArmAfter(trailer ? slideKey : null, TRAILER_DELAY_MS, canPlay && !!loaded[index]);
+  // Start as soon as the slide is up (it plays hidden under the picture first, so no need to wait for the image).
+  const armed = useArmAfter(trailer ? slideKey : null, TRAILER_DELAY_MS, canPlay);
   const [replay, setReplay] = useState(0);
   useEffect(() => setReplay(0), [slideKey]);
 

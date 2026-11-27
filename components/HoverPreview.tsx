@@ -64,7 +64,7 @@ const QUICK_WINDOW_MS = 700;
 const CLOSE_DELAY_MS = 120;
 const CLOSE_ANIM_MS = 260;
 /** The picture shows this long before the trailer fades in over it. */
-const TRAILER_DELAY_MS = 450;  // + ~3s of hidden playback (see TrailerFrame) before it shows
+const TRAILER_DELAY_MS = 0;  // starts loading at once; it plays hidden for its first ~4s (see TrailerFrame)
 
 export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [active, setActive] = useState<(PreviewRequest & { key: number }) | null>(null);
@@ -281,7 +281,6 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
           onClick={play}
           className="absolute inset-0 block h-full w-full cursor-pointer"
           aria-label={cw ? `Resume ${title}` : `Play ${title}`}
-          title={cw ? 'Resume' : 'Play'}
         >
           {backdrop &&
             (fromCard ? (
@@ -324,7 +323,6 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
             type="button"
             className="nf-circle is-primary"
             aria-label={cw ? `Resume ${title}` : `Play ${title}`}
-            title={cw ? 'Resume' : 'Play'}
             onClick={play}
           >
             <PlayIcon className="ml-[2px] h-[1.05em] w-[1.05em]" />
@@ -336,7 +334,6 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
                 className="nf-circle"
                 aria-pressed={inList}
                 aria-label={inList ? `Remove ${title} from My List` : `Add ${title} to My List`}
-                title={inList ? 'Remove from My List' : 'Add to My List'}
                 onClick={() => toggleMyListItem(item)}
               >
                 {inList ? <CheckStaticIcon className="h-[1em] w-[1em]" /> : <PlusIcon className="h-[1.1em] w-[1.1em]" />}
@@ -345,7 +342,6 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
                 type="button"
                 className="nf-circle"
                 aria-label={`Remove ${title} from Continue Watching`}
-                title="Remove from row"
                 onClick={() => { onClose(); cw.onRemove(); }}
               >
                 <CloseIcon className="h-[1em] w-[1em]" />
@@ -361,13 +357,12 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
               className="nf-circle"
               aria-pressed={inList}
               aria-label={inList ? `Remove ${title} from My List` : `Add ${title} to My List`}
-              title={inList ? 'Remove from My List' : 'Add to My List'}
               onClick={() => toggleMyListItem(item)}
             >
               {inList ? <CheckStaticIcon className="h-[1em] w-[1em]" /> : <PlusIcon className="h-[1.1em] w-[1.1em]" />}
             </button>
           )}
-          <button type="button" className="nf-circle ml-auto" aria-label="More info" title="More info" onClick={goToTitle}>
+          <button type="button" className="nf-circle ml-auto" aria-label="More info" onClick={goToTitle}>
             <ChevronDownIcon className="h-[1.2em] w-[1.2em]" />
           </button>
         </div>

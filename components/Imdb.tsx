@@ -19,7 +19,7 @@ export const ImdbRating: React.FC<ImdbRatingProps> = ({ item, size = 'md', showV
   if (!imdb) return null;
   const label = `IMDb rating ${imdb.rating.toFixed(1)} out of 10${imdb.votes ? `, ${imdb.votes.toLocaleString()} votes` : ''}`;
   return (
-    <span className={`nf-imdb nf-imdb-${size} ${className}`} title={label} aria-label={label}>
+    <span className={`nf-imdb nf-imdb-${size} ${className}`} aria-label={label}>
       <span className="nf-imdb-logo" aria-hidden="true">IMDb</span>
       <span className="nf-imdb-score" aria-hidden="true">
         {imdb.rating.toFixed(1)}

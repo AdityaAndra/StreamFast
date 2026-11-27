@@ -264,14 +264,14 @@ img { -webkit-user-drag: none; }
 .nf-hero-head { transition: transform 0.9s var(--nf-out); }
 .nf-hero-logo-wrap { transform-origin: left bottom; transition: transform 0.9s var(--nf-out); }
 .nf-hero-desc { transition: opacity 0.5s ease, transform 0.7s var(--nf-out); }
-.nf-hero-info.is-playing .nf-hero-head { transform: translate3d(0, var(--sf-desc-h, 0px), 0); transition-delay: 3s; }
-.nf-hero-info.is-playing .nf-hero-logo-wrap { transform: scale(0.8); transition-delay: 3s; }
-.nf-hero-info.is-playing .nf-hero-desc { opacity: 0; transform: translate3d(0, 10px, 0); transition-delay: 2.8s; }
+.nf-hero-info.is-playing .nf-hero-head { transform: translate3d(0, var(--sf-desc-h, 0px), 0); transition-delay: 1.5s; }
+.nf-hero-info.is-playing .nf-hero-logo-wrap { transform: scale(0.8); transition-delay: 1.5s; }
+.nf-hero-info.is-playing .nf-hero-desc { opacity: 0; transform: translate3d(0, 10px, 0); transition-delay: 1.3s; }
 @media (max-width: 639px) { .nf-hero-logo-wrap { transform-origin: center bottom; } }
 
 /* Title window hero: the logo shrinks a little while the trailer plays. */
 .sf-title-logo { transform-origin: left bottom; transition: transform 0.9s var(--nf-out); }
-.sf-title-logo.is-small { transform: scale(0.74); transition-delay: 2.5s; }
+.sf-title-logo.is-small { transform: scale(0.74); transition-delay: 1.5s; }
 
 
 /* ============ Page transitions (View Transitions API; browsers without it just switch pages) ============ */

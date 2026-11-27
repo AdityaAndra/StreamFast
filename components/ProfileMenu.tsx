@@ -40,7 +40,6 @@ const AutoplayPreviewsItem: React.FC = () => {
                 role="menuitemcheckbox"
                 aria-checked={on}
                 onClick={() => setOn(!on)}
-                title="Play trailers automatically on the billboard, in hover previews and in title windows"
                 className="flex w-full items-center gap-3 px-4 py-2 text-left text-[13px] text-netflix-text transition-colors hover:bg-white/[0.06]"
             >
                 <span className="text-netflix-muted" aria-hidden="true"><PreviewsIcon className="h-4 w-4" /></span>
@@ -72,7 +71,7 @@ const SyncLine: React.FC = () => {
     const label = status === 'error' ? 'Not synced yet · will retry' : status === 'synced' ? 'Synced' : 'Syncing…';
     const dot = status === 'error' ? 'bg-amber-400' : status === 'synced' ? 'bg-netflix-green' : 'animate-pulse bg-[#b3b3b3]';
     return (
-        <p className="flex items-center gap-1.5" title={status === 'error' ? 'Your changes are saved here and will sync when the connection is back.' : undefined}>
+        <p className="flex items-center gap-1.5">
             <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${dot}`} aria-hidden="true" />
             {label}
         </p>
@@ -152,7 +151,7 @@ const ProfileMenu: React.FC<ProfileMenuProps> = ({ onImport, onExport, onReset, 
                         <div className="flex items-center gap-3 px-4 pb-2.5 pt-1">
                             <Avatar />
                             <div className="min-w-0 text-[12px] leading-tight text-netflix-muted">
-                                <p className="truncate text-[14px] font-bold text-white" title={accountName}>{accountName}</p>
+                                <p className="truncate text-[14px] font-bold text-white">{accountName}</p>
                                 <SyncLine />
                             </div>
                         </div>

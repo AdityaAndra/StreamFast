@@ -91,7 +91,7 @@ export const BrandTile: React.FC<{ tile: Tile }> = ({ tile }) => {
     );
   }
   return (
-    <Link to={tile.to} aria-label={tile.label} title={tile.label} className={`nf-brand hover:z-10 ${tile.variant === 'dark' ? 'is-dark' : ''}`}>
+    <Link to={tile.to} aria-label={tile.label} className={`nf-brand hover:z-10 ${tile.variant === 'dark' ? 'is-dark' : ''}`}>
       {tile.img ? (
         <img src={tile.img} alt="" loading="lazy" decoding="async" onLoad={() => setLoaded(true)} className={loaded ? 'is-loaded' : ''} />
       ) : (

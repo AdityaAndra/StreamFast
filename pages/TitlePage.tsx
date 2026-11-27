@@ -19,7 +19,7 @@ import { holdPreviews, PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, u
 import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from '../components/TrailerPreview';
 
 /** The hero picture shows this long before the trailer fades in behind the logo and buttons. */
-const TRAILER_DELAY_MS = 600;  // + ~3s of hidden playback (see TrailerFrame) before it shows
+const TRAILER_DELAY_MS = 0;  // starts loading at once; it plays hidden for its first ~4s (see TrailerFrame)
 
 /**
  * Netflix-style title window ("jbv" modal): opens over the page you were browsing.
@@ -151,7 +151,7 @@ const PeopleCredits: React.FC<{ label: string; people: Person[] }> = ({ label, p
       <span className="flex-shrink-0 pt-[7px] text-[#777] sm:w-[7.5rem]">{label}:</span>
       <div className="flex flex-wrap gap-2">
         {people.map((p) => (
-          <Link key={`${p.id}-${p.sub || ''}`} to={personPath(p)} className="nf-chip" title={p.sub ? `${p.name} — ${p.sub}` : p.name}>
+          <Link key={`${p.id}-${p.sub || ''}`} to={personPath(p)} className="nf-chip">
             <span className="nf-chip-img">
               {p.profile_path ? <img src={tmdbImage(p.profile_path, 'w185') || ''} alt="" loading="lazy" decoding="async" /> : initials(p.name)}
             </span>
@@ -540,7 +540,6 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
               className="nf-circle text-[16px]"
               onClick={() => openPlayer(item, { progress: saved?.progress, tab: item.media_type === 'tv' ? 'episodes' : 'actions' })}
               aria-label="Get Link"
-              title="Get Link"
             >
               <LinkIcon className="h-[1.05em] w-[1.05em]" />
             </button>

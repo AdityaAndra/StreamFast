@@ -273,7 +273,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                             Open player in a new tab (without saving)
                           </a>
                           {isSaved && (
-                            <button type="button" onClick={handleRemove} className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm" title="Remove from Continue Watching">
+                            <button type="button" onClick={handleRemove} className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm">
                               <TrashIcon className="w-5 h-5 mr-2" />
                               Remove from List
                             </button>
@@ -353,7 +353,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                             disabled={isLoadingSeason || !seasonDetails?.episodes.length}
                           >
                             {!isLoadingSeason && seasonDetails?.episodes.map(episode => (
-                                <option key={episode.id} value={episode.episode_number} title={episode.name}>
+                                <option key={episode.id} value={episode.episode_number}>
                                     {episode.episode_number}. {episode.name}
                                 </option>
                             ))}
@@ -496,7 +496,7 @@ const EmbedLinkModal: React.FC<EmbedLinkModalProps> = ({ item, onClose, initialP
                         <button type="button"
                             onClick={handleRemove}
                             className="w-full flex items-center justify-center bg-transparent border border-neutral-700 hover:bg-neutral-800 text-neutral-400 hover:text-white font-bold py-2 px-3 rounded-md transition-colors text-sm"
-                            title="Remove from Continue Watching"
+                           
                         >
                             <TrashIcon className="w-4 h-4 mr-2" />
                             Remove
