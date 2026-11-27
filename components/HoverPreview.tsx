@@ -396,7 +396,7 @@ const PreviewCard: React.FC<{ req: PreviewRequest; closing: boolean; onClose: ()
           <ImdbRating item={item} size="sm" />
           <span className="border border-white/40 px-[0.4em] text-[11px] leading-[1.6] text-[#bcbcbc]">{item.media_type === 'movie' ? 'Movie' : 'Series'}</span>
           {year && <span className="text-[#bcbcbc]">{year}</span>}
-          <QualityPill item={item} className="rounded-[3px] border border-white/40 px-[0.3em] text-[10px] font-bold leading-[1.5] text-[#bcbcbc]" />
+          <QualityPill item={item} hd="short" className="rounded-[3px] border border-white/40 px-[0.3em] text-[10px] font-bold leading-[1.5] text-[#bcbcbc]" />
         </div>
 
         {genres.length > 0 && (
