@@ -80,7 +80,8 @@ interface Person {
 }
 
 /** The short name a character goes by, for "Lola Tung as Belly, Christopher Briney as Conrad":
- *  a nickname in quotes ("Isabel 'Belly' Conklin" -> Belly), else the first name ("Conrad Fisher" -> Conrad).
+ *  a nickname in quotes ("Isabel 'Belly' Conklin" -> Belly, but not "'The Halfman'"), else the first name
+ *  ("Conrad Fisher" -> Conrad).
  *  Titles and descriptions stay whole ("Dr. Strange", "Young Belly", "The Narrator"). */
 const TITLE_WORD = /^(dr|mr|mrs|ms|miss|mx|prof|professor|sir|dame|lady|lord|king|queen|prince|princess|captain|capt|agent|detective|det|officer|sergeant|sgt|general|gen|colonel|col|major|lieutenant|lt|commander|admiral|father|mother|sister|brother|uncle|aunt|young|old|little|baby|big|the|a|an|saint|st|judge|coach|nurse|doctor|president|senator|chief|sheriff|deputy|grandma|grandpa|mama|papa|count|duke|baron|reverend|rev|officer)\.?$/i;
 const NAME_PARTICLE = /^(de|da|del|della|di|du|van|von|der|den|la|le|bin|al|el|mac|mc|o)$/i;
@@ -91,9 +92,12 @@ const shortRole = (character?: string | null): string => {
   if (!c) return '';
   if (/^(self|himself|herself|themselves|themself)\b/i.test(c)) return 'Self';
   const nick = c.match(/["\u201c]([^"\u201d]{2,24})["\u201d]/) || c.match(/(?:^|\s)['\u2018]([^'\u2019]{2,24})['\u2019](?:\s|$)/);
-  if (nick) return nick[1].trim();
-  const words = c.split(' ');
-  if (words.length === 1) return c;
+  // A nickname that is a title ("Tyrion 'The Halfman' Lannister") isn't what people call them: use the first name.
+  if (nick && !/^the\s/i.test(nick[1].trim())) return nick[1].trim();
+  // Drop a quoted nickname before taking the first name (only real quotes, not the apostrophe in "O'Brien").
+  const plain = c.replace(/["\u201c][^"\u201d]{2,24}["\u201d]/g, ' ').replace(/(^|\s)['\u2018][^'\u2019]{2,24}['\u2019](?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim() || c;
+  const words = plain.split(' ');
+  if (words.length === 1) return words[0];
   if (TITLE_WORD.test(words[0])) return words.slice(0, 3).join(' ');
   if (words.every((w) => /^[A-Z\u00c0-\u024f]/.test(w) || NAME_PARTICLE.test(w))) return words[0];
   return c.length > 28 ? `${c.slice(0, 26).trim()}\u2026` : c;
