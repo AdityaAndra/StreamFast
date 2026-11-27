@@ -12,6 +12,7 @@ import { navigate, useLocationString } from '../utils/router';
 import { CardLogo } from './ResultCard';
 import { PlayIcon, PlusIcon, CheckStaticIcon, ChevronDownIcon, TrashIcon, CloseIcon } from './Icons';
 import { setTitleOrigin } from '../utils/motion';
+import { isScrolling } from '../utils/smoothScroll';
 
 /**
  * Netflix "mini modal": hover a card for a moment and it grows (FLIP, transform-only)
@@ -77,11 +78,18 @@ export const HoverPreviewProvider: React.FC<{ children: ReactNode }> = ({ childr
     if (!CAN_HOVER) return;
     clear();
     const delay = Date.now() - lastLeave.current < QUICK_WINDOW_MS ? QUICK_OPEN_MS : OPEN_DELAY_MS;
-    timer.current = window.setTimeout(() => {
-      if (!req.el.isConnected || !req.el.matches(':hover')) return;
+    const open = () => {
+      if (!req.el.isConnected) return;
+      // Still scrolling: wait until the page settles, then open only if the pointer is still on this card.
+      if (isScrolling()) {
+        timer.current = window.setTimeout(open, 120);
+        return;
+      }
+      if (!req.el.matches(':hover')) return;
       setClosing(false);
       setActive({ ...req, key: ++counter.current });
-    }, delay);
+    };
+    timer.current = window.setTimeout(open, delay);
   }, []);
 
   const cancel = useCallback(() => clear(), []);

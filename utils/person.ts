@@ -47,6 +47,8 @@ export interface PersonSummary {
   profile_path: string | null;
   known_for_department?: string;
   popularity?: number;
+  /** TMDB: 1 = female, 2 = male, 3 = non-binary, 0 = not set. */
+  gender?: number;
   known_for?: any[];
 }
 

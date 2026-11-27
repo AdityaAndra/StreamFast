@@ -178,8 +178,9 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
             title
           )}
         </h2>
+        {/* Page dots first, then the row's own controls: the controls stay flush with the right page edge
+            (the dots are invisible until you hover the row, so they mustn't push the controls inwards). */}
         <div className="flex items-center gap-3">
-          {actions}
           {CAN_HOVER && pages > 1 && (
             <div ref={pagerRef} className="nf-pager" aria-hidden="true">
               {Array.from({ length: pages }).map((_, i) => (
@@ -187,6 +188,7 @@ export const RowShell: React.FC<RowShellProps> = ({ title, itemCount, perRow: pe
               ))}
             </div>
           )}
+          {actions}
         </div>
       </div>
       <div ref={sliderRef} className={`nf-slider ${CAN_HOVER ? '' : 'is-touch'}`}>

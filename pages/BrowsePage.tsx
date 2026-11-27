@@ -136,7 +136,7 @@ export const BrowseView: React.FC<BrowseViewProps> = ({ search, base, locked = [
   const initialLoading = state.page === 0 && !error;
 
   return (
-    <div className="px-[4%] pt-24 sm:pt-28">
+    <div className="px-[4%] sf-page-top">
       {header ?? <h1 className="mb-[1.6vw] text-[clamp(1.6rem,2.6vw,2.75rem)] font-bold tracking-[-0.02em] text-white">{describe(params)}</h1>}
       <FilterBar params={params} onChange={update} onReset={reset} locked={[...locked, ...hideFilters]} />
 

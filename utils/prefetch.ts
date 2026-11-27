@@ -2,6 +2,7 @@ import type { SearchResult } from '../types';
 import { getTitleDetails, TitleDetails } from '../services/tmdb';
 import { loadCached, peekCache } from './useCachedData';
 import { tmdbImage } from './media';
+import { isScrolling } from './smoothScroll';
 
 /**
  * "Instant" title windows: when you rest on a card (hover or keyboard focus), fetch the title's details
@@ -34,6 +35,12 @@ export const prefetchTitle = (item: SearchResult) => {
 
 /** Prefetch after a short rest on the card (sweeping the pointer across a row fetches nothing). Returns a cancel. */
 export const schedulePrefetch = (item: SearchResult, delay = 180): (() => void) => {
-  const t = window.setTimeout(() => prefetchTitle(item), delay);
+  // Cards sliding under the pointer while the page scrolls don't count as resting on them.
+  let t = 0;
+  const run = () => {
+    if (isScrolling()) t = window.setTimeout(run, 150);
+    else prefetchTitle(item);
+  };
+  t = window.setTimeout(run, delay);
   return () => window.clearTimeout(t);
 };

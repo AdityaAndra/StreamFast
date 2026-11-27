@@ -26,7 +26,7 @@ const CategoryPage: React.FC<CategoryPageProps> = ({ id, heading, loadHero, rows
       {mediaType && <GenresMenu mediaType={mediaType} />}
     </div>
   );
-  const title = loadHero ? null : <div className="px-[4%] pb-[1.5vw] pt-24 sm:pt-28">{titleRow}</div>;
+  const title = loadHero ? null : <div className="px-[4%] pb-[1.5vw] sf-page-top">{titleRow}</div>;
 
   // If only the banner fails, show the error in its place and keep the rows below it.
   return (
@@ -34,7 +34,7 @@ const CategoryPage: React.FC<CategoryPageProps> = ({ id, heading, loadHero, rows
       {title}
       {loadHero &&
         (hero.error ? (
-          <div className="px-[4%] pb-4 pt-24 sm:pt-28">
+          <div className="px-[4%] pb-4 sf-page-top">
             {titleRow}
             <ErrorState message={`We couldn't load the featured ${heading.toLowerCase()} right now.`} onRetry={hero.reload} />
           </div>

@@ -116,12 +116,13 @@ const TextCredits: React.FC<{ label: string; items: (string | Person)[]; onMore?
           {typeof it === 'string' ? (
             <span className="text-[#ddd]">{it}</span>
           ) : (
-            <>
+            // "Name as Role" stays on one line (it used to break between first and last name).
+            <span className="inline-block max-w-full overflow-hidden text-ellipsis whitespace-nowrap align-bottom">
               <Link to={it.to || personPath(it)} className="text-[#ddd] transition-colors hover:text-white hover:underline">
                 {it.name}
               </Link>
               {it.role && <span className="text-[#a3a3a3]"> as {it.role}</span>}
-            </>
+            </span>
           )}
         </React.Fragment>
       ))}

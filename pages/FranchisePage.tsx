@@ -94,7 +94,7 @@ const FranchisePage: React.FC<{ id: number }> = ({ id }) => {
         )}
         {!data && <div className="nf-skel absolute inset-0 rounded-none opacity-60" />}
         <div className="nf-billboard-vignette" />
-        <button type="button" onClick={() => goBack('/franchises')} aria-label="Back" className="nf-circle absolute left-[4%] top-[5.4rem] z-[4] text-base max-sm:top-[4.8rem]">
+        <button type="button" onClick={() => goBack('/franchises')} aria-label="Back" className="nf-circle absolute left-[4%] top-[5.25rem] z-[4] text-base sm:top-[5.9rem]">
           <ChevronLeftIcon className="h-5 w-5" />
         </button>
         <div className="absolute bottom-[12%] left-[4%] z-[3] w-[min(52%,760px)] animate-fade-in-up max-sm:left-[6%] max-sm:right-[6%] max-sm:w-auto">

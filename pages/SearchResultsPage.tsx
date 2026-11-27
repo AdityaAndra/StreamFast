@@ -8,7 +8,7 @@ import { useCachedData } from '../utils/useCachedData';
 import { Link, useQueryParam } from '../utils/router';
 import { rankSearch, fetchSearchRelated, personExplore, SearchRelated, ExploreLink } from '../utils/searchRelated';
 import { saveRecentSearch } from '../utils/recentSearches';
-import { searchPeople, PersonSummary, deptLabel } from '../utils/person';
+import { searchPeople, PersonSummary, PersonDetails, deptLabel, getPerson, knownFor } from '../utils/person';
 import PeopleRow, { PeopleGrid, PersonTileData } from '../components/PeopleRow';
 
 type Filter = 'all' | 'movie' | 'tv' | 'person';
@@ -39,7 +39,8 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
         id: p.id,
         name: p.name,
         profile_path: p.profile_path,
-        sub: [p.known_for_department ? deptLabel(p.known_for_department) : '', (p.known_for || [])[0]?.title || (p.known_for || [])[0]?.name || ''].filter(Boolean).join(' · '),
+        // Just what they do ("Actor", "Actress", "Director"): naming one film made it look like their only work.
+        sub: p.known_for_department ? deptLabel(p.known_for_department, p.gender) : '',
       })),
     [peopleRes.data]
   );
@@ -61,6 +62,9 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   const freshResults = data !== undefined;
   // A person search ("hans zimmer") explores the person instead of a weak title match.
   const personFirst = !!topPerson && (!top || (topPerson.popularity || 0) > (top.popularity || 0) * 2);
+  // Searching a person ("mahesh babu"): show their own movies and shows, not just their photo.
+  const personData = useCachedData<PersonDetails>(personFirst && topPerson && peopleSettled ? `person:${topPerson.id}` : null, () => getPerson(topPerson!.id));
+  const personTitles = useMemo(() => (personFirst && personData.data ? knownFor(personData.data, 'all', 40) : []), [personFirst, personData.data]);
   const rel = useCachedData<SearchRelated>(
     top && freshResults && peopleSettled && !personFirst ? `searchrel:${top.media_type}:${top.id}` : null,
     () => fetchSearchRelated(top!)
@@ -76,12 +80,13 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
           out.push(r);
         }
       });
+    if (personFirst) push(personTitles);
     push(ranked.strong);
     if (!personFirst && rel.data) push(rel.data.titles);
     push(ranked.medium);
     push(ranked.weak);
     return out;
-  }, [ranked, rel.data, personFirst]);
+  }, [ranked, rel.data, personFirst, personTitles]);
   const explore: ExploreLink[] = useMemo(
     () => (personFirst && topPerson ? personExplore(topPerson) : rel.data?.explore || []),
     [personFirst, topPerson, rel.data]
@@ -101,7 +106,7 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
   ];
 
   return (
-    <div className="px-[4%] pt-24 sm:pt-32" onClickCapture={() => q && saveRecentSearch(q)}>
+    <div className="px-[4%] sf-page-top" onClickCapture={() => q && saveRecentSearch(q)}>
       {explore.length > 0 && !error && (
         <p className="mb-[1.5vw] flex flex-wrap items-center gap-x-1 gap-y-1 text-[max(14px,1.05vw)] text-[#808080]">
           <span className="mr-1">Explore titles related to:</span>
@@ -138,7 +143,7 @@ const SearchResultsPage: React.FC<{ query: string }> = ({ query }) => {
       ) : (
         <>
           {filter === 'all' && people.length > 0 && (
-            <div className="-mx-[4.17%] mb-[2vw]">
+            <div className="-mx-[4.3478%] mb-[2vw]">{/* full page width (4 / 92), so the row lines up with the 4% page edge */}
               <PeopleRow title="People" people={people.slice(0, 20)} />
             </div>
           )}

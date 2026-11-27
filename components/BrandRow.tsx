@@ -139,7 +139,7 @@ export const BrandGridPage: React.FC<{ kind: BrandKind; search?: string }> = ({ 
   const tiles = useBrandTiles(kind, mediaType, kind === 'providers' ? region : undefined);
 
   return (
-    <div className="px-[4%] pt-24 sm:pt-32">
+    <div className="px-[4%] sf-page-top">
       <div className="mb-[2vw] flex flex-wrap items-end justify-between gap-4">
         <h1 className="text-[clamp(1.6rem,2.6vw,2.75rem)] font-bold tracking-[-0.02em] text-white">{BRAND_TITLES[kind]}</h1>
         {kind === 'providers' && (

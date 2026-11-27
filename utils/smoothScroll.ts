@@ -1,63 +1,103 @@
-import Lenis from 'lenis';
+/**
+ * Page scrolling.
+ *
+ * Wheel and trackpad scrolling is the browser's own: it runs off the main thread, at the screen's refresh
+ * rate, with the system's own momentum, so it never stutters while rows, images or hover previews are busy.
+ * (A JavaScript smooth-scroll layer used to re-animate every wheel step on the main thread, which felt
+ * choppy on trackpads and whenever the page was doing work.)
+ *
+ * Only programmatic moves glide: back to top, and jumping to a section. They are time-based, so they look
+ * the same at 60, 120 or 144 Hz, and they stop the moment you scroll, click or press a key yourself.
+ */
 
-/** Inertial wheel scrolling (Lenis) on mouse/trackpad devices. Touch keeps native momentum. */
-let lenis: Lenis | null = null;
-let rafId = 0;
-
-/** Programmatic glides (scroll-to-top, jump to a section): time-based, so they look the same at 60, 120 or 144 Hz. */
-const GLIDE_SECONDS = 1.1;
+const GLIDE_SECONDS = 0.9;
 const expoOut = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t));
 
+let glideRaf = 0;
+let stopGlide: (() => void) | null = null;
+
+const instantTo = (y: number) => window.scrollTo({ top: y, left: 0, behavior: 'instant' as ScrollBehavior });
+
+const cancelGlide = () => {
+  if (glideRaf) cancelAnimationFrame(glideRaf);
+  glideRaf = 0;
+  stopGlide?.();
+  stopGlide = null;
+};
+
+/* While the page is scrolling, cards slide under a still mouse pointer. Hover effects, hover previews and
+ * hover prefetches would fire on every card passing by and make the scroll stutter, so they wait until
+ * the page has stopped for a moment (html.sf-scrolling turns hover off for the rows, see index.css). */
+let lastScroll = 0;
+let scrollingTimer = 0;
+let started = false;
+const SETTLE_MS = 160;
+export const isScrolling = () => performance.now() - lastScroll < SETTLE_MS;
+
 export const initSmoothScroll = () => {
-  if (lenis || typeof window === 'undefined' || !window.matchMedia) return;
-  const fine = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  if (!fine) return;
-  lenis = new Lenis({
-    // Wheel smoothing: Lenis damps with the real frame time, so this feels identical on 60 Hz and 120 Hz screens.
-    lerp: 0.09,
-    wheelMultiplier: 1,
-    smoothWheel: true,
-    syncTouch: false,
-    // Let modals, menus, dropdowns and inner scroll areas scroll natively.
-    prevent: (node: HTMLElement) => !!(node && node.closest && node.closest('[data-lenis-prevent], .fixed:not(header), [role="dialog"], [role="menu"], select, .overflow-y-auto')),
-  } as any);
-  // One animation loop only, and it sleeps while the tab is hidden.
-  const raf = (time: number) => {
-    lenis?.raf(time);
-    rafId = requestAnimationFrame(raf);
-  };
-  const startLoop = () => {
-    if (!rafId) rafId = requestAnimationFrame(raf);
-  };
-  const stopLoop = () => {
-    if (rafId) cancelAnimationFrame(rafId);
-    rafId = 0;
-  };
-  document.addEventListener('visibilitychange', () => (document.hidden ? stopLoop() : startLoop()));
-  if (!document.hidden) startLoop();
+  if (started || typeof window === 'undefined') return;
+  started = true;
+  const root = document.documentElement;
+  window.addEventListener(
+    'scroll',
+    () => {
+      lastScroll = performance.now();
+      if (!scrollingTimer) root.classList.add('sf-scrolling');
+      window.clearTimeout(scrollingTimer);
+      scrollingTimer = window.setTimeout(() => {
+        scrollingTimer = 0;
+        root.classList.remove('sf-scrolling');
+      }, SETTLE_MS);
+    },
+    { passive: true }
+  );
 };
 
 export const scrollToY = (y: number, smooth = false) => {
-  if (lenis) {
-    if (smooth) lenis.scrollTo(y, { lerp: 0, duration: GLIDE_SECONDS, easing: expoOut, force: true } as any);
-    else lenis.scrollTo(y, { immediate: true, force: true } as any);
-  }
-  else window.scrollTo({ top: y, behavior: smooth ? 'smooth' : 'auto' });
+  cancelGlide();
+  const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+  const target = Math.min(Math.max(0, y), max);
+  const from = window.scrollY;
+  if (!smooth || Math.abs(target - from) < 2 || document.hidden) return instantTo(target);
+  const start = performance.now();
+  const dist = target - from;
+  // Longer trips take a little longer, but never drag.
+  const dur = Math.min(GLIDE_SECONDS, 0.45 + Math.abs(dist) / 6000) * 1000;
+  const interrupt = () => cancelGlide();
+  const opts = { passive: true, capture: true } as AddEventListenerOptions;
+  window.addEventListener('wheel', interrupt, opts);
+  window.addEventListener('touchstart', interrupt, opts);
+  window.addEventListener('mousedown', interrupt, opts);
+  window.addEventListener('keydown', interrupt, opts);
+  stopGlide = () => {
+    window.removeEventListener('wheel', interrupt, opts);
+    window.removeEventListener('touchstart', interrupt, opts);
+    window.removeEventListener('mousedown', interrupt, opts);
+    window.removeEventListener('keydown', interrupt, opts);
+  };
+  const step = (now: number) => {
+    const t = Math.min(1, (now - start) / dur);
+    instantTo(from + dist * expoOut(t));
+    if (t < 1) glideRaf = requestAnimationFrame(step);
+    else cancelGlide();
+  };
+  glideRaf = requestAnimationFrame(step);
 };
 
-/** Jump straight to y (no animation), after re-measuring the page, so a stale page height from
- *  the previous screen (e.g. the full-screen player) can never clamp the jump to the top. */
+/** Jump straight to y (no animation). */
 export const jumpToY = (y: number) => {
-  (lenis as any)?.resize?.();
-  window.scrollTo(0, y);
-  if (lenis) lenis.scrollTo(y, { immediate: true, force: true } as any);
+  cancelGlide();
+  instantTo(y);
 };
 
-export const pauseScroll = () => lenis?.stop();
+/** Stop the page behind a dialog from scrolling. The scrollbar's space stays reserved (see index.css),
+ *  so nothing on the page shifts sideways when it's locked. */
+let locks = 0;
+export const pauseScroll = () => {
+  locks++;
+  document.documentElement.classList.add('sf-scroll-locked');
+};
 export const resumeScroll = () => {
-  if (!lenis) return;
-  lenis.start();
-  // Pick up wherever the page is now (it may have been moved while paused), never an old position.
-  (lenis as any).resize?.();
-  lenis.scrollTo(window.scrollY, { immediate: true, force: true } as any);
+  locks = Math.max(0, locks - 1);
+  if (!locks) document.documentElement.classList.remove('sf-scroll-locked');
 };

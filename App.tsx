@@ -89,8 +89,9 @@ const App: React.FC = () => {
   // Freeze the page behind any open dialog.
   const anyModal = isTitle || !!player || isThemeModalOpen || isResetModalOpen;
   useEffect(() => {
-    if (anyModal) pauseScroll();
-    else resumeScroll();
+    if (!anyModal) return;
+    pauseScroll();
+    return resumeScroll;
   }, [anyModal]);
 
   // Back/forward: restore scroll position once the page has rendered.
@@ -254,6 +255,7 @@ const App: React.FC = () => {
             onExport={exportList}
             onReset={() => setIsResetModalOpen(true)}
             onThemeSelect={() => setIsThemeModalOpen(true)}
+            overHero={['home', 'movies', 'tv', 'franchise', 'person'].includes(bgRoute.name)}
           />
           )}
 

@@ -16,7 +16,7 @@ const MyContentPage: React.FC<MyContentPageProps> = ({ onBrowse, onThemeSelect, 
   const empty = myList.length === 0 && continueWatchingList.length === 0;
 
   return (
-    <div className="pt-24 sm:pt-32">
+    <div className="sf-page-top">
       <div className="mb-[2vw] flex flex-wrap items-end justify-between gap-4 px-[4%]">
         <div>
           <h1 className="text-[clamp(1.6rem,2.6vw,2.75rem)] font-bold tracking-[-0.02em] text-white">My Content</h1>

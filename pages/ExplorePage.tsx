@@ -19,7 +19,7 @@ const ExplorePage: React.FC = () => {
 
   return (
     <div>
-      <div className="px-[4%] pt-24 sm:pt-32">
+      <div className="px-[4%] sf-page-top">
         <h1 className="mb-[1.4vw] text-[clamp(1.8rem,3vw,3.2rem)] font-bold tracking-[-0.02em] text-white">Categories</h1>
 
         <form

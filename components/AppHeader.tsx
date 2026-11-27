@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ProfileMenu, { HeaderSignInButton } from './ProfileMenu';
 import { StreamFastLogo, NotificationsBell } from './Brand';
 import { SearchIcon, CloseIcon, ClockIcon, ChevronDownIcon } from './Icons';
@@ -27,6 +27,8 @@ interface AppHeaderProps {
     onExport: () => void;
     onReset: () => void;
     onThemeSelect: () => void;
+    /** The page starts with a big picture (billboard, person, franchise): stay see-through over it until you scroll. */
+    overHero?: boolean;
 }
 
 const isTypingTarget = (target: EventTarget | null) => {
@@ -177,6 +179,133 @@ const NavSearch: React.FC<{ value: string; onChange: (value: string) => void }> 
     );
 };
 
+/** Desktop links. They never push the search box, bell or profile off the screen: whatever doesn't fit
+ *  in the space left (a narrow window, or the search box opening) moves into a "More" menu, last link first. */
+const DesktopNav: React.FC<{ active: NavView | null; onNavigate: (v: NavView) => void }> = ({ active, onNavigate }) => {
+    const wrapRef = useRef<HTMLDivElement>(null);
+    const measureRef = useRef<HTMLUListElement>(null);
+    const menuRef = useRef<HTMLDivElement>(null);
+    const [count, setCount] = useState(NAV_ITEMS.length);
+    const [menu, setMenu] = useState(false);
+
+    useLayoutEffect(() => {
+        const wrap = wrapRef.current;
+        const meas = measureRef.current;
+        if (!wrap || !meas) return;
+        let raf = 0;
+        const calc = () => {
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                const avail = wrap.clientWidth;
+                const cells = Array.from(meas.children) as HTMLElement[];
+                const more = cells.pop();
+                if (!more) return;
+                const gap = parseFloat(getComputedStyle(meas).columnGap) || 0;
+                const widths = cells.map((c) => c.getBoundingClientRect().width);
+                const all = widths.reduce((a, b) => a + b, 0) + gap * (widths.length - 1);
+                if (all <= avail) return setCount(widths.length);
+                let used = more.getBoundingClientRect().width;
+                let n = 0;
+                for (const w of widths) {
+                    if (used + gap + w > avail) break;
+                    used += gap + w;
+                    n++;
+                }
+                setCount(n);
+            });
+        };
+        calc();
+        const ro = new ResizeObserver(calc);
+        ro.observe(wrap);
+        (document as any).fonts?.ready?.then(calc);
+        return () => {
+            ro.disconnect();
+            cancelAnimationFrame(raf);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!menu) return;
+        const onDown = (e: MouseEvent) => menuRef.current && !menuRef.current.contains(e.target as Node) && setMenu(false);
+        const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(false);
+        document.addEventListener('mousedown', onDown);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('mousedown', onDown);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [menu]);
+    useEffect(() => {
+        if (count >= NAV_ITEMS.length) setMenu(false);
+    }, [count]);
+
+    const shown = NAV_ITEMS.slice(0, count);
+    const hidden = NAV_ITEMS.slice(count);
+    const hiddenActive = hidden.some((i) => i.id === active);
+
+    return (
+        <div ref={wrapRef} className="relative hidden min-w-0 flex-1 lg:block">
+            {/* Invisible copy used only to measure each link at its widest (bold) size. */}
+            <ul ref={measureRef} aria-hidden="true" className="pointer-events-none invisible absolute left-0 top-0 flex items-center gap-0.5 whitespace-nowrap xl:gap-1">
+                {NAV_ITEMS.map((item) => (
+                    <li key={item.id} className="nf-nav-item is-active">{item.label}</li>
+                ))}
+                <li className="nf-nav-item is-active flex items-center gap-1">More<ChevronDownIcon className="h-4 w-4" /></li>
+            </ul>
+            <ul className="flex items-center gap-0.5 whitespace-nowrap xl:gap-1">
+                {shown.map((item) => (
+                    <li key={item.id}>
+                        <button
+                            type="button"
+                            onClick={() => onNavigate(item.id)}
+                            aria-current={active === item.id ? 'page' : undefined}
+                            className={`nf-nav-item ${active === item.id ? 'is-active' : ''}`}
+                        >
+                            {item.label}
+                        </button>
+                    </li>
+                ))}
+                {hidden.length > 0 && (
+                    <li>
+                        <div ref={menuRef} className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setMenu((o) => !o)}
+                                aria-haspopup="menu"
+                                aria-expanded={menu}
+                                className={`nf-nav-item flex items-center gap-1 ${hiddenActive ? 'is-active' : ''}`}
+                            >
+                                More
+                                <ChevronDownIcon className={`h-4 w-4 transition-transform duration-300 ${menu ? 'rotate-180' : ''}`} />
+                            </button>
+                            {menu && (
+                                <ul role="menu" className="absolute left-0 top-full z-50 mt-3 min-w-[13rem] overflow-hidden rounded-lg border border-white/10 bg-[#181818]/[0.98] py-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.7)] animate-dropdown-in">
+                                    {hidden.map((item) => (
+                                        <li key={item.id} role="none">
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                onClick={() => {
+                                                    setMenu(false);
+                                                    onNavigate(item.id);
+                                                }}
+                                                aria-current={active === item.id ? 'page' : undefined}
+                                                className={`block w-full px-4 py-2.5 text-left text-[15px] transition-colors hover:bg-white/[0.08] ${active === item.id ? 'font-bold text-white' : 'text-[#e5e5e5]'}`}
+                                            >
+                                                {item.label}
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </li>
+                )}
+            </ul>
+        </div>
+    );
+};
+
 /** Mobile "Browse" dropdown (Netflix collapses the nav links on small screens). */
 const MobileBrowse: React.FC<{ active: NavView | null; onNavigate: (v: NavView) => void }> = ({ active, onNavigate }) => {
     const [open, setOpen] = useState(false);
@@ -226,6 +355,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     onExport,
     onReset,
     onThemeSelect,
+    overHero = false,
 }) => {
     const [scrolled, setScrolled] = useState(false);
 
@@ -250,7 +380,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
     }, []);
 
     const active: NavView | null = !isSearching && NAV_ITEMS.some((n) => n.id === view) ? (view as NavView) : null;
-    const solid = scrolled || isSearching || ['my-list', 'explore', 'languages', 'other'].includes(view);
+    const solid = scrolled || isSearching || (!overHero && ['my-list', 'explore', 'languages', 'other'].includes(view));
 
     return (
         <header className="sf-header fixed inset-x-0 top-0 z-40">
@@ -261,21 +391,8 @@ const AppHeader: React.FC<AppHeaderProps> = ({
                     <StreamFastLogo />
                 </button>
 
-                <nav aria-label="Primary" className="flex-1">
-                    <ul className="hidden items-center gap-0.5 lg:flex xl:gap-1">
-                        {NAV_ITEMS.map((item) => (
-                            <li key={item.id}>
-                                <button
-                                    type="button"
-                                    onClick={() => onNavigate(item.id)}
-                                    aria-current={active === item.id ? 'page' : undefined}
-                                    className={`nf-nav-item ${active === item.id ? 'is-active' : ''}`}
-                                >
-                                    {item.label}
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
+                <nav aria-label="Primary" className="flex min-w-0 flex-1 items-center">
+                    <DesktopNav active={active} onNavigate={onNavigate} />
                     <MobileBrowse active={active} onNavigate={onNavigate} />
                 </nav>
 

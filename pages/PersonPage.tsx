@@ -164,9 +164,9 @@ const CreditsPanel: React.FC<{ person: PersonDetails; media: Media; onMedia: (m:
             </select>
           )}
           {onSeeAll && (
-            <button type="button" onClick={onSeeAll} className="nf-btn nf-btn-grey !gap-1 !px-3.5 !py-1.5 !text-[13px]">
+            <button type="button" onClick={onSeeAll} className="nf-tool-btn">
               All credits
-              <ChevronRightIcon className="h-4 w-4" />
+              <ChevronRightIcon />
             </button>
           )}
         </div>
@@ -541,10 +541,12 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-[#141414]/40 via-[#141414]/75 to-[#141414]" aria-hidden="true" />
-        <div className="relative flex gap-[max(20px,3vw)] px-[4%] pb-[max(22px,2vw)] pt-[max(96px,7.5rem)] max-md:flex-col max-md:items-center max-md:text-center">
-          <button type="button" onClick={() => goBack('/')} aria-label="Back" className="nf-circle absolute left-[4%] top-[5.2rem] z-[4] text-base max-md:top-[4.8rem]">
+        <div className="relative px-[4%] pb-[max(22px,2vw)] pt-[5.25rem] sm:pt-[5.9rem]">
+          {/* Back sits on its own row: 1rem under the header and above the photo, lined up with the page edge. */}
+          <button type="button" onClick={() => goBack('/')} aria-label="Back" className="nf-circle relative z-[4] mb-[max(14px,1.1vw)] text-base">
             <ChevronLeftIcon className="h-5 w-5" />
           </button>
+          <div className="flex gap-[max(20px,3vw)] max-md:flex-col max-md:items-center max-md:text-center">
           <div className="w-[clamp(150px,16vw,280px)] flex-shrink-0 animate-fade-in">
             <div className="aspect-[2/3] overflow-hidden rounded-2xl bg-[#232323] shadow-[0_20px_50px_-12px_rgba(0,0,0,0.8)] ring-1 ring-white/10">
               {person.profile_path && <img src={tmdbImage(person.profile_path, 'w500') || ''} alt={person.name} decoding="async" className="h-full w-full object-cover" />}
@@ -565,7 +567,10 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
             </div>
             {bio && (
               <div className="mt-[max(12px,1.1vw)] max-w-[60rem] text-left">
-                <p className={`whitespace-pre-line text-[max(14px,1.02vw)] leading-[1.6] text-[#d2d2d2] ${bioOpen ? '' : 'line-clamp-4'}`}>{bio}</p>
+                <p className={`text-[max(14px,1.02vw)] leading-[1.6] text-[#d2d2d2] ${bioOpen ? 'whitespace-pre-line' : 'line-clamp-4'}`}>
+                  {/* Collapsed: paragraphs run together so the 4th line ends in a clean "…" (not a lone "..." line). */}
+                  {bioOpen ? bio : bio.replace(/\s*\n+\s*/g, ' ').replace(/(\s*\.{3}|\s*…)\s*$/, '')}
+                </p>
                 {bio.length > 380 && (
                   <button type="button" onClick={() => setBioOpen((o) => !o)} className="mt-1 text-[max(13px,0.95vw)] font-semibold text-white hover:underline">
                     {bioOpen ? 'Show less' : 'Read more'}
@@ -588,6 +593,7 @@ const PersonPage: React.FC<{ id: number }> = ({ id }) => {
                 ))}
               </div>
             )}
+          </div>
           </div>
         </div>
       </section>
