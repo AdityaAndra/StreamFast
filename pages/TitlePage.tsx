@@ -17,6 +17,8 @@ import { PlayIcon, PlusIcon, CheckStaticIcon, LinkIcon, CloseIcon, ChevronDownIc
 import { useTrailer } from '../utils/trailer';
 import { holdPreviews, PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
 import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from '../components/TrailerPreview';
+import { QualityPill } from '../components/ReleaseBadge';
+import { comingDate, loadReleases, releaseOf, seedRelease, useRelease, useReleaseVersion } from '../utils/release';
 
 /** The hero picture shows this long before the trailer fades in behind the logo and buttons. */
 const TRAILER_DELAY_MS = 0;  // starts loading at once; it plays hidden for its first ~4s (see TrailerFrame)
@@ -329,7 +331,7 @@ const MoreCard: React.FC<{ r: SearchResult }> = ({ r }) => {
             <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-[#bcbcbc]">
               <ImdbRating item={r} size="sm" />
               <span className="border border-white/40 px-1 leading-[1.5]">{r.media_type === 'movie' ? 'Movie' : 'Series'}</span>
-              <span className="rounded-[3px] border border-white/40 px-1 text-[10px] font-bold leading-[1.6]">HD</span>
+              <QualityPill item={r} className="rounded-[3px] border border-white/40 px-1 text-[10px] font-bold leading-[1.6]" />
             </div>
             {getYear(r) && <p className="mt-1 text-[15px] text-white">{getYear(r)}</p>}
           </div>
@@ -378,14 +380,25 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
   const [moreOpen, setMoreOpen] = useState(() => readEntryState<boolean>('tMore') === true);
 
   const item = useMemo(() => (data ? toSearchResult(data) : null), [data]);
+  // The title window already has this movie's release dates: they decide coming soon / CAM / HD.
+  useEffect(() => {
+    if (data && mediaType === 'movie') seedRelease(id, (data as any).release_dates?.results);
+  }, [data, mediaType, id]);
+  const release = useRelease(item);
   const saved = continueWatchingList.find((cw) => cw.media.id === id && cw.media.media_type === mediaType);
-  const recs = useMemo(() => {
+  const allRecs = useMemo(() => {
     const raw = data?.recommendations?.results?.length ? data.recommendations.results : data?.similar?.results || [];
     return raw
       .filter((r: any) => r.backdrop_path || r.poster_path)
       .slice(0, 18)
       .map((r: any) => ({ ...r, media_type: r.media_type === 'tv' || r.media_type === 'movie' ? r.media_type : mediaType })) as SearchResult[];
   }, [data, mediaType]);
+  // More Like This leaves out titles that aren't out yet (they're in Coming Soon).
+  useReleaseVersion();
+  useEffect(() => {
+    void loadReleases(allRecs);
+  }, [allRecs]);
+  const recs = allRecs.filter((r) => releaseOf(r) !== 'soon');
 
   // Current episode name + synopsis for a show you're part-way through.
   const curSeason = mediaType === 'tv' && saved?.progress.season ? saved.progress.season : undefined;
@@ -396,10 +409,10 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
     if (item) document.title = `${getTitle(item)} — StreamFast`;
   }, [item]);
   useEffect(() => {
-    if (recs.length) prefetchLogos(recs);
-  }, [recs]);
+    if (allRecs.length) prefetchLogos(allRecs);
+  }, [allRecs]);
   useEffect(() => {
-    if (item && autoPlay) navigate(watchPath(item, saved?.progress), { replace: true });
+    if (item && autoPlay && releaseOf(item) !== 'soon') navigate(watchPath(item, saved?.progress), { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item, autoPlay]);
 
@@ -522,10 +535,17 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             </div>
           )}
           <div className="sf-rise flex flex-wrap items-center gap-2" style={{ ['--d' as any]: 1 }}>
-            <button type="button" className="nf-btn nf-btn-white !h-[2.6rem] !px-6 !text-[16px]" onClick={() => openPlayer(item, { tab: 'watch', progress: saved?.progress })}>
-              <PlayIcon />
-              {playLabel}
-            </button>
+            {release === 'soon' ? (
+              // Not out yet: its date instead of Play (adding it to My List gets a bell alert when it's out).
+              <span className="nf-btn nf-btn-white !h-[2.6rem] cursor-default !px-6 !text-[16px] opacity-90">
+                {comingDate(item) ? `Coming ${comingDate(item)}` : 'Coming soon'}
+              </span>
+            ) : (
+              <button type="button" className="nf-btn nf-btn-white !h-[2.6rem] !px-6 !text-[16px]" onClick={() => openPlayer(item, { tab: 'watch', progress: saved?.progress })}>
+                <PlayIcon />
+                {playLabel}
+              </button>
+            )}
             <button
               type="button"
               className="nf-circle text-[16px]"
@@ -535,14 +555,16 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             >
               {inList ? <CheckStaticIcon className="h-[1.1em] w-[1.1em]" /> : <PlusIcon className="h-[1.2em] w-[1.2em]" />}
             </button>
-            <button
-              type="button"
-              className="nf-circle text-[16px]"
-              onClick={() => openPlayer(item, { progress: saved?.progress, tab: item.media_type === 'tv' ? 'episodes' : 'actions' })}
-              aria-label="Get Link"
-            >
-              <LinkIcon className="h-[1.05em] w-[1.05em]" />
-            </button>
+            {release !== 'soon' && (
+              <button
+                type="button"
+                className="nf-circle text-[16px]"
+                onClick={() => openPlayer(item, { progress: saved?.progress, tab: item.media_type === 'tv' ? 'episodes' : 'actions' })}
+                aria-label="Get Link"
+              >
+                <LinkIcon className="h-[1.05em] w-[1.05em]" />
+              </button>
+            )}
           </div>
         </div>
         {showTrailer && (trailerPlaying || phase === 'ended') && (
@@ -563,7 +585,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             <ImdbRating item={item} size="sm" />
             {year && <span>{year}</span>}
             {length && <span>{length}</span>}
-            <span className="rounded-[3px] border border-white/40 px-1 text-[11px] font-bold leading-[1.5]">HD</span>
+            <QualityPill item={item} className="rounded-[3px] border border-white/40 px-1 text-[11px] font-bold leading-[1.5]" />
           </div>
           {rating && (
             <div className="mt-1.5 text-[14px]">
