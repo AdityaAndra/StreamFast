@@ -603,9 +603,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
    pointer reaches it, so clicks and drags always go to VidFast's player underneath. */
 .sf-grid {
   position: absolute; left: 0; right: 0; top: 0; height: 100%; z-index: 2; overflow: hidden;
-  display: grid; pointer-events: none;
+  pointer-events: none;
 }
-.sf-grid > i { display: block; pointer-events: auto; }
+/* The invisible cover around the open window (4 pieces, placed by the watch page). */
+.sf-grid > i { position: absolute; display: block; pointer-events: auto; }
 
 /* ============ Episodes panel: Netflix's (measured from netflix.com's player) ============
    #262626 card, 7.2px corners, ~44.5% of the width, 75% of the height at most, 0.15s fade.
