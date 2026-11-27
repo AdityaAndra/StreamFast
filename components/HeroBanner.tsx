@@ -15,6 +15,7 @@ import { ImdbRating, useHasImdb } from './Imdb';
 import { loadTrailer, useTrailer } from '../utils/trailer';
 import { PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
 import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from './TrailerPreview';
+import { seedRelease, useRelease } from '../utils/release';
 
 const MAX_SLIDES = 6;
 const SLIDE_MS = 10000;
@@ -71,6 +72,11 @@ const Meta: React.FC<{ item: SearchResult }> = ({ item }) => {
     certificationOf(data),
   ].filter(Boolean) as string[];
   const hasImdb = useHasImdb(item);
+  useEffect(() => {
+    if (data && item.media_type === 'movie') seedRelease(item.id, (data as any).release_dates?.results);
+  }, [data, item.id, item.media_type]);
+  // Only cinema recordings so far: a CAM pill after the details (the cards and title page show it too).
+  const cam = useRelease(item) === 'cam';
   return (
     <div className="nf-hero-meta">
       <ImdbRating item={item} size="md" />
@@ -81,6 +87,14 @@ const Meta: React.FC<{ item: SearchResult }> = ({ item }) => {
           <span>{p}</span>
         </React.Fragment>
       ))}
+      {cam && (
+        <>
+          <span className="nf-dot" aria-hidden="true" />
+          <span className="rounded-[3px] border border-white/60 px-[0.35em] text-[0.85em] font-bold leading-[1.4]">
+            CAM<span className="sr-only"> (cinema recording, not out in HD yet)</span>
+          </span>
+        </>
+      )}
     </div>
   );
 };
