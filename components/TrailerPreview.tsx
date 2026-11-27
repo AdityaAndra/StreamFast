@@ -376,7 +376,6 @@ export const PreviewSoundButton: React.FC<{ muted: boolean; onToggle: () => void
     }}
     className={`sf-sound-btn ${className}`}
     aria-label={muted ? 'Turn sound on' : 'Turn sound off'}
-    title={muted ? 'Sound on' : 'Sound off'}
   >
     <SpeakerIcon muted={muted} />
   </button>
@@ -392,7 +391,6 @@ export const PreviewReplayButton: React.FC<{ onReplay: () => void; className?: s
     }}
     className={`sf-sound-btn ${className}`}
     aria-label="Replay preview"
-    title="Replay"
   >
     <ReplayIcon />
   </button>
@@ -423,7 +421,6 @@ export const AutoplayPreviewsSwitch: React.FC<{ className?: string }> = ({ class
       role="switch"
       aria-checked={on}
       onClick={() => setOn(!on)}
-      title="Play trailers automatically on the billboard, in hover previews and in title windows"
       className={`nf-btn nf-btn-grey !gap-3 !px-4 !py-2 !text-sm ${className}`}
     >
       <PreviewsIcon className="!m-0 !h-[1.15em] !w-[1.15em]" />
