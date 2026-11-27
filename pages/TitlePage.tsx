@@ -18,7 +18,7 @@ import { useTrailer } from '../utils/trailer';
 import { holdPreviews, PREVIEW_LEVEL, PREVIEWS_SAVE_DATA, useAutoplayPreviews, usePageHidden, usePreviewMuted, usePreviewsBlocked } from '../utils/previews';
 import { PreviewReplayButton, PreviewSoundButton, TrailerFrame, type TrailerPhase, useArmAfter } from '../components/TrailerPreview';
 import { QualityPill } from '../components/ReleaseBadge';
-import { comingDate, loadReleases, releaseOf, seedRelease, useRelease, useReleaseVersion } from '../utils/release';
+import { comingLabel, loadReleases, releaseOf, seedRelease, useRelease, useReleaseVersion } from '../utils/release';
 
 /** The hero picture shows this long before the trailer fades in behind the logo and buttons. */
 const TRAILER_DELAY_MS = 0;  // starts loading at once; it plays hidden for its first ~4s (see TrailerFrame)
@@ -538,7 +538,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             {release === 'soon' ? (
               // Not out yet: its date instead of Play (adding it to My List gets a bell alert when it's out).
               <span className="nf-btn nf-btn-white !h-[2.6rem] cursor-default !px-6 !text-[16px] opacity-90">
-                {comingDate(item) ? `Coming ${comingDate(item)}` : 'Coming soon'}
+                {comingLabel(item)}
               </span>
             ) : (
               <button type="button" className="nf-btn nf-btn-white !h-[2.6rem] !px-6 !text-[16px]" onClick={() => openPlayer(item, { tab: 'watch', progress: saved?.progress })}>
@@ -585,7 +585,7 @@ const TitleContent: React.FC<{ mediaType: 'movie' | 'tv'; id: number; autoPlay?:
             <ImdbRating item={item} size="sm" />
             {year && <span>{year}</span>}
             {length && <span>{length}</span>}
-            <QualityPill item={item} className="rounded-[3px] border border-white/40 px-1 text-[11px] font-bold leading-[1.5]" />
+            <QualityPill item={item} hd="long" className="rounded-[3px] border border-white/40 px-1 text-[11px] font-bold leading-[1.5]" />
           </div>
           {rating && (
             <div className="mt-1.5 text-[14px]">
