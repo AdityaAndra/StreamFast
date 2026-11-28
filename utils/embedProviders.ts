@@ -35,6 +35,8 @@ export type ProviderMessage = {
   quality?: string;
   /** A command we sent was refused (e.g. sent before the stream was ready). Not fatal; surfaced for logging. */
   commandError?: { command: string; field?: string; reason: string };
+  /** VidRift only (fs=parent): the viewer pressed F / double-clicked and wants us to own fullscreen. */
+  fullscreenRequest?: boolean;
 };
 
 export interface EmbedProvider {
@@ -52,6 +54,10 @@ export interface EmbedProvider {
     getState?: () => any;
     playPause?: (action: 'play' | 'pause' | 'toggle') => any;
     setState?: (patch: { volume?: number; muted?: boolean; subtitle?: string; audio?: string; quality?: string }) => any;
+    /** VidRift only: relative seek (±seconds), absolute seek, and reporting our own fullscreen state. */
+    skip?: (seconds: number) => any;
+    seek?: (time: number) => any;
+    setFullscreenState?: (on: boolean) => any;
   };
 }
 
@@ -66,6 +72,10 @@ const qs = (params: Record<string, string | number | boolean | undefined>) =>
     .filter(([, v]) => v !== undefined && v !== '')
     .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
     .join('&');
+
+// Every VidRift native control our own overlay replaces (see WatchPage's "vidrift" block): nothing
+// of its own chrome is left on screen once this takes effect.
+const VIDRIFT_HIDE = 'progress,play,volume,skip,time,title,server,next,episodes,subtitles,settings,lock,pip,cast,fullscreen,gradient,pausecard';
 
 const CineLite: EmbedProvider = {
   id: 'cinelite',
@@ -144,10 +154,16 @@ const VidRift: EmbedProvider = {
   id: 'vidrift',
   name: 'VidRift',
   origins: ['https://embed.vidrift.net'],
-  movieUrl: (id, o) => `https://embed.vidrift.net/embed/movie/${id}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme })}`,
-  tvUrl: (id, s, e, o) => `https://embed.vidrift.net/embed/tv/${id}/${s}/${e}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme })}`,
-  // VidRift's real message is `vidrift:state` (resent whenever anything in it changes) and
-  // `vidrift:command-error`. Earlier this looked for message names VidRift never actually sends.
+  // hide=... removes VidRift's whole native bar/pause card — our own overlay (scrubber, play/pause,
+  // skip, volume, time, subtitles, audio, fullscreen) replaces every one of these. fs=parent hands
+  // fullscreen to our page too (see the WatchPage fullscreenchange effect and vidrift:fullscreen below).
+  movieUrl: (id, o) =>
+    `https://embed.vidrift.net/embed/movie/${id}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme, hide: VIDRIFT_HIDE, fs: 'parent' })}`,
+  tvUrl: (id, s, e, o) =>
+    `https://embed.vidrift.net/embed/tv/${id}/${s}/${e}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme, hide: VIDRIFT_HIDE, fs: 'parent' })}`,
+  // VidRift's real message is `vidrift:state` (resent whenever anything in it changes),
+  // `vidrift:command-error`, and — because of fs=parent above — `vidrift:fullscreen` when the
+  // viewer presses F or double-clicks (there is no native button left for them to click instead).
   parseMessage: (d) => {
     if (!d || typeof d !== 'object' || typeof d.type !== 'string' || !d.type.startsWith('vidrift:')) return null;
     if (d.type === 'vidrift:state') {
@@ -167,6 +183,7 @@ const VidRift: EmbedProvider = {
       };
     }
     if (d.type === 'vidrift:command-error') return { commandError: { command: d.command, field: d.field, reason: d.reason } };
+    if (d.type === 'vidrift:fullscreen') return { fullscreenRequest: !!d.on };
     return null;
   },
   allowSandbox: false,
@@ -177,6 +194,11 @@ const VidRift: EmbedProvider = {
       const { quality, ...rest } = patch; // VidRift takes quality too, but it's outside this task's scope
       return Object.keys(rest).length ? { type: 'vidrift:set', ...rest } : null;
     },
+    // Full custom bar extras: relative ±seconds skip, absolute seek (resume), and echoing our own
+    // fullscreen state back so the player (fs=parent) always agrees with what our page is doing.
+    skip: (seconds) => ({ type: 'vidrift:skip', seconds }),
+    seek: (time) => ({ type: 'vidrift:resume', currentTime: time }),
+    setFullscreenState: (on) => ({ type: 'vidrift:fullscreen-state', on }),
   },
 };
 
