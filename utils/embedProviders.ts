@@ -13,12 +13,28 @@
 
 export const PROVIDER_TIMEOUT_MS = 10000;
 
+/** One selectable option in a track/quality list a provider pushes to us (label is theirs). */
+export interface TrackOption {
+  value: string;
+  label: string;
+}
+
 export type ProviderMessage = {
   playing?: boolean;
   ended?: boolean;
   currentTime?: number;
   duration?: number;
   ready?: boolean;
+  // Pushed by the few providers whose embed actually reports/accepts these (see `commands` below).
+  volume?: number;
+  muted?: boolean;
+  subtitle?: string;
+  subtitles?: TrackOption[];
+  audio?: string;
+  audios?: TrackOption[];
+  quality?: string;
+  /** A command we sent was refused (e.g. sent before the stream was ready). Not fatal; surfaced for logging. */
+  commandError?: { command: string; field?: string; reason: string };
 };
 
 export interface EmbedProvider {
@@ -29,6 +45,14 @@ export interface EmbedProvider {
   tvUrl: (tmdbId: number, season: number, episode: number, opts: ProviderUrlOpts) => string;
   parseMessage: (data: any) => ProviderMessage | null;
   allowSandbox: boolean;
+  /** Messages our page can POST to the embed. Omit a method entirely when the provider has
+   *  no documented way to do that — most don't accept anything beyond their URL options. */
+  commands?: {
+    /** Ask the embed to (re)send its current state once, right after it loads. */
+    getState?: () => any;
+    playPause?: (action: 'play' | 'pause' | 'toggle') => any;
+    setState?: (patch: { volume?: number; muted?: boolean; subtitle?: string; audio?: string; quality?: string }) => any;
+  };
 }
 
 export interface ProviderUrlOpts {
@@ -59,6 +83,12 @@ const CineLite: EmbedProvider = {
     return null;
   },
   allowSandbox: true,
+  commands: {
+    // Channel-mode (ui=channel, set in the URL above) listens for play/pause/toggle from our buttons.
+    playPause: (action) => ({ type: 'CINELITE_CMD', action }),
+    // CineLite only takes quality from us; it has no inbound volume/subtitle/audio message.
+    setState: (patch) => (patch.quality ? { type: 'CINELITE_SYNC_SETTINGS', preferredQuality: patch.quality } : null),
+  },
 };
 
 const VidFast: EmbedProvider = {
@@ -116,14 +146,38 @@ const VidRift: EmbedProvider = {
   origins: ['https://embed.vidrift.net'],
   movieUrl: (id, o) => `https://embed.vidrift.net/embed/movie/${id}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme })}`,
   tvUrl: (id, s, e, o) => `https://embed.vidrift.net/embed/tv/${id}/${s}/${e}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme })}`,
+  // VidRift's real message is `vidrift:state` (resent whenever anything in it changes) and
+  // `vidrift:command-error`. Earlier this looked for message names VidRift never actually sends.
   parseMessage: (d) => {
     if (!d || typeof d !== 'object' || typeof d.type !== 'string' || !d.type.startsWith('vidrift:')) return null;
-    if (d.type === 'vidrift:progress') return { ready: true, currentTime: d.currentTime, duration: d.duration };
-    if (d.type === 'vidrift:ended') return { ready: true, ended: true };
-    if (d.type === 'vidrift:ui-hidden' || d.type === 'vidrift:providers') return { ready: true };
-    return { ready: true };
+    if (d.type === 'vidrift:state') {
+      return {
+        ready: true,
+        playing: typeof d.paused === 'boolean' ? !d.paused : undefined,
+        currentTime: d.currentTime,
+        duration: d.duration,
+        ended: typeof d.currentTime === 'number' && typeof d.duration === 'number' && d.duration > 0 && d.currentTime >= d.duration - 0.5,
+        volume: d.volume,
+        muted: d.muted,
+        subtitle: d.subtitle,
+        subtitles: d.subtitles,
+        audio: d.audio,
+        audios: d.audios,
+        quality: d.quality,
+      };
+    }
+    if (d.type === 'vidrift:command-error') return { commandError: { command: d.command, field: d.field, reason: d.reason } };
+    return null;
   },
   allowSandbox: false,
+  commands: {
+    getState: () => ({ type: 'vidrift:get-state' }),
+    playPause: (action) => (action === 'pause' ? { type: 'vidrift:pause' } : action === 'play' ? { type: 'vidrift:play' } : null),
+    setState: (patch) => {
+      const { quality, ...rest } = patch; // VidRift takes quality too, but it's outside this task's scope
+      return Object.keys(rest).length ? { type: 'vidrift:set', ...rest } : null;
+    },
+  },
 };
 
 const VidZee: EmbedProvider = {
