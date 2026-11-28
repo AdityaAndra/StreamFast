@@ -9,7 +9,7 @@ import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { PlayIcon } from '../components/Icons';
 import { comingSentence, seedRelease, useRelease } from '../utils/release';
 import VIDFAST_SERVERS from '../data/vidfast-servers.json';
-import { PROVIDERS, PROVIDER_TIMEOUT_MS, TrackOption } from '../utils/embedProviders';
+import { PROVIDERS, PROVIDER_TIMEOUT_MS, TrackOption, SELECTABLE_PROVIDERS, DIRECT_PROVIDER_ID } from '../utils/embedProviders';
 
 const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
@@ -184,6 +184,14 @@ const VfFsExit = () => (
     <path d="M4 9h4a1 1 0 0 0 1-1V4M20 9h-4a1 1 0 0 1-1-1V4M4 15h4a1 1 0 0 1 1 1v4M20 15h-4a1 1 0 0 0-1 1v4" />
   </svg>
 );
+/** "Servers & Mode" — the global provider/source picker (works for every provider, not just one). */
+const VfServers = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="6" rx="1.5" />
+    <rect x="3" y="14" width="18" height="6" rx="1.5" />
+    <path d="M7 7h.01M7 17h.01" strokeWidth="2.2" />
+  </svg>
+);
 /** CineLite's own quality values (its docs list these five). */
 const CINELITE_QUALITIES: TrackOption[] = [
   { value: 'auto', label: 'Auto' },
@@ -260,9 +268,22 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // third-party embeds in order. We switch to the next one if the current provider hasn't proved
   // it's actually playing (a real ready/progress signal) within PROVIDER_TIMEOUT_MS.
   const [providerIndex, setProviderIndex] = useState(0);
-  const provider = PROVIDERS[providerIndex];
   const providerIndexRef = useRef(providerIndex);
   providerIndexRef.current = providerIndex;
+  // "Servers & Mode" manual override (see the sf-mode-menu below): null while the usual
+  // auto-cascade is driving things; a provider id once the viewer has picked one themselves.
+  // Picking "Direct" sets this to CineLite's id; picking anything in "Embed" sets it to that
+  // provider's id (including VidRift's own two looks, native and our custom bar).
+  const [manualProviderId, setManualProviderId] = useState<string | null>(null);
+  // "Servers & Mode" panel: open/closed, and whether its Embed section is expanded to show the
+  // Source list (closed by default each time the panel opens unless we're already on an embed
+  // provider, in which case it opens pre-expanded to show what's currently picked).
+  const [modeMenu, setModeMenu] = useState(false);
+  const [embedExpanded, setEmbedExpanded] = useState(false);
+  const provider = useMemo(
+    () => (manualProviderId ? SELECTABLE_PROVIDERS.find((p) => p.id === manualProviderId) || PROVIDERS[providerIndex] : PROVIDERS[providerIndex]),
+    [manualProviderId, providerIndex],
+  );
   const [defaultServer, setDefaultServer] = useState<string>(loadServer);
   const [server, setServer] = useState<string>(loadServer);
   // Where to restart after a server switch, tied to the episode it belongs to, so the next episode's
@@ -286,7 +307,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // A fresh title starts back at the primary source; a provider that works (or fails) for one
   // episode of the same show is kept for the next episode too, instead of retrying a dead primary
   // every time.
-  useEffect(() => setProviderIndex(0), [id]);
+  useEffect(() => {
+    setProviderIndex(0);
+    setManualProviderId(null); // a fresh title always starts back on the usual auto-cascade
+  }, [id]);
 
   // When VidFast moves to the next episode on its own we only update the address bar: the player is
   // already playing that episode, so rebuilding its address would reload it from the start.
@@ -457,6 +481,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setVrState({ volume: 1, muted: false, subtitle: 'off', subtitles: [], audio: '', audios: [] });
     setVrProgress({ currentTime: 0, duration: 0 });
     setScrubTime(null);
+    setModeMenu(false);
     const t = window.setTimeout(() => setStuck(true), STUCK_MS);
     // Autoplay guard: never got ready -> load it again without autoplay.
     const g = autoplay
@@ -479,13 +504,15 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // move to the next one. Resets whenever the src changes (new episode, or an earlier switch),
   // same as the reset effect above, so the clock always measures the CURRENT provider's load time.
   useEffect(() => {
-    if (notOut) return;
+    // A manual "Servers & Mode" pick means the viewer chose this provider on purpose: never
+    // second-guess it by auto-advancing to the next one in the cascade.
+    if (notOut || manualProviderId) return;
     const t = window.setTimeout(() => {
       if (readyRef.current) return; // this provider came up in time
       setProviderIndex((i) => (i + 1 < PROVIDERS.length ? i + 1 : i));
     }, PROVIDER_TIMEOUT_MS);
     return () => window.clearTimeout(t);
-  }, [src, notOut]);
+  }, [src, notOut, manualProviderId]);
 
 
   /* ---------- progress saving (Continue Watching) ---------- */
@@ -536,7 +563,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
             setPaused(!msg.playing);
           }
         }
-        if (provider.id === 'vidrift') {
+        if (provider.id === 'vidrift' || provider.id === 'vidrift-custom') {
           setVrState((v) => ({
             volume: typeof msg.volume === 'number' ? msg.volume : v.volume,
             muted: typeof msg.muted === 'boolean' ? msg.muted : v.muted,
@@ -691,7 +718,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     document.body.style.overflow = 'hidden';
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (serverMenu) setServerMenu(false);
+        if (modeMenu) setModeMenu(false);
+        else if (serverMenu) setServerMenu(false);
         else if (qualityMenu) setQualityMenu(false);
         else if (vrMenu) setVrMenu(null);
         else if (panel) setPanel(false);
@@ -703,7 +731,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [panel, serverMenu, qualityMenu, vrMenu, id, mediaType, item]);
+  }, [panel, serverMenu, qualityMenu, vrMenu, modeMenu, id, mediaType, item]);
 
   useEffect(() => {
     if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — StreamFast`;
@@ -727,10 +755,11 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       }
       wasOurs = !!box && el === box;
       setIsFullscreen(wasOurs);
-      // VidRift (fs=parent) expects to be told whenever our box's fullscreen state changes,
-      // so its own (hidden) fullscreen icon state and phone sheets would stay right if shown.
-      const prov = PROVIDERS[providerIndexRef.current];
-      if (prov.id === 'vidrift') sendCommandRef.current(prov.commands?.setFullscreenState?.(wasOurs));
+      // VidRift (fs=parent, native or custom bar alike) expects to be told whenever our box's
+      // fullscreen state changes, so its own fullscreen icon state and phone sheets stay right
+      // (native look) or our echo stays in sync (custom bar).
+      const prov = providerRef.current;
+      if (prov.id === 'vidrift' || prov.id === 'vidrift-custom') sendCommandRef.current(prov.commands?.setFullscreenState?.(wasOurs));
     };
     document.addEventListener('fullscreenchange', onFs);
     return () => document.removeEventListener('fullscreenchange', onFs);
@@ -770,6 +799,11 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   // today's sendCommand/provider instead of the one that existed when the page first loaded.
   const sendCommandRef = useRef(sendCommand);
   sendCommandRef.current = sendCommand;
+  // A ref mirror of the active provider itself (not just its cascade index — a manual "Servers &
+  // Mode" pick, like VidRift's custom bar, may not even be in the cascade list), for effects below
+  // that only run once (mount-time) and need today's provider, not the one from first render.
+  const providerRef = useRef(provider);
+  providerRef.current = provider;
 
   /* ---------- hover sync ----------
      VidFast's player is its own page inside ours, so mouse moves over it never reach us, and its
@@ -924,6 +958,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           setPanel(false);
           setQualityMenu(false);
           setVrMenu(null);
+          setModeMenu(false);
         }
       }, 0);
     window.addEventListener('blur', onBlur);
@@ -941,6 +976,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       e.preventDefault();
       setServerMenu(false);
       setPanel(false);
+      setModeMenu(false);
       refocusPlayer();
     };
     window.addEventListener('keydown', onKey);
@@ -1087,7 +1123,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       </button>
 
       {/* VidRift's own scrubber: a real draggable seek bar, since nothing like it exists for the other providers. */}
-      {provider.id === 'vidrift' && (started || ready) && (
+      {provider.id === 'vidrift-custom' && (started || ready) && (
         <div
           ref={scrubRef}
           className={`sf-scrub ${panel || serverMenu || (chrome || paused) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}
@@ -1157,7 +1193,107 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           )}
         </div>
 
-        <div className={`sf-right ${provider.id === 'vidrift' ? 'is-vidrift' : ''}`} onMouseDown={keepPlayerFocus}>
+        <div className={`sf-right ${provider.id === 'vidrift-custom' ? 'is-vidrift' : ''}`} onMouseDown={keepPlayerFocus}>
+          {/* Global "Servers & Mode" picker: works for every provider, not just one. Reverse-engineered
+              from how other sites wrap VidRift — "Direct" is our own-backend provider (CineLite),
+              "Embed" is every third-party iframe, including both looks of VidRift (its native bar,
+              and our own custom-built one). Picking anything here turns off the auto-fallback cascade. */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setEmbedExpanded(provider.id !== DIRECT_PROVIDER_ID);
+                setModeMenu((v) => !v);
+              }}
+              className={`sf-btn ${modeMenu ? 'is-active' : ''}`}
+              aria-expanded={modeMenu}
+              aria-haspopup="menu"
+              aria-label="Servers &amp; Mode"
+            >
+              <VfServers />
+            </button>
+            {modeMenu && (
+              <div role="menu" className="sf-menu" aria-label="Servers and mode">
+                <div
+                  role="menuitemradio"
+                  tabIndex={0}
+                  aria-checked={provider.id === DIRECT_PROVIDER_ID}
+                  onClick={() => {
+                    setManualProviderId(DIRECT_PROVIDER_ID);
+                    setModeMenu(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      setManualProviderId(DIRECT_PROVIDER_ID);
+                      setModeMenu(false);
+                    }
+                  }}
+                  className="sf-menu-row"
+                >
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="sf-menu-name" style={provider.id === DIRECT_PROVIDER_ID ? { color: playerTheme.hex } : undefined}>
+                      Direct
+                    </span>
+                    <span className="sf-menu-details">CineLite — plays instantly, its own backend</span>
+                  </span>
+                  <span className="sf-menu-end">{provider.id === DIRECT_PROVIDER_ID ? <VfPlaying /> : null}</span>
+                </div>
+                <div
+                  role="menuitemradio"
+                  tabIndex={0}
+                  aria-checked={provider.id !== DIRECT_PROVIDER_ID}
+                  onClick={() => setEmbedExpanded((v) => !v)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      setEmbedExpanded((v) => !v);
+                    }
+                  }}
+                  className="sf-menu-row"
+                >
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="sf-menu-name" style={provider.id !== DIRECT_PROVIDER_ID ? { color: playerTheme.hex } : undefined}>
+                      Embed
+                    </span>
+                    <span className="sf-menu-details">Third-party players — pick one below</span>
+                  </span>
+                  <span className="sf-menu-end">{provider.id !== DIRECT_PROVIDER_ID ? <VfPlaying /> : <VfChevron />}</span>
+                </div>
+                {embedExpanded && (
+                  <div className="sf-menu-divider" role="group" aria-label="Embed source">
+                    {SELECTABLE_PROVIDERS.filter((p) => p.id !== DIRECT_PROVIDER_ID).map((p) => (
+                      <div
+                        key={p.id}
+                        role="menuitemradio"
+                        tabIndex={0}
+                        aria-checked={provider.id === p.id}
+                        onClick={() => {
+                          setManualProviderId(p.id);
+                          setModeMenu(false);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            setManualProviderId(p.id);
+                            setModeMenu(false);
+                          }
+                        }}
+                        className="sf-menu-row sf-menu-row-indent"
+                      >
+                        <span className="min-w-0 flex-1 text-left">
+                          <span className="sf-menu-name" style={provider.id === p.id ? { color: playerTheme.hex } : undefined}>
+                            {p.name}
+                          </span>
+                        </span>
+                        <span className="sf-menu-end">{provider.id === p.id ? <VfPlaying /> : null}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {mediaType === 'tv' && (
             <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes">
               <VfEpisodes />
@@ -1217,7 +1353,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
             </>
           )}
 
-          {provider.id === 'vidrift' && (
+          {provider.id === 'vidrift-custom' && (
             <>
               {/* Real play/pause + ±10s skip: VidRift's vidrift:play / vidrift:pause / vidrift:skip. */}
               <button
