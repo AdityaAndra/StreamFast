@@ -724,3 +724,8 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 /* VidFast's own icons sit further right than ours (see .sf-right above); VidRift has none left to clear, so our
    whole row — now much longer with skip/play/time/fullscreen added — sits flush to the edge instead. */
 .sf-right.is-vidrift { right: 4.5em; }
+
+
+/* ============ "Servers & Mode" picker: Mode (Direct/Embed) + Source list, nested in one sf-menu ============ */
+.sf-menu-divider { border-top: 1.6px solid rgba(255, 255, 255, 0.1); margin-top: 0.4em; padding-top: 0.4em; }
+.sf-menu-row-indent { padding-left: calc(1.225em + 1.2em); }
