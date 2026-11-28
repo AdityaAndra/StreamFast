@@ -9,6 +9,7 @@ import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { PlayIcon } from '../components/Icons';
 import { comingSentence, seedRelease, useRelease } from '../utils/release';
 import VIDFAST_SERVERS from '../data/vidfast-servers.json';
+import { PROVIDERS, PROVIDER_TIMEOUT_MS } from '../utils/embedProviders';
 
 const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
@@ -172,6 +173,13 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   }, [mediaType, season, episode, episodes, seasons]);
 
   /* ---------- player src (resume where you left off) ---------- */
+  // Multi-source fallback: CineLite first (its own backend, instant start, real 4K), then six
+  // third-party embeds in order. We switch to the next one if the current provider hasn't proved
+  // it's actually playing (a real ready/progress signal) within PROVIDER_TIMEOUT_MS.
+  const [providerIndex, setProviderIndex] = useState(0);
+  const provider = PROVIDERS[providerIndex];
+  const providerIndexRef = useRef(providerIndex);
+  providerIndexRef.current = providerIndex;
   const [defaultServer, setDefaultServer] = useState<string>(loadServer);
   const [server, setServer] = useState<string>(loadServer);
   // Where to restart after a server switch, tied to the episode it belongs to, so the next episode's
@@ -192,6 +200,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const lastTime = useRef(0);
   const volKey = useRef('');
   useEffect(() => setSwitchAt(undefined), [season, episode]);
+  // A fresh title starts back at the primary source; a provider that works (or fails) for one
+  // episode of the same show is kept for the next episode too, instead of retrying a dead primary
+  // every time.
+  useEffect(() => setProviderIndex(0), [id]);
 
   // When VidFast moves to the next episode on its own we only update the address bar: the player is
   // already playing that episode, so rebuilding its address would reload it from the start.
@@ -210,12 +222,20 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       if (same && saved.progress.watched > 30 && !nearEnd) resume = Math.floor(saved.progress.watched);
     }
     const t = resume ? `&startAt=${resume}` : '';
+    if (provider.id === 'vidfast') {
+      return mediaType === 'movie'
+        ? `${VIDFAST_EMBED_MOVIE}${id}?${theme}${t}`
+        : `${VIDFAST_EMBED_TV}${id}/${season}/${episode}?nextButton=true&autoNext=true&${theme}${t}`;
+    }
+    // Other providers: build their own URL shape. They don't have VidFast's internal server list,
+    // so `server` (VidFast-only) isn't passed; `resume` and the page theme still apply to all.
+    const opts = { autoplay, startAt: resume, theme: playerTheme.hex.replace('#', '') };
     return mediaType === 'movie'
-      ? `${VIDFAST_EMBED_MOVIE}${id}?${theme}${t}`
-      : `${VIDFAST_EMBED_TV}${id}/${season}/${episode}?nextButton=true&autoNext=true&${theme}${t}`;
-    // Only rebuild when the episode changes, not on every progress save.
+      ? provider.movieUrl(id, opts)
+      : provider.tvUrl(id, season!, episode!, opts);
+    // Only rebuild when the episode or the active provider changes, not on every progress save.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt, autoplay]);
+  }, [mediaType, id, season, episode, playerTheme.hex, server, switchAt, autoplay, provider]);
   srcRef.current = src;
 
   /* ---------- overlay chrome ----------
@@ -349,6 +369,18 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     };
   }, [src]);
 
+  // Multi-source fallback: if this provider hasn't proved it's playing within PROVIDER_TIMEOUT_MS,
+  // move to the next one. Resets whenever the src changes (new episode, or an earlier switch),
+  // same as the reset effect above, so the clock always measures the CURRENT provider's load time.
+  useEffect(() => {
+    if (notOut) return;
+    const t = window.setTimeout(() => {
+      if (readyRef.current) return; // this provider came up in time
+      setProviderIndex((i) => (i + 1 < PROVIDERS.length ? i + 1 : i));
+    }, PROVIDER_TIMEOUT_MS);
+    return () => window.clearTimeout(t);
+  }, [src, notOut]);
+
 
   /* ---------- progress saving (Continue Watching) ---------- */
   const lastSave = useRef(0);
@@ -372,7 +404,35 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      if (!VIDFAST_ORIGINS.includes(e.origin) || !e.data) return;
+      if (!e.data) return;
+      if (provider.id !== 'vidfast') {
+        // Generic path for the other six providers: we don't replicate VidFast's exact idle-timer
+        // choreography for them (that was reverse-engineered specifically for VidFast's timing),
+        // just enough to know the provider is alive, save progress, and feed the fallback timer below.
+        if (!provider.origins.includes(e.origin)) return;
+        const msg = provider.parseMessage(e.data);
+        if (!msg) return;
+        if (msg.ready && !readyRef.current) {
+          readyRef.current = true;
+          setReady(true);
+        }
+        if (typeof msg.playing === 'boolean') {
+          playingRef.current = msg.playing;
+          if (msg.playing) setStarted(true);
+        }
+        if (typeof msg.currentTime === 'number' && msg.currentTime > 0) {
+          lastTime.current = msg.currentTime;
+          setStarted(true);
+          const now = Date.now();
+          if (now - lastSave.current >= SAVE_EVERY_MS && typeof msg.duration === 'number' && msg.duration > 0) {
+            lastSave.current = now;
+            const { season: cs, episode: ce } = live.current;
+            save(mediaType === 'tv' ? { season: cs, episode: ce, watched: msg.currentTime, duration: msg.duration } : { watched: msg.currentTime, duration: msg.duration });
+          }
+        }
+        return;
+      }
+      if (!VIDFAST_ORIGINS.includes(e.origin)) return;
       if (e.data.type === 'MEDIA_DATA') {
         // VidFast's own saved progress for this title (sent every few seconds).
         const entry = e.data.data?.[`${mediaType === 'movie' ? 'm' : 't'}${id}`];
@@ -485,7 +545,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     };
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
-  }, [mediaType, id, save]);
+  }, [mediaType, id, save, provider]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
