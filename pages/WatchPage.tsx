@@ -159,6 +159,31 @@ const VfAudio = () => (
     <path d="M6 11a6 6 0 0 0 12 0M12 19v2" />
   </svg>
 );
+/* VidRift's full custom bar: skip ±10s and our own fullscreen toggle (its native chrome is hidden entirely). */
+const VfSkipBack = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3 12a9 9 0 1 0 9-9" />
+    <path d="M3 5v5h5" />
+    <text x="12" y="15.5" fontSize="7.5" fontWeight="700" fill="currentColor" stroke="none" textAnchor="middle">10</text>
+  </svg>
+);
+const VfSkipForward = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M21 12a9 9 0 1 1-9-9" />
+    <path d="M21 5v5h-5" />
+    <text x="12" y="15.5" fontSize="7.5" fontWeight="700" fill="currentColor" stroke="none" textAnchor="middle">10</text>
+  </svg>
+);
+const VfFsEnter = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9 4H5a1 1 0 0 0-1 1v4M15 4h4a1 1 0 0 1 1 1v4M9 20H5a1 1 0 0 1-1-1v-4M15 20h4a1 1 0 0 0 1-1v-4" />
+  </svg>
+);
+const VfFsExit = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M4 9h4a1 1 0 0 0 1-1V4M20 9h-4a1 1 0 0 1-1-1V4M4 15h4a1 1 0 0 1 1 1v4M20 15h-4a1 1 0 0 0-1 1v4" />
+  </svg>
+);
 /** CineLite's own quality values (its docs list these five). */
 const CINELITE_QUALITIES: TrackOption[] = [
   { value: 'auto', label: 'Auto' },
@@ -184,6 +209,14 @@ const toSearchResult = (d: TitleDetails): SearchResult => {
   return d.media_type === 'movie'
     ? { ...base, media_type: 'movie', title: d.title || '', original_title: d.original_title || '', release_date: d.release_date || '' }
     : { ...base, media_type: 'tv', name: d.name || '', original_name: d.original_name || '', first_air_date: d.first_air_date || '' };
+};
+/** "1:02:03" for an hour or more, else "12:34". Used by VidRift's own scrubber/time readout. */
+const formatTime = (secs: number) => {
+  const s = Math.max(0, Math.floor(isFinite(secs) ? secs : 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
 };
 
 interface WatchPageProps {
@@ -316,6 +349,14 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     audios: [],
   });
   const [vrMenu, setVrMenu] = useState<'subtitles' | 'audio' | null>(null);
+  // VidRift's own scrubber: real currentTime/duration from vidrift:state, and a live drag preview
+  // (non-null only while the pointer is down) so incoming updates never fight a scrub in progress.
+  const [vrProgress, setVrProgress] = useState<{ currentTime: number; duration: number }>({ currentTime: 0, duration: 0 });
+  const [scrubTime, setScrubTime] = useState<number | null>(null);
+  const scrubRef = useRef<HTMLDivElement>(null);
+  // Whether OUR box (not the iframe) is the fullscreen element — drives the fullscreen icon and,
+  // for VidRift, is echoed back to the player so it knows the state fs=parent put it in charge of.
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const idle = useRef<number | undefined>(undefined);
   // Netflix-style pause screen: appears 2s after you pause (and stop moving the mouse), never blocks clicks.
   const [pauseShow, setPauseShow] = useState(false);
@@ -414,6 +455,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setQualityMenu(false);
     setVrMenu(null);
     setVrState({ volume: 1, muted: false, subtitle: 'off', subtitles: [], audio: '', audios: [] });
+    setVrProgress({ currentTime: 0, duration: 0 });
+    setScrubTime(null);
     const t = window.setTimeout(() => setStuck(true), STUCK_MS);
     // Autoplay guard: never got ready -> load it again without autoplay.
     const g = autoplay
@@ -502,6 +545,19 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
             audio: msg.audio ?? v.audio,
             audios: msg.audios ?? v.audios,
           }));
+          if (typeof msg.currentTime === 'number' || typeof msg.duration === 'number') {
+            setVrProgress((p) => ({
+              currentTime: typeof msg.currentTime === 'number' ? msg.currentTime : p.currentTime,
+              duration: typeof msg.duration === 'number' ? msg.duration : p.duration,
+            }));
+          }
+          // VidRift (fs=parent) asks us to own fullscreen: the viewer pressed F, double-clicked,
+          // or hit its (hidden) fullscreen button's keyboard equivalent.
+          if (typeof msg.fullscreenRequest === 'boolean') {
+            const box = rootRef.current;
+            if (msg.fullscreenRequest) box?.requestFullscreen?.().catch(() => undefined);
+            else if (document.fullscreenElement === box) document.exitFullscreen().catch(() => undefined);
+          }
         }
         if (typeof msg.currentTime === 'number' && msg.currentTime > 0) {
           lastTime.current = msg.currentTime;
@@ -670,6 +726,11 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         return;
       }
       wasOurs = !!box && el === box;
+      setIsFullscreen(wasOurs);
+      // VidRift (fs=parent) expects to be told whenever our box's fullscreen state changes,
+      // so its own (hidden) fullscreen icon state and phone sheets would stay right if shown.
+      const prov = PROVIDERS[providerIndexRef.current];
+      if (prov.id === 'vidrift') sendCommandRef.current(prov.commands?.setFullscreenState?.(wasOurs));
     };
     document.addEventListener('fullscreenchange', onFs);
     return () => document.removeEventListener('fullscreenchange', onFs);
@@ -705,6 +766,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     },
     [provider],
   );
+  // A ref mirror so the fullscreenchange effect below (mount-once, empty deps) always posts through
+  // today's sendCommand/provider instead of the one that existed when the page first loaded.
+  const sendCommandRef = useRef(sendCommand);
+  sendCommandRef.current = sendCommand;
 
   /* ---------- hover sync ----------
      VidFast's player is its own page inside ours, so mouse moves over it never reach us, and its
@@ -1021,6 +1086,65 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         <VfBack />
       </button>
 
+      {/* VidRift's own scrubber: a real draggable seek bar, since nothing like it exists for the other providers. */}
+      {provider.id === 'vidrift' && (started || ready) && (
+        <div
+          ref={scrubRef}
+          className={`sf-scrub ${panel || serverMenu || (chrome || paused) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}
+          role="slider"
+          tabIndex={0}
+          aria-label="Seek"
+          aria-valuemin={0}
+          aria-valuemax={vrProgress.duration || 0}
+          aria-valuenow={scrubTime ?? vrProgress.currentTime}
+          onMouseDown={keepPlayerFocus}
+          onPointerDown={(e) => {
+            const el = scrubRef.current;
+            if (!el || !vrProgress.duration) return;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            const r = el.getBoundingClientRect();
+            const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+            setScrubTime(frac * vrProgress.duration);
+            mouseActivityRef.current(performance.now());
+          }}
+          onPointerMove={(e) => {
+            if (scrubTime === null || !vrProgress.duration) return;
+            const el = scrubRef.current;
+            if (!el) return;
+            const r = el.getBoundingClientRect();
+            const frac = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
+            setScrubTime(frac * vrProgress.duration);
+            mouseActivityRef.current(performance.now());
+          }}
+          onPointerUp={(e) => {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+            if (scrubTime !== null) {
+              sendCommand(provider.commands?.seek?.(scrubTime));
+              setScrubTime(null);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (!vrProgress.duration) return;
+            const step = e.key === 'ArrowRight' ? 5 : e.key === 'ArrowLeft' ? -5 : 0;
+            if (!step) return;
+            e.preventDefault();
+            const t = Math.min(vrProgress.duration, Math.max(0, vrProgress.currentTime + step));
+            sendCommand(provider.commands?.seek?.(t));
+          }}
+        >
+          <div className="sf-scrub-track">
+            <div
+              className="sf-scrub-fill"
+              style={{ width: `${vrProgress.duration ? ((scrubTime ?? vrProgress.currentTime) / vrProgress.duration) * 100 : 0}%`, background: playerTheme.hex }}
+            />
+            <div
+              className="sf-scrub-handle"
+              style={{ left: `${vrProgress.duration ? ((scrubTime ?? vrProgress.currentTime) / vrProgress.duration) * 100 : 0}%`, background: playerTheme.hex }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* bottom row, on the player's control bar: title in the middle, our buttons before subtitles */}
       <div className={`sf-bottom ${panel || serverMenu || ((started || ready) && (chrome || paused)) ? 'is-on' : !started && stuck ? 'is-stuck' : ''}`}>
         <div className={`sf-title ${mediaType === 'tv' ? 'is-tv' : ''}`}>
@@ -1033,7 +1157,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           )}
         </div>
 
-        <div className="sf-right" onMouseDown={keepPlayerFocus}>
+        <div className={`sf-right ${provider.id === 'vidrift' ? 'is-vidrift' : ''}`} onMouseDown={keepPlayerFocus}>
           {mediaType === 'tv' && (
             <button type="button" onClick={() => setPanel((v) => !v)} className={`sf-btn ${panel ? 'is-active' : ''}`} aria-expanded={panel} aria-label="Episodes">
               <VfEpisodes />
@@ -1095,6 +1219,31 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
 
           {provider.id === 'vidrift' && (
             <>
+              {/* Real play/pause + ±10s skip: VidRift's vidrift:play / vidrift:pause / vidrift:skip. */}
+              <button
+                type="button"
+                onClick={() => sendCommand(provider.commands?.skip?.(-10))}
+                className="sf-btn"
+                aria-label="Back 10 seconds"
+              >
+                <VfSkipBack />
+              </button>
+              <button
+                type="button"
+                onClick={() => sendCommand(provider.commands?.playPause?.(paused ? 'play' : 'pause'))}
+                className="sf-btn"
+                aria-label={paused ? 'Play' : 'Pause'}
+              >
+                {paused ? <VfPlaySmall /> : <VfPauseSmall />}
+              </button>
+              <button
+                type="button"
+                onClick={() => sendCommand(provider.commands?.skip?.(10))}
+                className="sf-btn"
+                aria-label="Forward 10 seconds"
+              >
+                <VfSkipForward />
+              </button>
               {/* Real volume + mute: VidRift's vidrift:set / vidrift:state round-trip. */}
               <div className="flex items-center gap-1.5">
                 <button
@@ -1118,6 +1267,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                   aria-label="Volume"
                 />
               </div>
+              {/* Real elapsed / total time, from the same vidrift:state the scrubber above reads. */}
+              <span className="sf-vr-time" aria-hidden="true">
+                {formatTime(scrubTime ?? vrProgress.currentTime)} / {formatTime(vrProgress.duration)}
+              </span>
               {/* Real subtitle / audio tracks: only shown once VidRift's state has told us this title has any. */}
               {vrState.subtitles.length > 0 && (
                 <div className="relative">
@@ -1209,6 +1362,21 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
                   )}
                 </div>
               )}
+              {/* Our own fullscreen button: VidRift's is hidden (hide=fullscreen); fs=parent hands us the job. */}
+              <button
+                type="button"
+                onClick={() => {
+                  const box = rootRef.current;
+                  if (!box) return;
+                  if (document.fullscreenElement === box) document.exitFullscreen().catch(() => undefined);
+                  else box.requestFullscreen().catch(() => undefined);
+                }}
+                className="sf-btn"
+                aria-pressed={isFullscreen}
+                aria-label={isFullscreen ? 'Exit full screen' : 'Full screen'}
+              >
+                {isFullscreen ? <VfFsExit /> : <VfFsEnter />}
+              </button>
             </>
           )}
 
