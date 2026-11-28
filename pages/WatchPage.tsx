@@ -9,7 +9,7 @@ import { goBack, navigate, openTitleFromWatch } from '../utils/router';
 import { PlayIcon } from '../components/Icons';
 import { comingSentence, seedRelease, useRelease } from '../utils/release';
 import VIDFAST_SERVERS from '../data/vidfast-servers.json';
-import { PROVIDERS, PROVIDER_TIMEOUT_MS } from '../utils/embedProviders';
+import { PROVIDERS, PROVIDER_TIMEOUT_MS, TrackOption } from '../utils/embedProviders';
 
 const VIDFAST_ORIGINS = [
   'https://vidfast.pro', 'https://vidfast.in', 'https://vidfast.io', 'https://vidfast.me', 'https://vidfast.net',
@@ -117,6 +117,56 @@ const NfNowBars = () => (
     <rect x="31" y="12" width="4" height="12" />
   </svg>
 );
+/* Our own CineLite / VidRift controls, drawn in the same 24px VidFast icon style as everything above. */
+const VfPlaySmall = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M8 5.14v13.72a1 1 0 0 0 1.5.86l11-6.86a1 1 0 0 0 0-1.72l-11-6.86A1 1 0 0 0 8 5.14Z" />
+  </svg>
+);
+const VfPauseSmall = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <rect x="6" y="5" width="4" height="14" rx="1" />
+    <rect x="14" y="5" width="4" height="14" rx="1" />
+  </svg>
+);
+const VfQuality = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M7 15l3-4 2.5 3L16 9l3 3" />
+  </svg>
+);
+const VfVolume = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor" />
+    <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const VfMuted = () => (
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+    <path d="M4 9v6h4l5 4V5L8 9H4Z" fill="currentColor" />
+    <path d="M16 9l5 6M21 9l-5 6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+const VfSubtitles = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="3" y="6" width="18" height="12" rx="2" />
+    <path d="M6.5 14.5h3M10.5 9.5h7M6.5 9.5h1.5M13.5 14.5h4" />
+  </svg>
+);
+const VfAudio = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3a4 4 0 0 0-4 4v5a4 4 0 0 0 8 0V7a4 4 0 0 0-4-4Z" />
+    <path d="M6 11a6 6 0 0 0 12 0M12 19v2" />
+  </svg>
+);
+/** CineLite's own quality values (its docs list these five). */
+const CINELITE_QUALITIES: TrackOption[] = [
+  { value: 'auto', label: 'Auto' },
+  { value: '4k', label: '4K' },
+  { value: '1080p', label: '1080p' },
+  { value: '720p', label: '720p' },
+  { value: '480p', label: '480p' },
+];
 const SERVER_KEY = 'sf_server';
 const loadServer = () => {
   try {
@@ -256,6 +306,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
   const [paused, setPaused] = useState(false);
   const [panel, setPanel] = useState(false);
   const [serverMenu, setServerMenu] = useState(false);
+  const [qualityMenu, setQualityMenu] = useState(false);
+  const [vrState, setVrState] = useState<{ volume: number; muted: boolean; subtitle: string; subtitles: TrackOption[]; audio: string; audios: TrackOption[] }>({
+    volume: 1,
+    muted: false,
+    subtitle: 'off',
+    subtitles: [],
+    audio: '',
+    audios: [],
+  });
+  const [vrMenu, setVrMenu] = useState<'subtitles' | 'audio' | null>(null);
   const idle = useRef<number | undefined>(undefined);
   // Netflix-style pause screen: appears 2s after you pause (and stop moving the mouse), never blocks clicks.
   const [pauseShow, setPauseShow] = useState(false);
@@ -351,6 +411,9 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     setPaused(false);
     setChrome(false);
     setStuck(false);
+    setQualityMenu(false);
+    setVrMenu(null);
+    setVrState({ volume: 1, muted: false, subtitle: 'off', subtitles: [], audio: '', audios: [] });
     const t = window.setTimeout(() => setStuck(true), STUCK_MS);
     // Autoplay guard: never got ready -> load it again without autoplay.
     const g = autoplay
@@ -412,6 +475,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         if (!provider.origins.includes(e.origin)) return;
         const msg = provider.parseMessage(e.data);
         if (!msg) return;
+        if (msg.commandError) {
+          // Not fatal: the control just didn't apply (e.g. sent before the stream was ready).
+          console.warn('[player]', provider.name, 'rejected', msg.commandError.command, msg.commandError.reason);
+        }
         if (msg.ready && !readyRef.current) {
           readyRef.current = true;
           setReady(true);
@@ -419,6 +486,22 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
         if (typeof msg.playing === 'boolean') {
           playingRef.current = msg.playing;
           if (msg.playing) setStarted(true);
+          // CineLite and VidRift report play/pause for real, so our pause screen and Play/Pause
+          // button can follow it (the other providers never send this, so this never fires for them).
+          if (pausedRef.current !== !msg.playing) {
+            pausedRef.current = !msg.playing;
+            setPaused(!msg.playing);
+          }
+        }
+        if (provider.id === 'vidrift') {
+          setVrState((v) => ({
+            volume: typeof msg.volume === 'number' ? msg.volume : v.volume,
+            muted: typeof msg.muted === 'boolean' ? msg.muted : v.muted,
+            subtitle: msg.subtitle ?? v.subtitle,
+            subtitles: msg.subtitles ?? v.subtitles,
+            audio: msg.audio ?? v.audio,
+            audios: msg.audios ?? v.audios,
+          }));
         }
         if (typeof msg.currentTime === 'number' && msg.currentTime > 0) {
           lastTime.current = msg.currentTime;
@@ -553,6 +636,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (serverMenu) setServerMenu(false);
+        else if (qualityMenu) setQualityMenu(false);
+        else if (vrMenu) setVrMenu(null);
         else if (panel) setPanel(false);
         else if (!document.fullscreenElement) openTitleFromWatch(titlePath({ id, media_type: mediaType, title: item ? getTitle(item) : '' } as any));
       }
@@ -562,7 +647,7 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [panel, serverMenu, id, mediaType, item]);
+  }, [panel, serverMenu, qualityMenu, vrMenu, id, mediaType, item]);
 
   useEffect(() => {
     if (item) document.title = `${getTitle(item)}${mediaType === 'tv' ? ` S${season}:E${episode}` : ''} — StreamFast`;
@@ -610,6 +695,16 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
       /* ignore */
     }
   };
+
+  // Send one of a provider's own commands (play/pause, volume, subtitle, audio, quality) to its iframe.
+  // Only CineLite and VidRift define any — for the rest, provider.commands is undefined and this never fires.
+  const sendCommand = useCallback(
+    (msg: any) => {
+      if (!msg) return;
+      iframeRef.current?.contentWindow?.postMessage(msg, provider.origins[0]);
+    },
+    [provider],
+  );
 
   /* ---------- hover sync ----------
      VidFast's player is its own page inside ours, so mouse moves over it never reach us, and its
@@ -762,6 +857,8 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           mouseActivityRef.current(performance.now()); // a click inside the player: VidFast's timer restarts
           setServerMenu(false);
           setPanel(false);
+          setQualityMenu(false);
+          setVrMenu(null);
         }
       }, 0);
     window.addEventListener('blur', onBlur);
@@ -863,6 +960,10 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
           // The player page reloading itself again and again (the old autoplay problem): turn autoplay off.
           loadCount.current += 1;
           if (autoplay && !readyRef.current && loadCount.current >= AUTOPLAY_MAX_LOADS) turnOffAutoplay();
+          // Ask providers that support it (CineLite, VidRift) for their current state once loaded.
+          if (provider.commands?.getState) {
+            window.setTimeout(() => sendCommand(provider.commands!.getState!()), 300);
+          }
         }}
         src={src}
         aria-label={title ? `${title} player` : 'Player'}
@@ -938,63 +1039,238 @@ const WatchPage: React.FC<WatchPageProps> = ({ mediaType, id, season: seasonProp
               <VfEpisodes />
             </button>
           )}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setServerMenu((v) => !v)}
-              className={`sf-btn ${serverMenu ? 'is-active' : ''}`}
-              aria-expanded={serverMenu}
-              aria-haspopup="menu"
-              aria-label={`Server: ${server || 'Auto'}`}
-            >
-              <VfCloud />
-            </button>
-            {serverMenu && (
-              <div role="menu" className="sf-menu" aria-label="Choose server">
-                {[{ name: '', badge: '', details: 'Best available server' }, ...SERVER_INFO].map((x) => {
-                  const on = server === x.name;
-                  return (
-                    <div
-                      key={x.name || 'auto'}
-                      role="menuitemradio"
-                      tabIndex={0}
-                      aria-checked={on}
-                      onClick={() => chooseServer(x.name)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          chooseServer(x.name);
-                        }
-                      }}
-                      className="sf-menu-row"
-                    >
-                      <span className="sf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
-                      <span className="min-w-0 flex-1 text-left">
-                        <span className="sf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
-                          {x.name || 'Auto'}
-                        </span>
-                        <span className="sf-menu-details">{x.details}</span>
-                      </span>
-                      <button
-                        type="button"
-                        className={`sf-menu-star ${defaultServer === x.name ? 'is-default' : ''}`}
-                        style={{ color: playerTheme.hex }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleDefault(x.name);
+
+          {provider.id === 'cinelite' && (
+            <>
+              {/* Real play/pause: CineLite's channel-mode embed listens for CINELITE_CMD. */}
+              <button
+                type="button"
+                onClick={() => sendCommand(provider.commands?.playPause?.('toggle'))}
+                className="sf-btn"
+                aria-label={paused ? 'Play' : 'Pause'}
+              >
+                {paused ? <VfPlaySmall /> : <VfPauseSmall />}
+              </button>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setQualityMenu((v) => !v)}
+                  className={`sf-btn ${qualityMenu ? 'is-active' : ''}`}
+                  aria-expanded={qualityMenu}
+                  aria-haspopup="menu"
+                  aria-label="Quality"
+                >
+                  <VfQuality />
+                </button>
+                {qualityMenu && (
+                  <div role="menu" className="sf-menu" aria-label="Choose quality">
+                    {CINELITE_QUALITIES.map((q) => (
+                      <div
+                        key={q.value}
+                        role="menuitemradio"
+                        tabIndex={0}
+                        onClick={() => {
+                          sendCommand(provider.commands?.setState?.({ quality: q.value }));
+                          setQualityMenu(false);
                         }}
-                        aria-pressed={defaultServer === x.name}
-                        aria-label={defaultServer === x.name ? `${x.name || 'Auto'} is your default server` : `Make ${x.name || 'Auto'} your default server`}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            sendCommand(provider.commands?.setState?.({ quality: q.value }));
+                            setQualityMenu(false);
+                          }
+                        }}
+                        className="sf-menu-row"
                       >
-                        <VfStar filled={defaultServer === x.name} />
-                      </button>
-                      <span className="sf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
-                    </div>
-                  );
-                })}
+                        <span className="min-w-0 flex-1 text-left">
+                          <span className="sf-menu-name">{q.label}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            </>
+          )}
+
+          {provider.id === 'vidrift' && (
+            <>
+              {/* Real volume + mute: VidRift's vidrift:set / vidrift:state round-trip. */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => sendCommand(provider.commands?.setState?.({ muted: !vrState.muted }))}
+                  className="sf-btn"
+                  aria-pressed={vrState.muted}
+                  aria-label={vrState.muted ? 'Unmute' : 'Mute'}
+                >
+                  {vrState.muted || vrState.volume === 0 ? <VfMuted /> : <VfVolume />}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={vrState.muted ? 0 : vrState.volume}
+                  onChange={(e) => sendCommand(provider.commands?.setState?.({ volume: Number(e.target.value), muted: false }))}
+                  style={{ accentColor: playerTheme.hex }}
+                  className="h-1 w-[72px] cursor-pointer"
+                  aria-label="Volume"
+                />
+              </div>
+              {/* Real subtitle / audio tracks: only shown once VidRift's state has told us this title has any. */}
+              {vrState.subtitles.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setVrMenu((v) => (v === 'subtitles' ? null : 'subtitles'))}
+                    className={`sf-btn ${vrMenu === 'subtitles' ? 'is-active' : ''}`}
+                    aria-expanded={vrMenu === 'subtitles'}
+                    aria-haspopup="menu"
+                    aria-label="Subtitles"
+                  >
+                    <VfSubtitles />
+                  </button>
+                  {vrMenu === 'subtitles' && (
+                    <div role="menu" className="sf-menu" aria-label="Choose subtitles">
+                      {vrState.subtitles.map((s) => (
+                        <div
+                          key={s.value}
+                          role="menuitemradio"
+                          tabIndex={0}
+                          aria-checked={vrState.subtitle === s.value}
+                          onClick={() => {
+                            sendCommand(provider.commands?.setState?.({ subtitle: s.value }));
+                            setVrMenu(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              sendCommand(provider.commands?.setState?.({ subtitle: s.value }));
+                              setVrMenu(null);
+                            }
+                          }}
+                          className="sf-menu-row"
+                        >
+                          <span className="min-w-0 flex-1 text-left">
+                            <span className="sf-menu-name" style={vrState.subtitle === s.value ? { color: playerTheme.hex } : undefined}>
+                              {s.label}
+                            </span>
+                          </span>
+                          <span className="sf-menu-end">{vrState.subtitle === s.value ? <VfPlaying /> : null}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              {vrState.audios.length > 1 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setVrMenu((v) => (v === 'audio' ? null : 'audio'))}
+                    className={`sf-btn ${vrMenu === 'audio' ? 'is-active' : ''}`}
+                    aria-expanded={vrMenu === 'audio'}
+                    aria-haspopup="menu"
+                    aria-label="Audio"
+                  >
+                    <VfAudio />
+                  </button>
+                  {vrMenu === 'audio' && (
+                    <div role="menu" className="sf-menu" aria-label="Choose audio language">
+                      {vrState.audios.map((a) => (
+                        <div
+                          key={a.value}
+                          role="menuitemradio"
+                          tabIndex={0}
+                          aria-checked={vrState.audio === a.value}
+                          onClick={() => {
+                            sendCommand(provider.commands?.setState?.({ audio: a.value }));
+                            setVrMenu(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              sendCommand(provider.commands?.setState?.({ audio: a.value }));
+                              setVrMenu(null);
+                            }
+                          }}
+                          className="sf-menu-row"
+                        >
+                          <span className="min-w-0 flex-1 text-left">
+                            <span className="sf-menu-name" style={vrState.audio === a.value ? { color: playerTheme.hex } : undefined}>
+                              {a.label}
+                            </span>
+                          </span>
+                          <span className="sf-menu-end">{vrState.audio === a.value ? <VfPlaying /> : null}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          {provider.id === 'vidfast' && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setServerMenu((v) => !v)}
+                className={`sf-btn ${serverMenu ? 'is-active' : ''}`}
+                aria-expanded={serverMenu}
+                aria-haspopup="menu"
+                aria-label={`Server: ${server || 'Auto'}`}
+              >
+                <VfCloud />
+              </button>
+              {serverMenu && (
+                <div role="menu" className="sf-menu" aria-label="Choose server">
+                  {[{ name: '', badge: '', details: 'Best available server' }, ...SERVER_INFO].map((x) => {
+                    const on = server === x.name;
+                    return (
+                      <div
+                        key={x.name || 'auto'}
+                        role="menuitemradio"
+                        tabIndex={0}
+                        aria-checked={on}
+                        onClick={() => chooseServer(x.name)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            chooseServer(x.name);
+                          }
+                        }}
+                        className="sf-menu-row"
+                      >
+                        <span className="sf-menu-badge">{x.badge ? <img src={x.badge} alt="" /> : <VfCloud />}</span>
+                        <span className="min-w-0 flex-1 text-left">
+                          <span className="sf-menu-name" style={on ? { color: playerTheme.hex } : undefined}>
+                            {x.name || 'Auto'}
+                          </span>
+                          <span className="sf-menu-details">{x.details}</span>
+                        </span>
+                        <button
+                          type="button"
+                          className={`sf-menu-star ${defaultServer === x.name ? 'is-default' : ''}`}
+                          style={{ color: playerTheme.hex }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleDefault(x.name);
+                          }}
+                          aria-pressed={defaultServer === x.name}
+                          aria-label={defaultServer === x.name ? `${x.name || 'Auto'} is your default server` : `Make ${x.name || 'Auto'} your default server`}
+                        >
+                          <VfStar filled={defaultServer === x.name} />
+                        </button>
+                        <span className="sf-menu-end">{on ? <VfPlaying /> : <VfChevron />}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
