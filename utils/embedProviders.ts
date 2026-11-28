@@ -73,8 +73,10 @@ const qs = (params: Record<string, string | number | boolean | undefined>) =>
     .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
     .join('&');
 
-// Every VidRift native control our own overlay replaces (see WatchPage's "vidrift" block): nothing
-// of its own chrome is left on screen once this takes effect.
+// Every VidRift native control our own custom-bar overlay replaces (see WatchPage's "vidrift-custom"
+// block): nothing of its own chrome is left on screen once this takes effect. The plain "vidrift"
+// provider below hides only its episode list (matching how other sites embed it) and keeps everything
+// else — its own scrubber, play/pause, volume, subtitles, settings, pause card — exactly as VidRift built it.
 const VIDRIFT_HIDE = 'progress,play,volume,skip,time,title,server,next,episodes,subtitles,settings,lock,pip,cast,fullscreen,gradient,pausecard';
 
 const CineLite: EmbedProvider = {
@@ -150,56 +152,75 @@ const Vidora: EmbedProvider = {
   allowSandbox: true,
 };
 
+const vidriftParseMessage = (d: any): ProviderMessage | null => {
+  if (!d || typeof d !== 'object' || typeof d.type !== 'string' || !d.type.startsWith('vidrift:')) return null;
+  if (d.type === 'vidrift:state') {
+    return {
+      ready: true,
+      playing: typeof d.paused === 'boolean' ? !d.paused : undefined,
+      currentTime: d.currentTime,
+      duration: d.duration,
+      ended: typeof d.currentTime === 'number' && typeof d.duration === 'number' && d.duration > 0 && d.currentTime >= d.duration - 0.5,
+      volume: d.volume,
+      muted: d.muted,
+      subtitle: d.subtitle,
+      subtitles: d.subtitles,
+      audio: d.audio,
+      audios: d.audios,
+      quality: d.quality,
+    };
+  }
+  if (d.type === 'vidrift:command-error') return { commandError: { command: d.command, field: d.field, reason: d.reason } };
+  if (d.type === 'vidrift:fullscreen') return { fullscreenRequest: !!d.on };
+  return null;
+};
+
+const vidriftCommands = {
+  getState: () => ({ type: 'vidrift:get-state' }),
+  playPause: (action: 'play' | 'pause' | 'toggle') => (action === 'pause' ? { type: 'vidrift:pause' } : action === 'play' ? { type: 'vidrift:play' } : null),
+  setState: (patch: { volume?: number; muted?: boolean; subtitle?: string; audio?: string; quality?: string }) => {
+    const { quality, ...rest } = patch; // VidRift takes quality too, but it's outside this task's scope
+    return Object.keys(rest).length ? { type: 'vidrift:set', ...rest } : null;
+  },
+  // Full custom bar extras: relative ±seconds skip, absolute seek (resume), and echoing our own
+  // fullscreen state back so the player (fs=parent) always agrees with what our page is doing.
+  skip: (seconds: number) => ({ type: 'vidrift:skip', seconds }),
+  seek: (time: number) => ({ type: 'vidrift:resume', currentTime: time }),
+  setFullscreenState: (on: boolean) => ({ type: 'vidrift:fullscreen-state', on }),
+};
+
+// VidRift, native look: like most sites that embed it (e.g. the one this was reverse-engineered
+// from), we hide only its episode list — our own panel replaces that — and leave every other
+// VidRift control exactly as it ships: its own scrubber, play/pause, volume, subtitles, settings,
+// quality/server picker and pause card. fs=parent still hands fullscreen to our page (same box as
+// our back arrow/title), so our top bar stays visible in fullscreen the same way it does elsewhere.
 const VidRift: EmbedProvider = {
   id: 'vidrift',
   name: 'VidRift',
   origins: ['https://embed.vidrift.net'],
-  // hide=... removes VidRift's whole native bar/pause card — our own overlay (scrubber, play/pause,
-  // skip, volume, time, subtitles, audio, fullscreen) replaces every one of these. fs=parent hands
-  // fullscreen to our page too (see the WatchPage fullscreenchange effect and vidrift:fullscreen below).
+  movieUrl: (id, o) =>
+    `https://embed.vidrift.net/embed/movie/${id}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme, hide: 'episodes', fs: 'parent' })}`,
+  tvUrl: (id, s, e, o) =>
+    `https://embed.vidrift.net/embed/tv/${id}/${s}/${e}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme, hide: 'episodes', fs: 'parent' })}`,
+  parseMessage: vidriftParseMessage,
+  allowSandbox: false,
+  commands: vidriftCommands,
+};
+
+// VidRift, our own full custom bar: hide=... removes VidRift's whole native bar/pause card — our
+// overlay (scrubber, play/pause, skip, volume, time, subtitles, audio, fullscreen) replaces every
+// one of these, built entirely from VidRift's own documented commands and state.
+const VidRiftCustom: EmbedProvider = {
+  id: 'vidrift-custom',
+  name: 'VidRift (Custom)',
+  origins: ['https://embed.vidrift.net'],
   movieUrl: (id, o) =>
     `https://embed.vidrift.net/embed/movie/${id}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme, hide: VIDRIFT_HIDE, fs: 'parent' })}`,
   tvUrl: (id, s, e, o) =>
     `https://embed.vidrift.net/embed/tv/${id}/${s}/${e}?${qs({ autoplay: o.autoplay ? 1 : undefined, t: o.startAt, brandColor: o.theme, hide: VIDRIFT_HIDE, fs: 'parent' })}`,
-  // VidRift's real message is `vidrift:state` (resent whenever anything in it changes),
-  // `vidrift:command-error`, and — because of fs=parent above — `vidrift:fullscreen` when the
-  // viewer presses F or double-clicks (there is no native button left for them to click instead).
-  parseMessage: (d) => {
-    if (!d || typeof d !== 'object' || typeof d.type !== 'string' || !d.type.startsWith('vidrift:')) return null;
-    if (d.type === 'vidrift:state') {
-      return {
-        ready: true,
-        playing: typeof d.paused === 'boolean' ? !d.paused : undefined,
-        currentTime: d.currentTime,
-        duration: d.duration,
-        ended: typeof d.currentTime === 'number' && typeof d.duration === 'number' && d.duration > 0 && d.currentTime >= d.duration - 0.5,
-        volume: d.volume,
-        muted: d.muted,
-        subtitle: d.subtitle,
-        subtitles: d.subtitles,
-        audio: d.audio,
-        audios: d.audios,
-        quality: d.quality,
-      };
-    }
-    if (d.type === 'vidrift:command-error') return { commandError: { command: d.command, field: d.field, reason: d.reason } };
-    if (d.type === 'vidrift:fullscreen') return { fullscreenRequest: !!d.on };
-    return null;
-  },
+  parseMessage: vidriftParseMessage,
   allowSandbox: false,
-  commands: {
-    getState: () => ({ type: 'vidrift:get-state' }),
-    playPause: (action) => (action === 'pause' ? { type: 'vidrift:pause' } : action === 'play' ? { type: 'vidrift:play' } : null),
-    setState: (patch) => {
-      const { quality, ...rest } = patch; // VidRift takes quality too, but it's outside this task's scope
-      return Object.keys(rest).length ? { type: 'vidrift:set', ...rest } : null;
-    },
-    // Full custom bar extras: relative ±seconds skip, absolute seek (resume), and echoing our own
-    // fullscreen state back so the player (fs=parent) always agrees with what our page is doing.
-    skip: (seconds) => ({ type: 'vidrift:skip', seconds }),
-    seek: (time) => ({ type: 'vidrift:resume', currentTime: time }),
-    setFullscreenState: (on) => ({ type: 'vidrift:fullscreen-state', on }),
-  },
+  commands: vidriftCommands,
 };
 
 const VidZee: EmbedProvider = {
@@ -230,6 +251,17 @@ const VidRock: EmbedProvider = {
   allowSandbox: true,
 };
 
+// The auto-cascade order (also the fallback chain if a title doesn't play): CineLite first (its own
+// backend, instant start), VidRift in its native look, then the rest. "VidRift (Custom)" is never
+// auto-picked — it's the exact same backend as "VidRift", just with our own bar instead of its own,
+// so cascading through both would only waste the one real attempt VidRift gets.
 export const PROVIDERS: EmbedProvider[] = [CineLite, VidFast, Cinezo, Vidora, VidRift, VidZee, VidRock];
 
-export const findProvider = (id: string) => PROVIDERS.find((p) => p.id === id);
+// Everything a viewer can manually pick from the "Servers & Mode" menu: the cascade list, plus our
+// custom-bar take on VidRift alongside its native one. "Direct" in that menu means CineLite
+// (DIRECT_PROVIDER_ID); every other entry — including both VidRift look is "Embed".
+export const SELECTABLE_PROVIDERS: EmbedProvider[] = [...PROVIDERS, VidRiftCustom];
+
+export const DIRECT_PROVIDER_ID = 'cinelite';
+
+export const findProvider = (id: string) => SELECTABLE_PROVIDERS.find((p) => p.id === id);
