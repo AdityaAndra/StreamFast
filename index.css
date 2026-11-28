@@ -703,3 +703,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px
 .sf-pause-tag { position: absolute; right: 10%; bottom: 10.5%; z-index: 1; font-size: max(2.1em, 16px); font-weight: 400; color: #e5e5e5; }
 @media (max-width: 640px) { .sf-pause-body { left: 7%; width: 84%; } }
 @media (prefers-reduced-motion: reduce) { .sf-pause, .sf-pause-body { transition-duration: 0.01s !important; } .sf-pause-body { transform: translateY(-50%) !important; } }
+
+
+/* ============ VidRift's own custom bar (its native chrome is fully hidden via hide=...) ============ */
+/* Scrubber: a real draggable seek bar, sitting just above the control row, same fade timing as sf-bottom. */
+.sf-scrub {
+  position: absolute; left: 3em; right: 3em; bottom: 8.6em; z-index: 3; height: 2.4em;
+  display: flex; align-items: center; cursor: pointer; opacity: 0; pointer-events: none;
+  transition: opacity 250ms ease;
+}
+.sf-scrub.is-on, .sf-scrub.is-stuck { opacity: 1; pointer-events: auto; }
+.sf-scrub-track { position: relative; width: 100%; height: 0.35em; border-radius: 1em; background: rgba(255, 255, 255, 0.25); }
+.sf-scrub-fill { position: absolute; left: 0; top: 0; height: 100%; border-radius: 1em; }
+.sf-scrub-handle {
+  position: absolute; top: 50%; width: 1.3em; height: 1.3em; border-radius: 50%;
+  transform: translate(-50%, -50%); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+}
+/* Elapsed / total time readout next to the volume slider. */
+.sf-vr-time { font-size: max(1.3em, 11px); font-weight: 500; color: rgba(255, 255, 255, 0.85); white-space: nowrap; padding: 0 0.4em; }
+/* VidFast's own icons sit further right than ours (see .sf-right above); VidRift has none left to clear, so our
+   whole row — now much longer with skip/play/time/fullscreen added — sits flush to the edge instead. */
+.sf-right.is-vidrift { right: 4.5em; }
